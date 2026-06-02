@@ -204,8 +204,9 @@ body {
     -webkit-text-fill-color: transparent;
   }
   .wordmark-cut {
-    color: inherit;
-    -webkit-text-fill-color: inherit;
+    background: none;
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
   }
 }
 @media (forced-colors: active) {
