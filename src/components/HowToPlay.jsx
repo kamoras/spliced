@@ -41,8 +41,7 @@ export default function HowToPlay({ onClose }) {
         </div>
         <ol>
           <li>
-            One slice is already locked in the right spot for today’s mystery
-            clip.
+            The first slice is locked as the start of today’s mystery clip.
           </li>
           <li>
             Drag the movable tiles to reorder them — or focus a tile’s handle

@@ -62,43 +62,29 @@ describe('shufflePieces', () => {
 });
 
 describe('buildAnchoredOrder', () => {
-  it('locks one seeded clip in its correct position', () => {
+  it('locks the first clip in the first position', () => {
     const pieces = makePieces(7);
     const order = buildAnchoredOrder(pieces, 12);
     const locked = order.filter((p) => p.locked);
 
     expect(locked).toHaveLength(1);
-    expect(order[locked[0].correctIndex].id).toBe(locked[0].id);
-  });
-
-  it('varies the locked position by seed', () => {
-    const pieces = makePieces(7);
-    const lockedPositions = new Set(
-      Array.from(
-        { length: 20 },
-        (_, seed) =>
-          buildAnchoredOrder(pieces, seed).find((p) => p.locked).correctIndex
-      )
-    );
-
-    expect(lockedPositions.size).toBeGreaterThan(1);
+    expect(order[0]).toMatchObject({ id: 'p0', correctIndex: 0, locked: true });
   });
 
   it('shuffles only the movable clips deterministically', () => {
     const pieces = makePieces(7);
     const first = buildAnchoredOrder(pieces, 42);
     const second = buildAnchoredOrder(pieces, 42);
-    const locked = first.find((p) => p.locked);
 
     expect(first.map((p) => p.id)).toEqual(second.map((p) => p.id));
     expect(
       first
-        .filter((p) => !p.locked)
+        .slice(1)
         .map((p) => p.id)
         .sort()
     ).toEqual(
       pieces
-        .filter((p) => p.id !== locked.id)
+        .slice(1)
         .map((p) => p.id)
         .sort()
     );

@@ -74,10 +74,9 @@ export default function Puzzle({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const movableIds = useMemo(
-    () => order.filter((p) => !p.locked).map((p) => p.id),
-    [order]
-  );
+  const anchorPiece = order[0];
+  const movablePieces = order.slice(1);
+  const movableIds = useMemo(() => order.slice(1).map((p) => p.id), [order]);
   const slotOf = (id) => order.findIndex((p) => p.id === id) + 1;
 
   // Stable identity (letter + colour) per piece, assigned from a scramble so it
@@ -105,7 +104,7 @@ export default function Puzzle({
     setOrder((cur) => {
       const from = cur.findIndex((p) => p.id === active.id);
       const to = cur.findIndex((p) => p.id === target.id);
-      if (cur[from]?.locked || cur[to]?.locked) return cur;
+      if (from <= 0 || to <= 0) return cur;
       return arrayMove(cur, from, to);
     });
     setFeedback(null);
@@ -293,27 +292,40 @@ export default function Puzzle({
         onDragEnd={handleDragEnd}
         accessibility={a11y}
       >
-        <SortableContext items={movableIds} strategy={rectSortingStrategy}>
-          <ol
-            className="board"
-            aria-label="Puzzle pieces in your current order"
-          >
-            {order.map((piece, idx) => (
-              <li key={piece.id} style={{ display: 'contents' }}>
-                <PieceTile
-                  piece={piece}
-                  position={idx}
-                  letter={identity[piece.id]?.letter}
-                  color={identity[piece.id]?.color}
-                  isPlaying={playingId === piece.id}
-                  isCorrect={piece.correctIndex === idx}
-                  locked={piece.locked}
-                  revealed={revealed}
-                />
-              </li>
-            ))}
-          </ol>
-        </SortableContext>
+        <ol className="board" aria-label="Puzzle pieces in your current order">
+          {anchorPiece && (
+            <li key={anchorPiece.id} style={{ display: 'contents' }}>
+              <PieceTile
+                piece={anchorPiece}
+                position={0}
+                letter={identity[anchorPiece.id]?.letter}
+                color={identity[anchorPiece.id]?.color}
+                isPlaying={playingId === anchorPiece.id}
+                isCorrect={anchorPiece.correctIndex === 0}
+                locked
+                revealed={revealed}
+              />
+            </li>
+          )}
+          <SortableContext items={movableIds} strategy={rectSortingStrategy}>
+            {movablePieces.map((piece, offset) => {
+              const idx = offset + 1;
+              return (
+                <li key={piece.id} style={{ display: 'contents' }}>
+                  <PieceTile
+                    piece={piece}
+                    position={idx}
+                    letter={identity[piece.id]?.letter}
+                    color={identity[piece.id]?.color}
+                    isPlaying={playingId === piece.id}
+                    isCorrect={piece.correctIndex === idx}
+                    revealed={revealed}
+                  />
+                </li>
+              );
+            })}
+          </SortableContext>
+        </ol>
       </DndContext>
 
       <GuessHistory guesses={guessHistory} />

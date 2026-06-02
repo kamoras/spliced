@@ -5,64 +5,50 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
 import { loadAndSlice } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
-import { SONGS } from '../../api/_songs.js';
-
-const DIFFICULTIES = [
-  { label: 'Easy', pieces: 5 },
-  { label: 'Medium', pieces: 7 },
-  { label: 'Hard', pieces: 9 },
-];
+import { DAILY_PIECES, SONGS } from '../../api/_songs.js';
 
 function randomCatalogSong() {
   return SONGS[Math.floor(Math.random() * SONGS.length)];
 }
 
 export default function PracticeGame({ onDaily }) {
-  const [difficulty, setDifficulty] = useState(DIFFICULTIES[1]);
   const [phase, setPhase] = useState('loading'); // loading | play | error
   const [error, setError] = useState(null);
   const [game, setGame] = useState(null);
   const requestRef = useRef(0);
 
-  const startRandomPuzzle = useCallback(
-    async (selectedDifficulty = difficulty) => {
-      const requestId = ++requestRef.current;
-      const catalogSong = randomCatalogSong();
-      setError(null);
-      setGame(null);
-      setPhase('loading');
-      try {
-        const search = await fetch(
-          `/api/search?term=${encodeURIComponent(`${catalogSong.title} ${catalogSong.artist}`)}`
-        );
-        if (!search.ok) throw new Error('Could not find a practice song.');
-        const data = await search.json();
-        const song = data.results?.[0];
-        if (!song) throw new Error('Could not find a playable preview.');
+  const startRandomPuzzle = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    const catalogSong = randomCatalogSong();
+    setError(null);
+    setGame(null);
+    setPhase('loading');
+    try {
+      const search = await fetch(
+        `/api/search?term=${encodeURIComponent(`${catalogSong.title} ${catalogSong.artist}`)}`
+      );
+      if (!search.ok) throw new Error('Could not find a practice song.');
+      const data = await search.json();
+      const song = data.results?.[0];
+      if (!song) throw new Error('Could not find a playable preview.');
 
-        const { buffer, pieces } = await loadAndSlice(
-          song.previewUrl,
-          selectedDifficulty.pieces
-        );
-        if (requestId !== requestRef.current) return;
-        setGame({ song, buffer, pieces });
-        setPhase('play');
-      } catch (err) {
-        if (requestId !== requestRef.current) return;
-        setError(err.message || 'Something went wrong loading that clip.');
-        setPhase('error');
-      }
-    },
-    [difficulty]
-  );
+      const { buffer, pieces } = await loadAndSlice(
+        song.previewUrl,
+        DAILY_PIECES
+      );
+      if (requestId !== requestRef.current) return;
+      setGame({ song, buffer, pieces });
+      setPhase('play');
+    } catch (err) {
+      if (requestId !== requestRef.current) return;
+      setError(err.message || 'Something went wrong loading that clip.');
+      setPhase('error');
+    }
+  }, []);
 
   useEffect(() => {
-    startRandomPuzzle(difficulty);
-  }, [difficulty, startRandomPuzzle]);
-
-  function chooseDifficulty(nextDifficulty) {
-    setDifficulty(nextDifficulty);
-  }
+    startRandomPuzzle();
+  }, [startRandomPuzzle]);
 
   return (
     <div>
@@ -81,12 +67,6 @@ export default function PracticeGame({ onDaily }) {
           </button>
         </div>
       </div>
-
-      <DifficultyControls
-        difficulty={difficulty}
-        disabled={phase === 'loading'}
-        onPick={chooseDifficulty}
-      />
 
       {phase === 'play' && game ? (
         <Puzzle
@@ -116,27 +96,6 @@ export default function PracticeGame({ onDaily }) {
           )}
         </section>
       )}
-    </div>
-  );
-}
-
-function DifficultyControls({ difficulty, disabled, onPick }) {
-  return (
-    <div className="difficulty" role="group" aria-label="Difficulty">
-      <span className="difficulty-label">Difficulty</span>
-      {DIFFICULTIES.map((d) => (
-        <button
-          key={d.label}
-          type="button"
-          className="chip"
-          aria-pressed={difficulty.label === d.label}
-          onClick={() => onPick(d)}
-          disabled={disabled}
-        >
-          {d.label}
-          <span className="chip-sub">{d.pieces - 1} movable</span>
-        </button>
-      ))}
     </div>
   );
 }

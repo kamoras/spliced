@@ -41,7 +41,7 @@ export const SONGS = [
   { title: 'Toxic', artist: 'Britney Spears' },
 ];
 
-// Pieces per daily puzzle (the same for everyone): one randomly positioned locked clip
+// Pieces per daily puzzle (the same for everyone): one locked start clip
 // plus six movable clips to arrange by ear.
 export const DAILY_PIECES = 7;
 

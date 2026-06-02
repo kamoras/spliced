@@ -21,13 +21,6 @@ function shuffledCopy(pieces, rand) {
   return order;
 }
 
-function anchorIndexFor(pieces, seed) {
-  if (pieces.length === 0) return -1;
-  const rand =
-    typeof seed === 'number' ? mulberry32(seed + 0x9e3779b9) : Math.random;
-  return Math.floor(rand() * pieces.length);
-}
-
 function markLocked(piece, locked) {
   return { ...piece, locked };
 }
@@ -52,22 +45,17 @@ export function shufflePieces(pieces, seed) {
   return order;
 }
 
-// Pick the clip to lock in place. Seeded puzzles choose the same locked slot
-// for everyone; practice puzzles choose a fresh one.
-export function getAnchorPiece(pieces, seed) {
-  const anchorIndex = anchorIndexFor(pieces, seed);
-  return (
-    pieces.find((piece) => piece.correctIndex === anchorIndex) ||
-    pieces[0] ||
-    null
-  );
+// Keep the first clip fixed so players have a stable anchor in the random
+// iTunes preview.
+export function getAnchorPiece(pieces) {
+  return pieces.find((piece) => piece.correctIndex === 0) || pieces[0] || null;
 }
 
-// Build the playable puzzle order: one clip is locked in its correct position
-// and all remaining clips are shuffled around it. The full arrangement is never
-// already solved unless there are too few movable clips to scramble.
+// Build the playable puzzle order: the first clip is locked in place and all
+// remaining clips are shuffled after it. The full arrangement is never already
+// solved unless there are too few movable clips to scramble.
 export function buildAnchoredOrder(pieces, seed) {
-  const anchor = getAnchorPiece(pieces, seed);
+  const anchor = getAnchorPiece(pieces);
   if (!anchor) return [];
 
   const lockedAnchor = markLocked(anchor, true);
@@ -75,22 +63,14 @@ export function buildAnchoredOrder(pieces, seed) {
     .filter((piece) => piece.id !== anchor.id)
     .map((piece) => markLocked(piece, false));
 
-  if (movable.length < 2) {
-    return pieces.map((piece) =>
-      piece.id === anchor.id ? lockedAnchor : markLocked(piece, false)
-    );
-  }
+  if (movable.length < 2) return [lockedAnchor, ...movable];
 
   const seeded = typeof seed === 'number';
   let attempt = 0;
   let order;
   do {
     const rand = seeded ? mulberry32(seed + attempt) : Math.random;
-    const shuffled = shuffledCopy(movable, rand);
-    order = Array.from({ length: pieces.length }, (_, idx) => {
-      if (idx === anchor.correctIndex) return lockedAnchor;
-      return shuffled.shift();
-    });
+    order = [lockedAnchor, ...shuffledCopy(movable, rand)];
     attempt++;
   } while (isSolved(order));
 
