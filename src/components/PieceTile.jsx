@@ -1,6 +1,7 @@
-// A single draggable puzzle piece: drag handle + waveform + play button.
-// When the answer is revealed, each tile shows its correctness with an icon
-// AND a word — never colour alone — for colourblind accessibility.
+// A single draggable puzzle piece. Each piece has a stable identity (a colour
+// and letter) that travels with it as it's reordered, so a move is visibly the
+// same clip in a new spot. When the answer is revealed, correctness is shown
+// with an icon AND a word — never colour alone.
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -10,6 +11,8 @@ import Icon from './Icon.jsx';
 export default function PieceTile({
   piece,
   position,
+  letter,
+  color,
   isPlaying,
   isCorrect,
   revealed,
@@ -33,29 +36,30 @@ export default function PieceTile({
     .filter(Boolean)
     .join(' ');
 
-  const slot = position + 1;
-
   return (
     <div ref={setNodeRef} style={style} className={className}>
       <button
         type="button"
         className="tile-grip"
-        aria-label={`Reorder the piece in slot ${slot}`}
+        aria-label={`Reorder clip ${letter} (currently position ${position + 1})`}
         {...attributes}
         {...listeners}
       >
-        <span className="slot-no">{slot}</span>
+        <span className="tile-id">
+          <span className="tile-dot" style={{ background: color }} aria-hidden="true" />
+          {letter}
+        </span>
         <Icon name="grip" className="grip-dots" />
       </button>
 
       <div className="tile-wave">
-        <Waveform peaks={piece.peaks} active={isPlaying} />
+        <Waveform peaks={piece.peaks} active={isPlaying} color={color} />
       </div>
 
       <button
         type="button"
         className="tile-play"
-        aria-label={`${isPlaying ? 'Pause' : 'Play'} the piece in slot ${slot}`}
+        aria-label={`${isPlaying ? 'Pause' : 'Play'} clip ${letter}`}
         onClick={() => onPlay(piece)}
       >
         <Icon name={isPlaying ? 'pause' : 'play'} />

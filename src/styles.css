@@ -369,14 +369,14 @@ body {
 
 /* ---------- board / tiles ---------- */
 .board {
-  display: flex;
-  flex-wrap: wrap;
+  /* Grid (not flex) so a partial last row keeps the same tile width as full
+     rows instead of stretching to fill. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
 .tile {
-  flex: 1 1 120px;
-  min-width: 108px;
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -415,9 +415,20 @@ body {
 .tile-grip:active {
   cursor: grabbing;
 }
-.slot-no {
+/* Stable per-piece identity (colour + letter) so a moved clip is visibly the
+   same clip in a new spot — the colour/letter travel with the piece. */
+.tile-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
   color: var(--text);
+}
+.tile-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
 }
 .grip-dots {
   font-size: 18px;
