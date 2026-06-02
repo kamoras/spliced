@@ -22,10 +22,12 @@ import Icon from './Icon.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
 import {
-  isSolved,
+  buildAnchoredOrder,
   countCorrect,
-  shufflePieces,
+  gradeOrder,
   guessesLeft,
+  isSolved,
+  shufflePieces,
 } from '../audio/puzzle.js';
 
 export default function Puzzle({
@@ -38,14 +40,23 @@ export default function Puzzle({
   maxGuesses = Infinity,
   onResult,
 }) {
-  const [order, setOrder] = useState(() => shufflePieces(pieces, seed));
+  const initialOrderRef = useRef(null);
+  if (!initialOrderRef.current) {
+    initialOrderRef.current = buildAnchoredOrder(pieces, seed);
+  }
+
+  const [order, setOrder] = useState(() => initialOrderRef.current);
+  const [playbackOrder, setPlaybackOrder] = useState(
+    () => initialOrderRef.current
+  );
   const [playingId, setPlayingId] = useState(null);
-  const [seqIndex, setSeqIndex] = useState(-1);
+  const [playingSequence, setPlayingSequence] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [solved, setSolved] = useState(false);
   const [lost, setLost] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [attempts, setAttempts] = useState(0);
+  const [guessHistory, setGuessHistory] = useState([]);
 
   const playerRef = useRef(null);
   if (!playerRef.current) {
@@ -83,6 +94,7 @@ export default function Puzzle({
 
   const limited = Number.isFinite(maxGuesses);
   const over = solved || lost || revealed;
+  const movableTotal = Math.max(0, order.length - 1);
 
   function handleDragEnd(event) {
     const { active, over: target } = event;
@@ -90,46 +102,69 @@ export default function Puzzle({
     setOrder((cur) => {
       const from = cur.findIndex((p) => p.id === active.id);
       const to = cur.findIndex((p) => p.id === target.id);
+      if (from <= 0 || to <= 0) return cur;
       return arrayMove(cur, from, to);
     });
     setFeedback(null);
   }
 
-  function playPiece(piece) {
-    if (playingId === piece.id) {
-      player.stop();
-      setPlayingId(null);
-      return;
-    }
-    setSeqIndex(-1);
-    setPlayingId(piece.id);
-    player.playPiece(piece, () => setPlayingId(null));
-  }
-
   function stopAll() {
     player.stop();
     setPlayingId(null);
-    setSeqIndex(-1);
+    setPlayingSequence(false);
+  }
+
+  function playSequence(sequence) {
+    setPlayingId(null);
+    setPlayingSequence(true);
+    player.playSequence(sequence, {
+      onPiece: (idx) => setPlayingId(sequence[idx]?.id ?? null),
+      onEnd: () => {
+        setPlayingId(null);
+        setPlayingSequence(false);
+      },
+    });
+  }
+
+  function playLastSubmittedOrder() {
+    if (playingSequence) {
+      stopAll();
+      return;
+    }
+    playSequence(playbackOrder);
   }
 
   // Play the correct song end-to-end (offered once the game is over).
   function playSong() {
-    setPlayingId(null);
-    player.playSequence(pieces, {
-      onPiece: (idx) => setSeqIndex(idx),
-      onEnd: () => setSeqIndex(-1),
-    });
+    if (playingSequence) {
+      stopAll();
+      return;
+    }
+    playSequence([...pieces].sort((a, b) => a.correctIndex - b.correctIndex));
   }
 
-  // Submitting a guess plays the arrangement back in your current order, then
-  // grades it. Solving — or running out of guesses — ends the game.
   function submitGuess() {
+    const guess = order;
     const tries = attempts + 1;
-    setAttempts(tries);
-    setPlayingId(null);
-
-    const won = isSolved(order);
+    const grades = gradeOrder(guess);
+    const won = isSolved(guess);
     const out = limited && tries >= maxGuesses && !won;
+
+    setAttempts(tries);
+    setPlaybackOrder(guess);
+    setPlayingId(null);
+    setGuessHistory((cur) => [
+      ...cur,
+      {
+        number: tries,
+        tiles: guess.map((piece, idx) => ({
+          id: piece.id,
+          letter: letterOf(piece.id),
+          correct: grades[idx].correct,
+          anchor: grades[idx].anchor,
+        })),
+      },
+    ]);
 
     if (won) {
       setSolved(true);
@@ -137,29 +172,25 @@ export default function Puzzle({
       setFeedback(null);
       onResult?.({ solved: true, attempts: tries });
     } else if (out) {
-      // Keep the final arrangement so it stays graded tile-by-tile.
       setLost(true);
       setRevealed(true);
       setFeedback(null);
       onResult?.({ solved: false, attempts: tries });
     } else {
-      const right = countCorrect(order);
+      const right = Math.max(0, countCorrect(guess) - 1);
       const left = limited ? guessesLeft(tries, maxGuesses) : null;
       const tail = limited
         ? ` ${left} ${left === 1 ? 'guess' : 'guesses'} left.`
         : '';
       setFeedback(
         right === 0
-          ? `Nothing in place yet — trust your ears.${tail}`
-          : `Close! ${right} of ${order.length} pieces are in the right spot.${tail}`
+          ? `No movable clips in place yet.${tail}`
+          : `Close! ${right} of ${movableTotal} movable clips are in the right spot.${tail}`
       );
     }
 
-    // Hear the order you just submitted.
-    player.playSequence(order, {
-      onPiece: (idx) => setSeqIndex(idx),
-      onEnd: () => setSeqIndex(-1),
-    });
+    // A submitted guess becomes the only playable arrangement.
+    playSequence(guess);
   }
 
   // Give up: reveal the title, keep your order graded, and play the answer.
@@ -168,24 +199,27 @@ export default function Puzzle({
     setSolved(false);
     setFeedback(null);
     onResult?.({ solved: false, attempts });
-    playSong();
+    playSequence([...pieces].sort((a, b) => a.correctIndex - b.correctIndex));
   }
 
-  // Daily (seeded) → resets to the shared scramble; practice → a fresh one.
+  // Daily (seeded) -> resets to the shared scramble; practice -> a fresh one.
   function reshuffle() {
     stopAll();
-    setOrder(shufflePieces(pieces, seed));
+    const next = buildAnchoredOrder(pieces, seed);
+    setOrder(next);
+    setPlaybackOrder(next);
     setRevealed(false);
     setSolved(false);
     setLost(false);
     setFeedback(null);
     setAttempts(0);
+    setGuessHistory([]);
   }
 
   const a11y = {
     screenReaderInstructions: {
       draggable:
-        'To reorder a piece, press Space or Enter to pick it up, use the arrow keys to move it, then press Space or Enter to drop it.',
+        'To reorder a movable clip, press Space or Enter to pick it up, use the arrow keys to move it, then press Space or Enter to drop it.',
     },
     announcements: {
       onDragStart: ({ active }) => `Picked up clip ${letterOf(active.id)}.`,
@@ -198,6 +232,12 @@ export default function Puzzle({
       onDragCancel: () => 'Reorder cancelled.',
     },
   };
+
+  const playLabel = playingSequence
+    ? 'Stop playback'
+    : attempts > 0
+      ? 'Replay last guess'
+      : 'Play starting order';
 
   return (
     <div className="panel">
@@ -212,9 +252,8 @@ export default function Puzzle({
           <div className="np-artist">{over ? song.artist : 'Mystery clip'}</div>
         </div>
         <div className="np-meta">
-          {order.length} pieces
-          <br />
-          {attempts} {attempts === 1 ? 'try' : 'tries'}
+          {movableTotal} movable
+          <br />1 locked start
         </div>
       </div>
 
@@ -244,7 +283,10 @@ export default function Puzzle({
           items={orderedIds}
           strategy={horizontalListSortingStrategy}
         >
-          <ol className="board" aria-label="Puzzle pieces in your current order">
+          <ol
+            className="board"
+            aria-label="Puzzle pieces in your current order"
+          >
             {order.map((piece, idx) => (
               <li key={piece.id} style={{ display: 'contents' }}>
                 <PieceTile
@@ -252,16 +294,18 @@ export default function Puzzle({
                   position={idx}
                   letter={identity[piece.id]?.letter}
                   color={identity[piece.id]?.color}
-                  isPlaying={playingId === piece.id || seqIndex === idx}
+                  isPlaying={playingId === piece.id}
                   isCorrect={piece.correctIndex === idx}
+                  locked={piece.correctIndex === 0}
                   revealed={revealed}
-                  onPlay={playPiece}
                 />
               </li>
             ))}
           </ol>
         </SortableContext>
       </DndContext>
+
+      <GuessHistory guesses={guessHistory} />
 
       <div role="status" aria-live="polite">
         {feedback && !over && <p className="feedback">{feedback}</p>}
@@ -286,11 +330,19 @@ export default function Puzzle({
       <div className="controls">
         {!over ? (
           <>
-            <button type="button" className="btn btn--primary" onClick={submitGuess}>
-              <Icon name="check" /> Submit guess
+            <button
+              type="button"
+              className="btn"
+              onClick={playLastSubmittedOrder}
+            >
+              <Icon name={playingSequence ? 'stop' : 'play'} /> {playLabel}
             </button>
-            <button type="button" className="btn" onClick={stopAll}>
-              <Icon name="stop" /> Stop
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={submitGuess}
+            >
+              <Icon name="check" /> Submit guess
             </button>
             <button type="button" className="btn" onClick={reshuffle}>
               <Icon name={typeof seed === 'number' ? 'reset' : 'shuffle'} />
@@ -302,14 +354,20 @@ export default function Puzzle({
           </>
         ) : (
           <>
-            <button type="button" className="btn btn--primary" onClick={playSong}>
-              <Icon name="play" /> Play song
-            </button>
-            <button type="button" className="btn" onClick={stopAll}>
-              <Icon name="stop" /> Stop
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={playSong}
+            >
+              <Icon name={playingSequence ? 'stop' : 'play'} />
+              {playingSequence ? 'Stop playback' : 'Play song'}
             </button>
             {onNewPuzzle && (
-              <button type="button" className="btn btn--ghost" onClick={onNewPuzzle}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={onNewPuzzle}
+              >
                 {newPuzzleLabel}
               </button>
             )}
@@ -317,5 +375,51 @@ export default function Puzzle({
         )}
       </div>
     </div>
+  );
+}
+
+function GuessHistory({ guesses }) {
+  if (guesses.length === 0) return null;
+
+  return (
+    <section className="guess-history" aria-label="Guess history">
+      <div className="guess-history-title">Guess history</div>
+      <ol className="guess-list">
+        {guesses.map((guess) => (
+          <li key={guess.number} className="guess-entry">
+            <span className="guess-number">#{guess.number}</span>
+            <div className="guess-row">
+              {guess.tiles.map((tile) => (
+                <span
+                  key={`${guess.number}-${tile.id}`}
+                  className={[
+                    'guess-cell',
+                    tile.correct ? 'guess-cell--correct' : 'guess-cell--wrong',
+                    tile.anchor && 'guess-cell--anchor',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  aria-label={`Clip ${tile.letter}: ${
+                    tile.anchor
+                      ? 'locked start'
+                      : tile.correct
+                        ? 'correct spot'
+                        : 'wrong spot'
+                  }`}
+                >
+                  <span>{tile.letter}</span>
+                  <Icon
+                    name={
+                      tile.anchor ? 'lock' : tile.correct ? 'check' : 'close'
+                    }
+                    className="guess-cell-icon"
+                  />
+                </span>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
