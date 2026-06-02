@@ -1,0 +1,83 @@
+// Free play: search any song and build a one-off puzzle. Picking a song
+// naturally spoils it, so this is kept separate from the daily mystery.
+
+import { useState } from 'react';
+import SongSearch from './SongSearch.jsx';
+import Puzzle from './Puzzle.jsx';
+import { loadAndSlice, unlockAudio } from '../audio/slicer.js';
+
+const DIFFICULTIES = [
+  { label: 'Easy', pieces: 4 },
+  { label: 'Medium', pieces: 6 },
+  { label: 'Hard', pieces: 8 },
+];
+
+export default function PracticeGame({ onDaily }) {
+  const [difficulty, setDifficulty] = useState(DIFFICULTIES[1]);
+  const [phase, setPhase] = useState('pick'); // pick | loading | play
+  const [error, setError] = useState(null);
+  const [game, setGame] = useState(null);
+
+  async function startPuzzle(song) {
+    setError(null);
+    setPhase('loading');
+    try {
+      await unlockAudio();
+      const { buffer, pieces } = await loadAndSlice(song.previewUrl, difficulty.pieces);
+      setGame({ song, buffer, pieces });
+      setPhase('play');
+    } catch (err) {
+      setError(err.message || 'Something went wrong loading that clip.');
+      setPhase('pick');
+    }
+  }
+
+  function newPuzzle() {
+    setGame(null);
+    setPhase('pick');
+    setError(null);
+  }
+
+  if (phase === 'play' && game) {
+    return (
+      <Puzzle
+        song={game.song}
+        buffer={game.buffer}
+        pieces={game.pieces}
+        onNewPuzzle={newPuzzle}
+        newPuzzleLabel="← Pick another song"
+      />
+    );
+  }
+
+  return (
+    <section className="setup">
+      <div className="daily-bar">
+        <span className="daily-no">Practice mode</span>
+        <button className="link" onClick={onDaily}>
+          ← Back to daily
+        </button>
+      </div>
+
+      <div className="difficulty">
+        <span className="difficulty-label">Difficulty</span>
+        {DIFFICULTIES.map((d) => (
+          <button
+            key={d.label}
+            className={`chip ${difficulty.label === d.label ? 'chip-on' : ''}`}
+            onClick={() => setDifficulty(d)}
+            disabled={phase === 'loading'}
+          >
+            {d.label}
+            <span className="chip-sub">{d.pieces} pieces</span>
+          </button>
+        ))}
+      </div>
+
+      <SongSearch onPick={startPuzzle} disabled={phase === 'loading'} />
+
+      {phase === 'loading' && <p className="muted center">Slicing up the clip…</p>}
+      {error && <p className="error center">{error}</p>}
+    </section>
+  );
+}
