@@ -7,6 +7,8 @@ import {
   isSolved,
   countCorrect,
   guessesLeft,
+  scoreBand,
+  scorePuzzle,
 } from './puzzle.js';
 
 const makePieces = (n) =>
@@ -137,5 +139,57 @@ describe('guessesLeft', () => {
     expect(guessesLeft(4, 6)).toBe(2);
     expect(guessesLeft(6, 6)).toBe(0);
     expect(guessesLeft(9, 6)).toBe(0);
+  });
+});
+
+describe('scorePuzzle', () => {
+  it('starts solved players at 1000 points with one free full play', () => {
+    expect(scorePuzzle({ solved: true, attempts: 1, fullPlays: 1 })).toBe(1000);
+  });
+
+  it('penalizes wrong guesses, extra full plays, join checks, and hints', () => {
+    expect(
+      scorePuzzle({
+        solved: true,
+        attempts: 3,
+        fullPlays: 4,
+        joinChecks: 12,
+        hints: 1,
+      })
+    ).toBe(480);
+  });
+
+  it('scores exhaustive one-guess checking below a cleaner two-guess solve', () => {
+    const exhaustive = scorePuzzle({
+      solved: true,
+      attempts: 1,
+      fullPlays: 18,
+      joinChecks: 40,
+    });
+    const cleaner = scorePuzzle({
+      solved: true,
+      attempts: 2,
+      fullPlays: 4,
+      joinChecks: 10,
+    });
+
+    expect(exhaustive).toBe(460);
+    expect(cleaner).toBe(740);
+    expect(cleaner).toBeGreaterThan(exhaustive);
+  });
+
+  it('returns 0 for unsolved games', () => {
+    expect(scorePuzzle({ solved: false, attempts: 3, fullPlays: 1 })).toBe(0);
+  });
+});
+
+describe('scoreBand', () => {
+  it('labels shareable score ranges', () => {
+    expect(scoreBand(950)).toBe('Perfect mix');
+    expect(scoreBand(800)).toBe('Clean solve');
+    expect(scoreBand(600)).toBe('Solid solve');
+    expect(scoreBand(400)).toBe('Scrappy solve');
+    expect(scoreBand(1)).toBe('Barely spliced');
+    expect(scoreBand(0)).toBe('Unsolved');
   });
 });

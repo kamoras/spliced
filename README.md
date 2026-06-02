@@ -1,9 +1,9 @@
 # Spliced
 
 A **daily music puzzle**. Each day a short, _mystery_ song clip gets chopped
-into equal pieces and shuffled — listen to the pieces, drag them back into the
-right order, and rebuild the song **by ear**. You get a limited number of
-guesses (Wordle-style); solve it and the answer is revealed.
+into equal pieces and shuffled — listen to the current mix, check clip joins,
+drag the pieces back into order, and rebuild the song **by ear**. Your score
+rewards solving with fewer guesses, full plays, and join checks.
 
 Everyone gets the **same puzzle and the same scramble each day** (it flips at
 UTC midnight), so results are shareable.
@@ -26,12 +26,14 @@ UTC midnight), so results are shareable.
 1. The first tile is locked as the start of today’s mystery clip.
 2. **Drag** the six movable tiles to reorder them — or focus a tile’s handle and
    use the **arrow keys**.
-3. Press **Play** to hear the starting order or your latest submitted guess in
-   full. Individual tiles cannot be auditioned.
-4. Press **Submit guess** to lock in the current order, hear it played back, and
-   add a color-coded history row showing which positions were right.
-5. You get **3 guesses**. Solve it before they run out to reveal the song and
-   **share** your result.
+3. Press **Play** to hear your current mix. Individual tiles cannot be
+   auditioned.
+4. Use the small join buttons in the playback strip to hear only the tail of one
+   clip and the start of the next.
+5. Press **Submit guess** to score the current order and add a color-coded
+   history row showing which positions were right.
+6. You get **3 guesses**. Scores start at **1000** and lose points for wrong
+   guesses, extra full plays, and join checks.
 
 A separate **Practice mode** picks a random song and builds a one-off puzzle
 with the same clip count as the daily (this spoils the song, so it's kept apart

@@ -447,6 +447,45 @@ body {
   color: var(--muted);
 }
 
+.score-tracker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: stretch;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.score-tracker-main,
+.score-tracker-stat {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.score-tracker-value,
+.score-tracker-stat span:first-child {
+  color: var(--accent-text);
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.score-tracker-label,
+.score-tracker-stat span:last-child {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.score-tracker-stat {
+  min-width: 74px;
+  text-align: center;
+}
+
 /* ---------- playback order ---------- */
 .playback-order {
   margin: 0 0 14px;
@@ -497,6 +536,19 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
   gap: 6px;
 }
+.playback-order-list--joins {
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+}
+.playback-order-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: stretch;
+  gap: 4px;
+}
+.playback-order-step:last-child .playback-order-cell {
+  grid-column: 1 / -1;
+}
 .playback-order-cell {
   min-width: 0;
   display: grid;
@@ -541,6 +593,27 @@ body {
 .playback-order-lock {
   color: var(--accent-text);
   font-size: 12px;
+}
+.join-check {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  min-width: 28px;
+  min-height: 34px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.join-check:hover,
+.join-check:focus-visible,
+.join-check--active {
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+.join-check svg {
+  font-size: 11px;
 }
 .mixer-sliders {
   display: grid;
@@ -1087,6 +1160,12 @@ body {
 
 /* ---------- small screens ---------- */
 @media (max-width: 520px) {
+  .score-tracker {
+    grid-template-columns: 1fr 1fr;
+  }
+  .score-tracker-main {
+    grid-column: 1 / -1;
+  }
   .mixer-sliders {
     grid-template-columns: 1fr;
   }

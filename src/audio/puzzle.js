@@ -1,5 +1,13 @@
 // Pure helpers for arranging and grading puzzle pieces.
 
+export const SCORE_BASE = 1000;
+export const SCORE_PENALTIES = {
+  wrongGuess: 150,
+  fullPlay: 20,
+  joinCheck: 5,
+  hint: 100,
+};
+
 // Small, fast seeded PRNG. Same seed -> same sequence, in every browser.
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -102,4 +110,33 @@ export function countCorrect(order) {
 // Guesses remaining given attempts used and a cap (never negative).
 export function guessesLeft(attempts, maxGuesses) {
   return Math.max(0, maxGuesses - attempts);
+}
+
+export function scorePuzzle({
+  solved,
+  attempts = 0,
+  fullPlays = 0,
+  joinChecks = 0,
+  hints = 0,
+}) {
+  if (!solved) return 0;
+
+  const wrongGuesses = Math.max(0, attempts - 1);
+  const chargedFullPlays = Math.max(0, fullPlays - 1);
+  const penalty =
+    wrongGuesses * SCORE_PENALTIES.wrongGuess +
+    chargedFullPlays * SCORE_PENALTIES.fullPlay +
+    Math.max(0, joinChecks) * SCORE_PENALTIES.joinCheck +
+    Math.max(0, hints) * SCORE_PENALTIES.hint;
+
+  return Math.max(1, SCORE_BASE - penalty);
+}
+
+export function scoreBand(score) {
+  if (score >= 900) return 'Perfect mix';
+  if (score >= 750) return 'Clean solve';
+  if (score >= 550) return 'Solid solve';
+  if (score >= 300) return 'Scrappy solve';
+  if (score > 0) return 'Barely spliced';
+  return 'Unsolved';
 }

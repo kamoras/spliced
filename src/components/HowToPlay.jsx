@@ -48,16 +48,16 @@ export default function HowToPlay({ onClose }) {
             and use the arrow keys.
           </li>
           <li>
-            Press <strong>Play</strong> to hear the starting order or your
-            latest submitted guess in full.
+            Press <strong>Play</strong> to hear your current mix, or use a join
+            button to check the transition between two clips.
           </li>
           <li>
-            Press <strong>Submit guess</strong> to lock in the current order,
-            hear it played back, and see which positions were right.
+            Press <strong>Submit guess</strong> to score the current order and
+            see which positions were right.
           </li>
           <li>
-            You get three guesses — solve it before they run out to reveal the
-            song and share your result.
+            You get three guesses. Your score rewards fewer guesses, plays, and
+            join checks.
           </li>
         </ol>
       </div>

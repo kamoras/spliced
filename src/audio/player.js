@@ -97,4 +97,50 @@ export class Player {
       }, totalMs)
     );
   }
+
+  /**
+   * Play the transition between two adjacent pieces without exposing either
+   * complete clip. Used for checking whether a join sounds natural.
+   */
+  async playJoin(left, right, { windowSeconds = 0.75, onPiece, onEnd } = {}) {
+    await this._resume();
+    this.stop();
+    const myToken = this.token;
+
+    const leftDuration = Math.min(windowSeconds, left.duration);
+    const rightDuration = Math.min(windowSeconds, right.duration);
+    const startAt = this.ctx.currentTime + 0.06;
+    const clips = [
+      {
+        offset: left.offset + left.duration - leftDuration,
+        duration: leftDuration,
+      },
+      { offset: right.offset, duration: rightDuration },
+    ];
+
+    let t = startAt;
+    clips.forEach(({ offset, duration }, idx) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.buffer;
+      src.connect(this.output);
+      src.start(t, offset, duration);
+      this.sources.push(src);
+
+      const delayMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
+      this.timers.push(
+        setTimeout(() => {
+          if (myToken === this.token) onPiece?.(idx);
+        }, delayMs)
+      );
+
+      t += duration;
+    });
+
+    const totalMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
+    this.timers.push(
+      setTimeout(() => {
+        if (myToken === this.token) onEnd?.();
+      }, totalMs)
+    );
+  }
 }

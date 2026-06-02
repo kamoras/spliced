@@ -112,9 +112,12 @@ function outcome(daily, result) {
 
 function CompletedPanel({ daily, result, onReplay }) {
   const kind = outcome(daily, result);
+  const score = scoreText(result);
   const message =
     kind === 'solved'
-      ? `Solved in ${result.attempts}/${daily.maxGuesses}.`
+      ? score
+        ? `${score}. Solved in ${result.attempts}/${daily.maxGuesses}.`
+        : `Solved in ${result.attempts}/${daily.maxGuesses}.`
       : kind === 'lost'
         ? 'Out of guesses today.'
         : 'You revealed today’s answer.';
@@ -154,14 +157,23 @@ function ShareBar({ daily, result }) {
   const kind = outcome(daily, result);
   const score =
     kind === 'solved'
-      ? `${result.attempts}/${daily.maxGuesses}`
+      ? scoreText(result) || `${result.attempts}/${daily.maxGuesses}`
       : kind === 'lost'
         ? `X/${daily.maxGuesses}`
         : 'revealed';
+  const detail =
+    kind === 'solved'
+      ? `${result.attempts}/${daily.maxGuesses} guesses · ${result.fullPlays ?? 0} plays · ${result.joinChecks ?? 0} checks`
+      : '';
 
   const grid = formatGuessGrid(result.grid);
   const origin = typeof location !== 'undefined' ? location.origin : '';
-  const text = [`Spliced #${daily.puzzleNumber} — ${score}`, grid, origin]
+  const text = [
+    `Spliced #${daily.puzzleNumber} — ${score}`,
+    detail,
+    grid,
+    origin,
+  ]
     .filter(Boolean)
     .join('\n');
 
@@ -184,6 +196,11 @@ function ShareBar({ daily, result }) {
       <Icon name="share" /> {copied ? 'Copied result' : 'Share result'}
     </button>
   );
+}
+
+function scoreText(result) {
+  if (!Number.isFinite(result.score)) return null;
+  return `${result.score} · ${result.scoreLabel || 'Score'}`;
 }
 
 function Countdown() {
