@@ -3,6 +3,7 @@ import {
   getResult,
   saveResult,
   formatCountdown,
+  formatGuessGrid,
   msUntilNextPuzzle,
 } from './storage.js';
 
@@ -22,6 +23,32 @@ describe('saveResult / getResult', () => {
 
   it('returns null for unknown puzzles', () => {
     expect(getResult(999)).toBeNull();
+  });
+});
+
+describe('formatGuessGrid', () => {
+  it('renders a Wordle-style grid and omits the locked anchor cell', () => {
+    expect(
+      formatGuessGrid([
+        [
+          { anchor: true, correct: true },
+          { correct: true },
+          { correct: false },
+          { correct: true },
+        ],
+        [
+          { anchor: true, correct: true },
+          { correct: false },
+          { correct: false },
+          { correct: true },
+        ],
+      ])
+    ).toBe('🟩⬛🟩\n⬛⬛🟩');
+  });
+
+  it('returns an empty string when there is no guess history', () => {
+    expect(formatGuessGrid()).toBe('');
+    expect(formatGuessGrid([])).toBe('');
   });
 });
 

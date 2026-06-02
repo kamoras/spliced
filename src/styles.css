@@ -273,6 +273,13 @@ body {
 .link:hover {
   text-decoration: underline;
 }
+.link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.link:disabled:hover {
+  text-decoration: none;
+}
 
 .icon-btn {
   display: inline-grid;
@@ -310,6 +317,13 @@ body {
 .bar-title {
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+.bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* ---------- now playing ---------- */

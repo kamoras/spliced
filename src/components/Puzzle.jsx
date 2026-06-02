@@ -13,7 +13,7 @@ import {
 import {
   SortableContext,
   arrayMove,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
@@ -74,7 +74,10 @@ export default function Puzzle({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const orderedIds = useMemo(() => order.map((p) => p.id), [order]);
+  const movableIds = useMemo(
+    () => order.filter((p) => !p.locked).map((p) => p.id),
+    [order]
+  );
   const slotOf = (id) => order.findIndex((p) => p.id === id) + 1;
 
   // Stable identity (letter + colour) per piece, assigned from a scramble so it
@@ -102,7 +105,7 @@ export default function Puzzle({
     setOrder((cur) => {
       const from = cur.findIndex((p) => p.id === active.id);
       const to = cur.findIndex((p) => p.id === target.id);
-      if (from <= 0 || to <= 0) return cur;
+      if (cur[from]?.locked || cur[to]?.locked) return cur;
       return arrayMove(cur, from, to);
     });
     setFeedback(null);
@@ -149,33 +152,40 @@ export default function Puzzle({
     const grades = gradeOrder(guess);
     const won = isSolved(guess);
     const out = limited && tries >= maxGuesses && !won;
+    const nextGuess = {
+      number: tries,
+      tiles: guess.map((piece, idx) => ({
+        id: piece.id,
+        letter: letterOf(piece.id),
+        correct: grades[idx].correct,
+        anchor: grades[idx].anchor,
+      })),
+    };
+    const nextGuessHistory = [...guessHistory, nextGuess];
 
     setAttempts(tries);
     setPlaybackOrder(guess);
     setPlayingId(null);
-    setGuessHistory((cur) => [
-      ...cur,
-      {
-        number: tries,
-        tiles: guess.map((piece, idx) => ({
-          id: piece.id,
-          letter: letterOf(piece.id),
-          correct: grades[idx].correct,
-          anchor: grades[idx].anchor,
-        })),
-      },
-    ]);
+    setGuessHistory(nextGuessHistory);
 
     if (won) {
       setSolved(true);
       setRevealed(true);
       setFeedback(null);
-      onResult?.({ solved: true, attempts: tries });
+      onResult?.({
+        solved: true,
+        attempts: tries,
+        grid: shareGridFromHistory(nextGuessHistory),
+      });
     } else if (out) {
       setLost(true);
       setRevealed(true);
       setFeedback(null);
-      onResult?.({ solved: false, attempts: tries });
+      onResult?.({
+        solved: false,
+        attempts: tries,
+        grid: shareGridFromHistory(nextGuessHistory),
+      });
     } else {
       const right = Math.max(0, countCorrect(guess) - 1);
       const left = limited ? guessesLeft(tries, maxGuesses) : null;
@@ -198,7 +208,11 @@ export default function Puzzle({
     setRevealed(true);
     setSolved(false);
     setFeedback(null);
-    onResult?.({ solved: false, attempts });
+    onResult?.({
+      solved: false,
+      attempts,
+      grid: shareGridFromHistory(guessHistory),
+    });
     playSequence([...pieces].sort((a, b) => a.correctIndex - b.correctIndex));
   }
 
@@ -253,7 +267,7 @@ export default function Puzzle({
         </div>
         <div className="np-meta">
           {movableTotal} movable
-          <br />1 locked start
+          <br />1 locked clip
         </div>
       </div>
 
@@ -279,10 +293,7 @@ export default function Puzzle({
         onDragEnd={handleDragEnd}
         accessibility={a11y}
       >
-        <SortableContext
-          items={orderedIds}
-          strategy={horizontalListSortingStrategy}
-        >
+        <SortableContext items={movableIds} strategy={rectSortingStrategy}>
           <ol
             className="board"
             aria-label="Puzzle pieces in your current order"
@@ -296,7 +307,7 @@ export default function Puzzle({
                   color={identity[piece.id]?.color}
                   isPlaying={playingId === piece.id}
                   isCorrect={piece.correctIndex === idx}
-                  locked={piece.correctIndex === 0}
+                  locked={piece.locked}
                   revealed={revealed}
                 />
               </li>
@@ -378,6 +389,12 @@ export default function Puzzle({
   );
 }
 
+function shareGridFromHistory(history) {
+  return history.map((guess) =>
+    guess.tiles.map(({ correct, anchor }) => ({ correct, anchor }))
+  );
+}
+
 function GuessHistory({ guesses }) {
   if (guesses.length === 0) return null;
 
@@ -401,7 +418,7 @@ function GuessHistory({ guesses }) {
                     .join(' ')}
                   aria-label={`Clip ${tile.letter}: ${
                     tile.anchor
-                      ? 'locked start'
+                      ? 'locked clip'
                       : tile.correct
                         ? 'correct spot'
                         : 'wrong spot'

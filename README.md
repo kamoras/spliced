@@ -23,18 +23,18 @@ UTC midnight), so results are shareable.
 
 ## How to play
 
-1. The first tile is locked as the start of today’s mystery clip.
+1. One tile is locked in the right spot for today’s mystery clip.
 2. **Drag** the six movable tiles to reorder them — or focus a tile’s handle and
    use the **arrow keys**.
 3. Press **Play** to hear the starting order or your latest submitted guess in
    full. Individual tiles cannot be auditioned.
 4. Press **Submit guess** to lock in the current order, hear it played back, and
    add a color-coded history row showing which positions were right.
-5. You get **6 guesses**. Solve it before they run out to reveal the song and
+5. You get **3 guesses**. Solve it before they run out to reveal the song and
    **share** your result.
 
-A separate **Practice mode** lets you search any song and build a one-off puzzle
-at Easy/Medium/Hard piece counts (this spoils the song, so it's kept apart from
+A separate **Practice mode** picks a random song and builds a one-off puzzle at
+Easy/Medium/Hard piece counts (this spoils the song, so it's kept apart from
 the daily).
 
 ## How it works
@@ -45,9 +45,9 @@ the daily).
   API key. The title stays hidden in the UI until you finish.
 - The preview is decoded with the **Web Audio API** and sliced into equal
   pieces, each with its own waveform thumbnail.
-- The first slice is **locked to the start position** and the remaining slices
-  are **shuffled with a seed derived from the puzzle number**, so the scramble is
-  identical for every player.
+- One slice is **locked in a seeded daily position** and the remaining slices
+  are **shuffled with a seed derived from the puzzle number**, so the scramble and
+  locked tile are identical for every player.
 
 Three tiny serverless functions live in [`api/`](./api): `daily` (today's
 mystery song), `search` (Practice search proxy), and `audio` (re-serves an

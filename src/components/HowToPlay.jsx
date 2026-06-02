@@ -41,7 +41,8 @@ export default function HowToPlay({ onClose }) {
         </div>
         <ol>
           <li>
-            The first slice is locked as the start of today’s mystery clip.
+            One slice is already locked in the right spot for today’s mystery
+            clip.
           </li>
           <li>
             Drag the movable tiles to reorder them — or focus a tile’s handle
@@ -56,8 +57,8 @@ export default function HowToPlay({ onClose }) {
             hear it played back, and see which positions were right.
           </li>
           <li>
-            You get a limited number of guesses — solve it before they run out
-            to reveal the song and share your result.
+            You get three guesses — solve it before they run out to reveal the
+            song and share your result.
           </li>
         </ol>
       </div>

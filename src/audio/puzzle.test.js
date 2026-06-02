@@ -62,27 +62,43 @@ describe('shufflePieces', () => {
 });
 
 describe('buildAnchoredOrder', () => {
-  it('locks the first clip in the first position', () => {
+  it('locks one seeded clip in its correct position', () => {
     const pieces = makePieces(7);
     const order = buildAnchoredOrder(pieces, 12);
+    const locked = order.filter((p) => p.locked);
 
-    expect(order[0]).toEqual(pieces[0]);
+    expect(locked).toHaveLength(1);
+    expect(order[locked[0].correctIndex].id).toBe(locked[0].id);
+  });
+
+  it('varies the locked position by seed', () => {
+    const pieces = makePieces(7);
+    const lockedPositions = new Set(
+      Array.from(
+        { length: 20 },
+        (_, seed) =>
+          buildAnchoredOrder(pieces, seed).find((p) => p.locked).correctIndex
+      )
+    );
+
+    expect(lockedPositions.size).toBeGreaterThan(1);
   });
 
   it('shuffles only the movable clips deterministically', () => {
     const pieces = makePieces(7);
     const first = buildAnchoredOrder(pieces, 42);
     const second = buildAnchoredOrder(pieces, 42);
+    const locked = first.find((p) => p.locked);
 
     expect(first.map((p) => p.id)).toEqual(second.map((p) => p.id));
     expect(
       first
-        .slice(1)
+        .filter((p) => !p.locked)
         .map((p) => p.id)
         .sort()
     ).toEqual(
       pieces
-        .slice(1)
+        .filter((p) => p.id !== locked.id)
         .map((p) => p.id)
         .sort()
     );
@@ -99,7 +115,14 @@ describe('buildAnchoredOrder', () => {
 describe('gradeOrder', () => {
   it('marks each guessed slot as correct or wrong', () => {
     const pieces = makePieces(4);
-    expect(gradeOrder([pieces[0], pieces[2], pieces[1], pieces[3]])).toEqual([
+    expect(
+      gradeOrder([
+        { ...pieces[0], locked: true },
+        pieces[2],
+        pieces[1],
+        pieces[3],
+      ])
+    ).toEqual([
       { id: 'p0', correct: true, anchor: true },
       { id: 'p2', correct: false, anchor: false },
       { id: 'p1', correct: false, anchor: false },
