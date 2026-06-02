@@ -1,6 +1,6 @@
 // Pure helpers for arranging and grading puzzle pieces.
 
-// Small, fast seeded PRNG. Same seed → same sequence, in every browser.
+// Small, fast seeded PRNG. Same seed -> same sequence, in every browser.
 export function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {
@@ -12,7 +12,20 @@ export function mulberry32(seed) {
   };
 }
 
-// Fisher–Yates shuffle that guarantees the result isn't already solved
+function shuffledCopy(pieces, rand) {
+  const order = [...pieces];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+function markLocked(piece, locked) {
+  return { ...piece, locked };
+}
+
+// Fisher-Yates shuffle that guarantees the result isn't already solved
 // (and isn't the trivial single-piece case). Pass a seed for a deterministic,
 // shareable scramble; omit it for a random one.
 export function shufflePieces(pieces, seed) {
@@ -25,11 +38,39 @@ export function shufflePieces(pieces, seed) {
   let order;
   do {
     const rand = seeded ? mulberry32(seed + attempt) : Math.random;
-    order = [...pieces];
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
+    order = shuffledCopy(pieces, rand);
+    attempt++;
+  } while (isSolved(order));
+
+  return order;
+}
+
+// Keep the first clip fixed so players have a stable anchor in the random
+// iTunes preview.
+export function getAnchorPiece(pieces) {
+  return pieces.find((piece) => piece.correctIndex === 0) || pieces[0] || null;
+}
+
+// Build the playable puzzle order: the first clip is locked in place and all
+// remaining clips are shuffled after it. The full arrangement is never already
+// solved unless there are too few movable clips to scramble.
+export function buildAnchoredOrder(pieces, seed) {
+  const anchor = getAnchorPiece(pieces);
+  if (!anchor) return [];
+
+  const lockedAnchor = markLocked(anchor, true);
+  const movable = pieces
+    .filter((piece) => piece.id !== anchor.id)
+    .map((piece) => markLocked(piece, false));
+
+  if (movable.length < 2) return [lockedAnchor, ...movable];
+
+  const seeded = typeof seed === 'number';
+  let attempt = 0;
+  let order;
+  do {
+    const rand = seeded ? mulberry32(seed + attempt) : Math.random;
+    order = [lockedAnchor, ...shuffledCopy(movable, rand)];
     attempt++;
   } while (isSolved(order));
 
@@ -39,6 +80,15 @@ export function shufflePieces(pieces, seed) {
 // Solved when every piece sits at its correct index, in ascending order.
 export function isSolved(order) {
   return order.every((piece, idx) => piece.correctIndex === idx);
+}
+
+// Per-slot grading for Wordle-style guess history.
+export function gradeOrder(order) {
+  return order.map((piece, idx) => ({
+    id: piece.id,
+    correct: piece.correctIndex === idx,
+    anchor: Boolean(piece.locked),
+  }));
 }
 
 // How many pieces are currently in their correct slot (for "close!" feedback).

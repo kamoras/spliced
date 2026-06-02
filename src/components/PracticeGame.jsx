@@ -1,92 +1,101 @@
-// Free play: search any song and build a one-off puzzle. Picking a song
+// Free play: build a one-off puzzle from a random song. Picking a song
 // naturally spoils it, so this is kept separate from the daily mystery.
 
-import { useState } from 'react';
-import SongSearch from './SongSearch.jsx';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
-import { loadAndSlice, unlockAudio } from '../audio/slicer.js';
+import { loadAndSlice } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
+import { DAILY_PIECES, SONGS } from '../../api/_songs.js';
 
-const DIFFICULTIES = [
-  { label: 'Easy', pieces: 4 },
-  { label: 'Medium', pieces: 6 },
-  { label: 'Hard', pieces: 8 },
-];
+function randomCatalogSong() {
+  return SONGS[Math.floor(Math.random() * SONGS.length)];
+}
 
 export default function PracticeGame({ onDaily }) {
-  const [difficulty, setDifficulty] = useState(DIFFICULTIES[1]);
-  const [phase, setPhase] = useState('pick'); // pick | loading | play
+  const [phase, setPhase] = useState('loading'); // loading | play | error
   const [error, setError] = useState(null);
   const [game, setGame] = useState(null);
+  const requestRef = useRef(0);
 
-  async function startPuzzle(song) {
+  const startRandomPuzzle = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    const catalogSong = randomCatalogSong();
     setError(null);
+    setGame(null);
     setPhase('loading');
     try {
-      await unlockAudio();
+      const search = await fetch(
+        `/api/search?term=${encodeURIComponent(`${catalogSong.title} ${catalogSong.artist}`)}`
+      );
+      if (!search.ok) throw new Error('Could not find a practice song.');
+      const data = await search.json();
+      const song = data.results?.[0];
+      if (!song) throw new Error('Could not find a playable preview.');
+
       const { buffer, pieces } = await loadAndSlice(
         song.previewUrl,
-        difficulty.pieces
+        DAILY_PIECES
       );
+      if (requestId !== requestRef.current) return;
       setGame({ song, buffer, pieces });
       setPhase('play');
     } catch (err) {
+      if (requestId !== requestRef.current) return;
       setError(err.message || 'Something went wrong loading that clip.');
-      setPhase('pick');
+      setPhase('error');
     }
-  }
+  }, []);
 
-  function newPuzzle() {
-    setGame(null);
-    setPhase('pick');
-    setError(null);
-  }
-
-  if (phase === 'play' && game) {
-    return (
-      <Puzzle
-        song={game.song}
-        buffer={game.buffer}
-        pieces={game.pieces}
-        maxGuesses={MAX_GUESSES}
-        onNewPuzzle={newPuzzle}
-        newPuzzleLabel="Pick another song"
-      />
-    );
-  }
+  useEffect(() => {
+    startRandomPuzzle();
+  }, [startRandomPuzzle]);
 
   return (
-    <section className="panel">
+    <div>
       <div className="bar">
         <span className="bar-title">Practice mode</span>
-        <button className="link" onClick={onDaily}>
-          ← Back to daily
-        </button>
-      </div>
-
-      <div className="difficulty" role="group" aria-label="Difficulty">
-        <span className="difficulty-label">Difficulty</span>
-        {DIFFICULTIES.map((d) => (
+        <div className="bar-actions">
+          <button className="link" onClick={onDaily}>
+            ← Daily puzzle
+          </button>
           <button
-            key={d.label}
-            type="button"
-            className="chip"
-            aria-pressed={difficulty.label === d.label}
-            onClick={() => setDifficulty(d)}
+            className="link"
+            onClick={() => startRandomPuzzle()}
             disabled={phase === 'loading'}
           >
-            {d.label}
-            <span className="chip-sub">{d.pieces} pieces</span>
+            Different song
           </button>
-        ))}
+        </div>
       </div>
 
-      <SongSearch onPick={startPuzzle} disabled={phase === 'loading'} />
-
-      {phase === 'loading' && (
-        <p className="muted center">Slicing up the clip…</p>
+      {phase === 'play' && game ? (
+        <Puzzle
+          song={game.song}
+          buffer={game.buffer}
+          pieces={game.pieces}
+          maxGuesses={MAX_GUESSES}
+          onNewPuzzle={() => startRandomPuzzle()}
+          newPuzzleLabel="Different song"
+        />
+      ) : (
+        <section className="panel center">
+          {phase === 'loading' && (
+            <p className="muted">Picking a practice song…</p>
+          )}
+          {phase === 'error' && (
+            <>
+              <p className="error">{error}</p>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => startRandomPuzzle()}
+              >
+                Try another song
+              </button>
+            </>
+          )}
+        </section>
       )}
-      {error && <p className="error center">{error}</p>}
-    </section>
+    </div>
   );
 }

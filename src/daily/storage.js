@@ -29,6 +29,18 @@ export function saveResult(puzzleNumber, result) {
   return all[puzzleNumber];
 }
 
+export function formatGuessGrid(grid = []) {
+  return grid
+    .map((row) =>
+      (row || [])
+        .filter((cell) => !cell.anchor)
+        .map((cell) => (cell.correct ? '🟩' : '⬛'))
+        .join('')
+    )
+    .filter(Boolean)
+    .join('\n');
+}
+
 // ms until the next UTC midnight (when the puzzle flips).
 export function msUntilNextPuzzle() {
   const now = Date.now();

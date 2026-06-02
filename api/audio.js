@@ -42,7 +42,10 @@ export default async function handler(req, res) {
     }
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.statusCode = 200;
-    res.setHeader('content-type', upstream.headers.get('content-type') || 'audio/mp4');
+    res.setHeader(
+      'content-type',
+      upstream.headers.get('content-type') || 'audio/mp4'
+    );
     res.setHeader('content-length', String(buf.length));
     res.setHeader('cache-control', 'public, max-age=86400');
     res.end(buf);

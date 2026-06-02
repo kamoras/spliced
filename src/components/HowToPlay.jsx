@@ -41,20 +41,23 @@ export default function HowToPlay({ onClose }) {
         </div>
         <ol>
           <li>
-            Each tile is a slice of today’s mystery song. Press{' '}
-            <strong>Play</strong> on a tile to audition it while you think.
+            The first slice is locked as the start of today’s mystery clip.
           </li>
           <li>
-            Drag tiles to reorder them — or focus a tile’s handle and use the
-            arrow keys.
+            Drag the movable tiles to reorder them — or focus a tile’s handle
+            and use the arrow keys.
           </li>
           <li>
-            Press <strong>Submit guess</strong> to hear your arrangement played
-            in full and find out how many pieces are in the right spot.
+            Press <strong>Play</strong> to hear the starting order or your
+            latest submitted guess in full.
           </li>
           <li>
-            You get a limited number of guesses — solve it before they run out
-            to reveal the song and share your result.
+            Press <strong>Submit guess</strong> to lock in the current order,
+            hear it played back, and see which positions were right.
+          </li>
+          <li>
+            You get three guesses — solve it before they run out to reveal the
+            song and share your result.
           </li>
         </ol>
       </div>

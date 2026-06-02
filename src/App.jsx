@@ -18,7 +18,11 @@ export default function App() {
       <header className="site-header">
         <div className="brand">
           <h1 className="wordmark" aria-label="Spliced">
-            SPLI<span className="wordmark-cut" aria-hidden="true">|</span>CED
+            SPLI
+            <span className="wordmark-cut" aria-hidden="true">
+              |
+            </span>
+            CED
           </h1>
           <span className="brand-sub">Daily music puzzle</span>
         </div>

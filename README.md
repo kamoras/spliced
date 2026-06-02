@@ -1,6 +1,6 @@
 # Spliced
 
-A **daily music puzzle**. Each day a short, *mystery* song clip gets chopped
+A **daily music puzzle**. Each day a short, _mystery_ song clip gets chopped
 into equal pieces and shuffled — listen to the pieces, drag them back into the
 right order, and rebuild the song **by ear**. You get a limited number of
 guesses (Wordle-style); solve it and the answer is revealed.
@@ -23,18 +23,19 @@ UTC midnight), so results are shareable.
 
 ## How to play
 
-1. Each tile is a slice of today’s mystery song. Press **Play** on a tile to
-   audition it while you think.
-2. **Drag** tiles to reorder them — or focus a tile’s handle and use the
-   **arrow keys**.
-3. Press **Submit guess** to hear your arrangement played back in order and find
-   out how many pieces are in the right spot.
-4. You get **6 guesses**. Solve it before they run out to reveal the song and
+1. The first tile is locked as the start of today’s mystery clip.
+2. **Drag** the six movable tiles to reorder them — or focus a tile’s handle and
+   use the **arrow keys**.
+3. Press **Play** to hear the starting order or your latest submitted guess in
+   full. Individual tiles cannot be auditioned.
+4. Press **Submit guess** to lock in the current order, hear it played back, and
+   add a color-coded history row showing which positions were right.
+5. You get **3 guesses**. Solve it before they run out to reveal the song and
    **share** your result.
 
-A separate **Practice mode** lets you search any song and build a one-off puzzle
-at Easy/Medium/Hard piece counts (this spoils the song, so it's kept apart from
-the daily).
+A separate **Practice mode** picks a random song and builds a one-off puzzle
+with the same clip count as the daily (this spoils the song, so it's kept apart
+from the daily).
 
 ## How it works
 
@@ -43,9 +44,10 @@ the daily).
   [iTunes Search API](https://performance-partners.apple.com/search-api) — no
   API key. The title stays hidden in the UI until you finish.
 - The preview is decoded with the **Web Audio API** and sliced into equal
-  pieces, each with its own waveform thumbnail and play button.
-- Pieces are **shuffled with a seed derived from the puzzle number**, so the
-  scramble is identical for every player.
+  pieces, each with its own waveform thumbnail.
+- The first slice is **locked to the start position** and the remaining slices
+  are **shuffled with a seed derived from the puzzle number**, so the scramble is
+  identical for every player.
 
 Three tiny serverless functions live in [`api/`](./api): `daily` (today's
 mystery song), `search` (Practice search proxy), and `audio` (re-serves an

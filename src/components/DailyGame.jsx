@@ -10,6 +10,7 @@ import {
   saveResult,
   msUntilNextPuzzle,
   formatCountdown,
+  formatGuessGrid,
 } from '../daily/storage.js';
 
 export default function DailyGame({ onPractice }) {
@@ -158,9 +159,11 @@ function ShareBar({ daily, result }) {
         ? `X/${daily.maxGuesses}`
         : 'revealed';
 
-  const text =
-    `Spliced #${daily.puzzleNumber} — ${score}\n` +
-    `${typeof location !== 'undefined' ? location.origin : ''}`;
+  const grid = formatGuessGrid(result.grid);
+  const origin = typeof location !== 'undefined' ? location.origin : '';
+  const text = [`Spliced #${daily.puzzleNumber} — ${score}`, grid, origin]
+    .filter(Boolean)
+    .join('\n');
 
   async function share() {
     try {
