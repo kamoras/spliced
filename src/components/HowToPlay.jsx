@@ -41,15 +41,16 @@ export default function HowToPlay({ onClose }) {
         </div>
         <ol>
           <li>
-            The first slice is locked as the start of today’s mystery clip.
+            The first slice is fixed as the starting anchor for today’s mystery
+            clip.
           </li>
           <li>
             Drag the movable tiles to reorder them — or focus a tile’s handle
             and use the arrow keys.
           </li>
           <li>
-            Press <strong>Play</strong> to hear your current mix, or use a join
-            button to check the transition between two clips.
+            Press <strong>Play</strong> to hear your current mix, or use a Join
+            button under a tile to check its transition into the next clip.
           </li>
           <li>
             Press <strong>Submit guess</strong> to score the current order and

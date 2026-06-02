@@ -23,13 +23,13 @@ UTC midnight), so results are shareable.
 
 ## How to play
 
-1. The first tile is locked as the start of today’s mystery clip.
+1. The first tile is fixed as the starting anchor for today’s mystery clip.
 2. **Drag** the six movable tiles to reorder them — or focus a tile’s handle and
    use the **arrow keys**.
 3. Press **Play** to hear your current mix. Individual tiles cannot be
    auditioned.
-4. Use the small join buttons in the playback strip to hear only the tail of one
-   clip and the start of the next.
+4. Use the **Join** buttons under the tiles to hear only the tail of one clip
+   and the start of the next.
 5. Press **Submit guess** to score the current order and add a color-coded
    history row showing which positions were right.
 6. You get **3 guesses**. Scores start at **1000** and lose points for wrong

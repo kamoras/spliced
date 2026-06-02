@@ -34,12 +34,6 @@ import {
 
 const DEFAULT_VOLUME = 0.85;
 
-function clampIndex(value, max) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.min(max, Math.max(0, Math.round(numeric)));
-}
-
 function clampVolume(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return DEFAULT_VOLUME;
@@ -70,7 +64,6 @@ export default function Puzzle({
   const [feedback, setFeedback] = useState(null);
   const [attempts, setAttempts] = useState(0);
   const [guessHistory, setGuessHistory] = useState([]);
-  const [playbackStart, setPlaybackStart] = useState(0);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [fullPlays, setFullPlays] = useState(0);
   const [joinChecks, setJoinChecks] = useState(0);
@@ -81,18 +74,11 @@ export default function Puzzle({
     playerRef.current = new Player(getAudioContext(), buffer);
   }
   const player = playerRef.current;
-  const playbackStartMax = Math.max(0, order.length - 1);
-  const playbackStartIndex = clampIndex(playbackStart, playbackStartMax);
-
   useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
     player.setVolume(volume);
   }, [player, volume]);
-
-  useEffect(() => {
-    setPlaybackStart((current) => clampIndex(current, playbackStartMax));
-  }, [playbackStartMax]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -148,11 +134,6 @@ export default function Puzzle({
     setFeedback(null);
   }
 
-  function handlePlaybackStartChange(value) {
-    if (playingSequence) stopAll();
-    setPlaybackStart(clampIndex(value, playbackStartMax));
-  }
-
   function handleVolumeChange(value) {
     setVolume(clampVolume(value));
   }
@@ -183,7 +164,7 @@ export default function Puzzle({
       return;
     }
     setFullPlays((current) => current + 1);
-    playSequence(order.slice(playbackStartIndex));
+    playSequence(order);
   }
 
   function playJoinAt(index) {
@@ -252,7 +233,6 @@ export default function Puzzle({
     const nextGuessHistory = [...guessHistory, nextGuess];
 
     setAttempts(tries);
-    setPlaybackStart(0);
     setPlayingId(null);
     setActiveJoinIndex(null);
     setGuessHistory(nextGuessHistory);
@@ -285,7 +265,6 @@ export default function Puzzle({
 
   // Give up: reveal the title, keep your order graded, and play the answer.
   function reveal() {
-    setPlaybackStart(0);
     setRevealed(true);
     setSolved(false);
     setFeedback(null);
@@ -298,7 +277,6 @@ export default function Puzzle({
     stopAll();
     const next = buildAnchoredOrder(pieces, seed);
     setOrder(next);
-    setPlaybackStart(0);
     setRevealed(false);
     setSolved(false);
     setLost(false);
@@ -327,8 +305,6 @@ export default function Puzzle({
     },
   };
 
-  const playLabel = playingSequence ? 'Stop' : 'Play';
-
   return (
     <div className="panel">
       <div className="now-playing">
@@ -342,8 +318,9 @@ export default function Puzzle({
           <div className="np-artist">{over ? song.artist : 'Mystery clip'}</div>
         </div>
         <div className="np-meta">
+          Start fixed
+          <br />
           {movableTotal} movable
-          <br />1 locked clip
         </div>
       </div>
 
@@ -370,19 +347,27 @@ export default function Puzzle({
             fullPlays={fullPlays}
             joinChecks={joinChecks}
           />
-          <PlaybackOrder
-            order={order}
-            identity={identity}
-            playingId={playingId}
-            activeJoinIndex={activeJoinIndex}
-            startIndex={playbackStartIndex}
-            onStartIndexChange={handlePlaybackStartChange}
-            onJoinCheck={playJoinAt}
+          <VolumeControlPanel
             volume={volume}
             onVolumeChange={handleVolumeChange}
           />
+          <div className="mix-actions" aria-label="Mix actions">
+            <button type="button" className="btn" onClick={playCurrentOrder}>
+              <Icon name={playingSequence ? 'stop' : 'play'} />
+              {playingSequence ? 'Stop' : 'Play mix'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={submitGuess}
+            >
+              <Icon name="check" /> Submit mix
+            </button>
+          </div>
         </>
       )}
+
+      {!over && <BoardHeader />}
 
       <DndContext
         sensors={sensors}
@@ -392,34 +377,36 @@ export default function Puzzle({
       >
         <ol className="board" aria-label="Puzzle pieces in your current order">
           {anchorPiece && (
-            <li key={anchorPiece.id} style={{ display: 'contents' }}>
-              <PieceTile
-                piece={anchorPiece}
-                position={0}
-                letter={identity[anchorPiece.id]?.letter}
-                color={identity[anchorPiece.id]?.color}
-                isPlaying={playingId === anchorPiece.id}
-                isCorrect={anchorPiece.correctIndex === 0}
-                locked
-                revealed={revealed}
-              />
-            </li>
+            <BoardPiece
+              key={anchorPiece.id}
+              piece={anchorPiece}
+              position={0}
+              identity={identity}
+              playingId={playingId}
+              activeJoinIndex={activeJoinIndex}
+              isCorrect={anchorPiece.correctIndex === 0}
+              nextPiece={order[1]}
+              onJoinCheck={playJoinAt}
+              locked
+              revealed={revealed}
+            />
           )}
           <SortableContext items={movableIds} strategy={rectSortingStrategy}>
             {movablePieces.map((piece, offset) => {
               const idx = offset + 1;
               return (
-                <li key={piece.id} style={{ display: 'contents' }}>
-                  <PieceTile
-                    piece={piece}
-                    position={idx}
-                    letter={identity[piece.id]?.letter}
-                    color={identity[piece.id]?.color}
-                    isPlaying={playingId === piece.id}
-                    isCorrect={piece.correctIndex === idx}
-                    revealed={revealed}
-                  />
-                </li>
+                <BoardPiece
+                  key={piece.id}
+                  piece={piece}
+                  position={idx}
+                  identity={identity}
+                  playingId={playingId}
+                  activeJoinIndex={activeJoinIndex}
+                  isCorrect={piece.correctIndex === idx}
+                  nextPiece={order[idx + 1]}
+                  onJoinCheck={playJoinAt}
+                  revealed={revealed}
+                />
               );
             })}
           </SortableContext>
@@ -460,19 +447,9 @@ export default function Puzzle({
         </section>
       )}
 
-      <div className="controls">
+      <div className={over ? 'controls' : 'controls controls--secondary'}>
         {!over ? (
           <>
-            <button type="button" className="btn" onClick={playCurrentOrder}>
-              <Icon name={playingSequence ? 'stop' : 'play'} /> {playLabel}
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={submitGuess}
-            >
-              <Icon name="check" /> Submit guess
-            </button>
             <button type="button" className="btn" onClick={reshuffle}>
               <Icon name={typeof seed === 'number' ? 'reset' : 'shuffle'} />
               {typeof seed === 'number' ? 'Reset order' : 'Reshuffle'}
@@ -507,6 +484,20 @@ export default function Puzzle({
   );
 }
 
+function BoardHeader() {
+  return (
+    <div className="board-head">
+      <div>
+        <div className="board-kicker">Arrange</div>
+        <h2 className="board-title">Build from the fixed start</h2>
+      </div>
+      <span className="board-anchor-pill">
+        <Icon name="lock" /> Start fixed
+      </span>
+    </div>
+  );
+}
+
 function ScoreTracker({ projectedScore, fullPlays, joinChecks }) {
   return (
     <section className="score-tracker" aria-label="Score tracker">
@@ -526,106 +517,58 @@ function ScoreTracker({ projectedScore, fullPlays, joinChecks }) {
   );
 }
 
-function PlaybackOrder({
-  order,
+function VolumeControlPanel({ volume, onVolumeChange }) {
+  return (
+    <section className="volume-panel" aria-label="Playback volume">
+      <VolumeControl volume={volume} onVolumeChange={onVolumeChange} />
+    </section>
+  );
+}
+
+function BoardPiece({
+  piece,
+  position,
   identity,
   playingId,
   activeJoinIndex,
-  startIndex,
-  onStartIndexChange,
+  isCorrect,
+  nextPiece,
   onJoinCheck,
-  volume,
-  onVolumeChange,
+  locked = false,
+  revealed,
 }) {
-  const maxStart = Math.max(0, order.length - 1);
-  const startPiece = order[startIndex];
-  const startLetter = identity[startPiece?.id]?.letter ?? '?';
+  const item = identity[piece.id];
+  const nextItem = identity[nextPiece?.id];
 
   return (
-    <section className="playback-order" aria-label="Playback order">
-      <div className="playback-order-head">
-        <div className="playback-order-title">
-          <Icon name="play" /> Current mix
-        </div>
-        <span className="playback-order-readout">Start {startIndex + 1}</span>
-      </div>
-      <ol className="playback-order-list playback-order-list--joins">
-        {order.map((piece, idx) => {
-          const item = identity[piece.id];
-          const next = order[idx + 1];
-          const nextItem = identity[next?.id];
-          const active = playingId === piece.id;
-          const beforeStart = idx < startIndex;
-          const start = idx === startIndex;
-          const joinActive = activeJoinIndex === idx;
-          return (
-            <li key={piece.id} className="playback-order-step">
-              <span
-                className={[
-                  'playback-order-cell',
-                  piece.locked && 'playback-order-cell--locked',
-                  beforeStart && 'playback-order-cell--before-start',
-                  start && 'playback-order-cell--start',
-                  active && 'playback-order-cell--active',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                aria-current={active ? 'true' : undefined}
-                aria-label={`Position ${idx + 1}: clip ${item?.letter ?? '?'}${
-                  start
-                    ? ', playback starts here'
-                    : beforeStart
-                      ? ', skipped by current start point'
-                      : ''
-                }`}
-              >
-                <span className="playback-order-index">{idx + 1}</span>
-                <span className="playback-order-id">
-                  <span
-                    className="tile-dot"
-                    style={{ background: item?.color }}
-                    aria-hidden="true"
-                  />
-                  {item?.letter ?? '?'}
-                </span>
-                {piece.locked && (
-                  <Icon name="lock" className="playback-order-lock" />
-                )}
-              </span>
-              {next && (
-                <button
-                  type="button"
-                  className={['join-check', joinActive && 'join-check--active']
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => onJoinCheck(idx)}
-                  aria-label={`Check join between clip ${item?.letter ?? '?'} and clip ${nextItem?.letter ?? '?'}`}
-                >
-                  <Icon name="play" />
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <div className="mixer-sliders">
-        <label className="mixer-slider">
-          <span className="mixer-slider-label">Start</span>
-          <input
-            className="mixer-range"
-            type="range"
-            min="0"
-            max={maxStart}
-            step="1"
-            value={startIndex}
-            aria-valuetext={`Position ${startIndex + 1}, clip ${startLetter}`}
-            onChange={(event) => onStartIndexChange(Number(event.target.value))}
-          />
-          <span className="mixer-slider-value">{startIndex + 1}</span>
-        </label>
-        <VolumeControl volume={volume} onVolumeChange={onVolumeChange} />
-      </div>
-    </section>
+    <li className="board-item">
+      <PieceTile
+        piece={piece}
+        position={position}
+        letter={item?.letter}
+        color={item?.color}
+        isPlaying={playingId === piece.id}
+        isCorrect={isCorrect}
+        locked={locked}
+        revealed={revealed}
+      />
+      {nextPiece && !revealed && (
+        <button
+          type="button"
+          className={[
+            'join-check join-check--board',
+            activeJoinIndex === position && 'join-check--active',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => onJoinCheck(position)}
+          aria-label={`Check join between clip ${item?.letter ?? '?'} and clip ${nextItem?.letter ?? '?'}`}
+        >
+          <Icon name="play" />
+          <span>Join</span>
+        </button>
+      )}
+    </li>
   );
 }
 

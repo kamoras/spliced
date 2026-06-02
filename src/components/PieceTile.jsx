@@ -45,7 +45,10 @@ function SortablePieceTile(props) {
           {...attributes}
           {...listeners}
         >
-          <TileIdentity letter={props.letter} color={props.color} />
+          <span className="tile-grip-main">
+            <TilePosition position={props.position} />
+            <TileIdentity letter={props.letter} color={props.color} />
+          </span>
           <Icon name="grip" className="grip-dots" />
         </button>
       }
@@ -60,11 +63,14 @@ function LockedPieceTile(props) {
       grip={
         <div
           className="tile-grip tile-grip--locked"
-          aria-label={`Locked clip ${props.letter} at position ${props.position + 1}`}
+          aria-label={`Start clip ${props.letter}, fixed at position ${props.position + 1}`}
         >
-          <TileIdentity letter={props.letter} color={props.color} />
+          <span className="tile-grip-main">
+            <TilePosition position={props.position} />
+            <TileIdentity letter={props.letter} color={props.color} />
+          </span>
           <span className="tile-locked-label">
-            <Icon name="lock" /> Locked
+            <Icon name="lock" /> Start
           </span>
         </div>
       }
@@ -112,6 +118,10 @@ function TileShell({
       )}
     </div>
   );
+}
+
+function TilePosition({ position }) {
+  return <span className="tile-position">{position + 1}</span>;
 }
 
 function TileIdentity({ letter, color }) {
