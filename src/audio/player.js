@@ -9,7 +9,7 @@ function clampVolume(value) {
 }
 
 export class Player {
-  constructor(ctx, buffer) {
+  constructor(ctx, buffer = null) {
     this.ctx = ctx;
     this.buffer = buffer;
     this.output = ctx.createGain();
@@ -45,6 +45,10 @@ export class Player {
     if (this.ctx.state === 'suspended') await this.ctx.resume();
   }
 
+  _bufferFor(piece) {
+    return piece.buffer || this.buffer;
+  }
+
   // Play a single piece. `onEnd` fires when it finishes naturally.
   async playPiece(piece, onEnd) {
     await this._resume();
@@ -52,7 +56,7 @@ export class Player {
     const myToken = this.token;
 
     const src = this.ctx.createBufferSource();
-    src.buffer = this.buffer;
+    src.buffer = this._bufferFor(piece);
     src.connect(this.output);
     src.onended = () => {
       if (myToken === this.token) onEnd?.();
@@ -75,7 +79,7 @@ export class Player {
 
     pieces.forEach((p, idx) => {
       const src = this.ctx.createBufferSource();
-      src.buffer = this.buffer;
+      src.buffer = this._bufferFor(p);
       src.connect(this.output);
       src.start(t, p.offset, p.duration);
       this.sources.push(src);
@@ -88,52 +92,6 @@ export class Player {
       );
 
       t += p.duration;
-    });
-
-    const totalMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
-    this.timers.push(
-      setTimeout(() => {
-        if (myToken === this.token) onEnd?.();
-      }, totalMs)
-    );
-  }
-
-  /**
-   * Play the transition between two adjacent pieces without exposing either
-   * complete clip. Used for checking whether a join sounds natural.
-   */
-  async playJoin(left, right, { windowSeconds = 0.75, onPiece, onEnd } = {}) {
-    await this._resume();
-    this.stop();
-    const myToken = this.token;
-
-    const leftDuration = Math.min(windowSeconds, left.duration);
-    const rightDuration = Math.min(windowSeconds, right.duration);
-    const startAt = this.ctx.currentTime + 0.06;
-    const clips = [
-      {
-        offset: left.offset + left.duration - leftDuration,
-        duration: leftDuration,
-      },
-      { offset: right.offset, duration: rightDuration },
-    ];
-
-    let t = startAt;
-    clips.forEach(({ offset, duration }, idx) => {
-      const src = this.ctx.createBufferSource();
-      src.buffer = this.buffer;
-      src.connect(this.output);
-      src.start(t, offset, duration);
-      this.sources.push(src);
-
-      const delayMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
-      this.timers.push(
-        setTimeout(() => {
-          if (myToken === this.token) onPiece?.(idx);
-        }, delayMs)
-      );
-
-      t += duration;
     });
 
     const totalMs = Math.max(0, (t - this.ctx.currentTime) * 1000);

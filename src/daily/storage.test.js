@@ -27,23 +27,24 @@ describe('saveResult / getResult', () => {
 });
 
 describe('formatGuessGrid', () => {
-  it('renders a Wordle-style grid and omits the locked anchor cell', () => {
+  it('renders a Harmonies-style mixer grid with same-track hints', () => {
     expect(
       formatGuessGrid([
         [
-          { anchor: true, correct: true },
           { correct: true },
-          { correct: false },
+          { correct: true },
+          { correct: true },
           { correct: true },
         ],
         [
-          { anchor: true, correct: true },
-          { correct: false },
-          { correct: false },
-          { correct: true },
+          { sameTrack: true },
+          { sameTrack: true },
+          { sameTrack: true },
+          { sameTrack: true },
         ],
+        [{}, {}, {}, {}],
       ])
-    ).toBe('🟩⬛🟩\n⬛⬛🟩');
+    ).toBe('🟩🟩🟩🟩\n🟨🟨🟨🟨\n⬛⬛⬛⬛');
   });
 
   it('returns an empty string when there is no guess history', () => {

@@ -1,12 +1,4 @@
-// Pure helpers for arranging and grading puzzle pieces.
-
-export const SCORE_BASE = 1000;
-export const SCORE_PENALTIES = {
-  wrongGuess: 150,
-  fullPlay: 20,
-  joinCheck: 5,
-  hint: 100,
-};
+// Pure helpers for arranging and grading mixer puzzle pieces.
 
 // Small, fast seeded PRNG. Same seed -> same sequence, in every browser.
 export function mulberry32(seed) {
@@ -29,58 +21,19 @@ function shuffledCopy(pieces, rand) {
   return order;
 }
 
-function markLocked(piece, locked) {
-  return { ...piece, locked };
-}
-
-// Fisher-Yates shuffle that guarantees the result isn't already solved
-// (and isn't the trivial single-piece case). Pass a seed for a deterministic,
-// shareable scramble; omit it for a random one.
+// Fisher-Yates shuffle that guarantees the result is not already solved when
+// the piece set is large enough to scramble. Pass a seed for deterministic play.
 export function shufflePieces(pieces, seed) {
   if (pieces.length < 2) return [...pieces];
 
   const seeded = typeof seed === 'number';
-  // For a fixed seed the scramble is deterministic, so nudge the seed until
-  // it produces an unsolved arrangement rather than looping forever.
   let attempt = 0;
   let order;
   do {
     const rand = seeded ? mulberry32(seed + attempt) : Math.random;
     order = shuffledCopy(pieces, rand);
     attempt++;
-  } while (isSolved(order));
-
-  return order;
-}
-
-// Keep the first clip fixed so players have a stable anchor in the random
-// iTunes preview.
-export function getAnchorPiece(pieces) {
-  return pieces.find((piece) => piece.correctIndex === 0) || pieces[0] || null;
-}
-
-// Build the playable puzzle order: the first clip is locked in place and all
-// remaining clips are shuffled after it. The full arrangement is never already
-// solved unless there are too few movable clips to scramble.
-export function buildAnchoredOrder(pieces, seed) {
-  const anchor = getAnchorPiece(pieces);
-  if (!anchor) return [];
-
-  const lockedAnchor = markLocked(anchor, true);
-  const movable = pieces
-    .filter((piece) => piece.id !== anchor.id)
-    .map((piece) => markLocked(piece, false));
-
-  if (movable.length < 2) return [lockedAnchor, ...movable];
-
-  const seeded = typeof seed === 'number';
-  let attempt = 0;
-  let order;
-  do {
-    const rand = seeded ? mulberry32(seed + attempt) : Math.random;
-    order = [lockedAnchor, ...shuffledCopy(movable, rand)];
-    attempt++;
-  } while (isSolved(order));
+  } while (isSolved(order) && attempt < 200);
 
   return order;
 }
@@ -90,53 +43,70 @@ export function isSolved(order) {
   return order.every((piece, idx) => piece.correctIndex === idx);
 }
 
-// Per-slot grading for Wordle-style guess history.
-export function gradeOrder(order) {
-  return order.map((piece, idx) => ({
-    id: piece.id,
-    correct: piece.correctIndex === idx,
-    anchor: Boolean(piece.locked),
-  }));
+export function chunkTracks(order, clipsPerTrack) {
+  const rows = [];
+  for (let i = 0; i < order.length; i += clipsPerTrack) {
+    rows.push(order.slice(i, i + clipsPerTrack));
+  }
+  return rows;
 }
 
-// How many pieces are currently in their correct slot (for "close!" feedback).
-export function countCorrect(order) {
-  return order.reduce(
-    (n, piece, idx) => (piece.correctIndex === idx ? n + 1 : n),
-    0
+export function buildMixerOrder(tracks, seed) {
+  const pieces = tracks.flatMap((track) => track.pieces);
+  if (pieces.length < 2) return [...pieces];
+
+  const clipsPerTrack = tracks[0]?.pieces.length || 1;
+  const seeded = typeof seed === 'number';
+  let attempt = 0;
+  let order;
+  do {
+    const rand = seeded ? mulberry32(seed + attempt) : Math.random;
+    order = shuffledCopy(pieces, rand);
+    attempt++;
+  } while (
+    isMixerSolved(chunkTracks(order, clipsPerTrack), tracks.length) &&
+    attempt < 200
   );
+
+  return order;
 }
 
-// Guesses remaining given attempts used and a cap (never negative).
-export function guessesLeft(attempts, maxGuesses) {
-  return Math.max(0, maxGuesses - attempts);
+export function gradeMixerRow(row, solvedTrackIds = []) {
+  const trackId = row[0]?.trackId ?? null;
+  const alreadySolved = trackId ? solvedTrackIds.includes(trackId) : false;
+  const cells = row.map((piece, idx) => {
+    const sameTrack = Boolean(trackId) && piece.trackId === trackId;
+    const correct = sameTrack && piece.correctIndex === idx;
+    return {
+      id: piece.id,
+      correct,
+      sameTrack: sameTrack && !correct,
+    };
+  });
+  const correctPositions = cells.filter((cell) => cell.correct).length;
+  const rightRowCount = cells.filter(
+    (cell) => cell.correct || cell.sameTrack
+  ).length;
+  const solved =
+    row.length > 0 && correctPositions === row.length && !alreadySolved;
+
+  return {
+    solved,
+    trackId,
+    sameTrack: rightRowCount === row.length && row.length > 0,
+    correctPositions,
+    rightRowCount,
+    alreadySolved,
+    cells,
+  };
 }
 
-export function scorePuzzle({
-  solved,
-  attempts = 0,
-  fullPlays = 0,
-  joinChecks = 0,
-  hints = 0,
-}) {
-  if (!solved) return 0;
-
-  const wrongGuesses = Math.max(0, attempts - 1);
-  const chargedFullPlays = Math.max(0, fullPlays - 1);
-  const penalty =
-    wrongGuesses * SCORE_PENALTIES.wrongGuess +
-    chargedFullPlays * SCORE_PENALTIES.fullPlay +
-    Math.max(0, joinChecks) * SCORE_PENALTIES.joinCheck +
-    Math.max(0, hints) * SCORE_PENALTIES.hint;
-
-  return Math.max(1, SCORE_BASE - penalty);
-}
-
-export function scoreBand(score) {
-  if (score >= 900) return 'Perfect mix';
-  if (score >= 750) return 'Clean solve';
-  if (score >= 550) return 'Solid solve';
-  if (score >= 300) return 'Scrappy solve';
-  if (score > 0) return 'Barely spliced';
-  return 'Unsolved';
+export function isMixerSolved(rows, trackCount) {
+  const solvedTrackIds = [];
+  for (const row of rows) {
+    const grade = gradeMixerRow(row, solvedTrackIds);
+    if (!grade.solved) continue;
+    solvedTrackIds.push(grade.trackId);
+  }
+  return solvedTrackIds.length === trackCount;
 }

@@ -2,17 +2,28 @@ import { describe, it, expect } from 'vitest';
 import {
   mulberry32,
   shufflePieces,
-  buildAnchoredOrder,
-  gradeOrder,
+  buildMixerOrder,
+  chunkTracks,
+  gradeMixerRow,
+  isMixerSolved,
   isSolved,
-  countCorrect,
-  guessesLeft,
-  scoreBand,
-  scorePuzzle,
 } from './puzzle.js';
 
 const makePieces = (n) =>
   Array.from({ length: n }, (_, i) => ({ id: `p${i}`, correctIndex: i }));
+
+const makeTrackPieces = (trackId, n) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${trackId}-${i}`,
+    trackId,
+    correctIndex: i,
+  }));
+
+const makeTracks = (trackIds = ['a', 'b', 'c', 'd'], clipsPerTrack = 4) =>
+  trackIds.map((trackId) => ({
+    id: trackId,
+    pieces: makeTrackPieces(trackId, clipsPerTrack),
+  }));
 
 describe('mulberry32', () => {
   it('is deterministic for a given seed', () => {
@@ -46,7 +57,7 @@ describe('shufflePieces', () => {
     }
   });
 
-  it('returns a copy (not solved) for the trivial 1-piece case', () => {
+  it('returns a copy for the trivial 1-piece case', () => {
     const pieces = makePieces(1);
     const out = shufflePieces(pieces, 1);
     expect(out).toEqual(pieces);
@@ -63,133 +74,97 @@ describe('shufflePieces', () => {
   });
 });
 
-describe('buildAnchoredOrder', () => {
-  it('locks the first clip in the first position', () => {
-    const pieces = makePieces(7);
-    const order = buildAnchoredOrder(pieces, 12);
-    const locked = order.filter((p) => p.locked);
-
-    expect(locked).toHaveLength(1);
-    expect(order[0]).toMatchObject({ id: 'p0', correctIndex: 0, locked: true });
-  });
-
-  it('shuffles only the movable clips deterministically', () => {
-    const pieces = makePieces(7);
-    const first = buildAnchoredOrder(pieces, 42);
-    const second = buildAnchoredOrder(pieces, 42);
+describe('buildMixerOrder', () => {
+  it('scrambles all clips deterministically for a fixed seed', () => {
+    const tracks = makeTracks();
+    const first = buildMixerOrder(tracks, 42);
+    const second = buildMixerOrder(tracks, 42);
 
     expect(first.map((p) => p.id)).toEqual(second.map((p) => p.id));
-    expect(
-      first
-        .slice(1)
-        .map((p) => p.id)
-        .sort()
-    ).toEqual(
-      pieces
-        .slice(1)
+    expect(first.map((p) => p.id).sort()).toEqual(
+      tracks
+        .flatMap((track) => track.pieces)
         .map((p) => p.id)
         .sort()
     );
   });
 
-  it('does not return a solved full arrangement when movable clips can be shuffled', () => {
-    const pieces = makePieces(7);
+  it('does not start with every track already solved', () => {
+    const tracks = makeTracks();
     for (let seed = 0; seed < 200; seed++) {
-      expect(isSolved(buildAnchoredOrder(pieces, seed))).toBe(false);
+      expect(
+        isMixerSolved(chunkTracks(buildMixerOrder(tracks, seed), 4), 4)
+      ).toBe(false);
     }
   });
 });
 
-describe('gradeOrder', () => {
-  it('marks each guessed slot as correct or wrong', () => {
-    const pieces = makePieces(4);
-    expect(
-      gradeOrder([
-        { ...pieces[0], locked: true },
-        pieces[2],
-        pieces[1],
-        pieces[3],
-      ])
-    ).toEqual([
-      { id: 'p0', correct: true, anchor: true },
-      { id: 'p2', correct: false, anchor: false },
-      { id: 'p1', correct: false, anchor: false },
-      { id: 'p3', correct: true, anchor: false },
+describe('multi-track mixer helpers', () => {
+  it('chunks a flat board into track rows', () => {
+    const pieces = [...makeTrackPieces('a', 4), ...makeTrackPieces('b', 4)];
+    expect(chunkTracks(pieces, 4).map((row) => row.map((p) => p.id))).toEqual([
+      ['a-0', 'a-1', 'a-2', 'a-3'],
+      ['b-0', 'b-1', 'b-2', 'b-3'],
     ]);
   });
-});
 
-describe('isSolved / countCorrect', () => {
-  it('isSolved is true only when every piece sits at its index', () => {
-    const pieces = makePieces(4);
-    expect(isSolved(pieces)).toBe(true);
-    expect(isSolved([pieces[1], pieces[0], pieces[2], pieces[3]])).toBe(false);
+  it('uses the first clip as the submitted row target', () => {
+    const a = makeTrackPieces('a', 4);
+    const b = makeTrackPieces('b', 4);
+    const grade = gradeMixerRow([a[1], a[0], b[1], a[3]]);
+
+    expect(grade).toMatchObject({
+      solved: false,
+      trackId: 'a',
+      sameTrack: false,
+      correctPositions: 1,
+      rightRowCount: 3,
+    });
+    expect(grade.cells).toEqual([
+      { id: 'a-1', correct: false, sameTrack: true },
+      { id: 'a-0', correct: false, sameTrack: true },
+      { id: 'b-1', correct: false, sameTrack: false },
+      { id: 'a-3', correct: true, sameTrack: false },
+    ]);
   });
 
-  it('countCorrect counts pieces in their correct slot', () => {
-    const pieces = makePieces(4);
-    expect(countCorrect(pieces)).toBe(4);
-    expect(countCorrect([pieces[1], pieces[0], pieces[2], pieces[3]])).toBe(2);
-  });
-});
-
-describe('guessesLeft', () => {
-  it('counts down from the cap and never goes negative', () => {
-    expect(guessesLeft(0, 6)).toBe(6);
-    expect(guessesLeft(4, 6)).toBe(2);
-    expect(guessesLeft(6, 6)).toBe(0);
-    expect(guessesLeft(9, 6)).toBe(0);
-  });
-});
-
-describe('scorePuzzle', () => {
-  it('starts solved players at 1000 points with one free full play', () => {
-    expect(scorePuzzle({ solved: true, attempts: 1, fullPlays: 1 })).toBe(1000);
+  it('solves any physical row that contains one complete track in order', () => {
+    expect(gradeMixerRow(makeTrackPieces('b', 4))).toMatchObject({
+      solved: true,
+      sameTrack: true,
+      trackId: 'b',
+      correctPositions: 4,
+      rightRowCount: 4,
+    });
   });
 
-  it('penalizes wrong guesses, extra full plays, join checks, and hints', () => {
+  it('does not let the same song solve multiple rows', () => {
+    expect(gradeMixerRow(makeTrackPieces('a', 4), ['a'])).toMatchObject({
+      solved: false,
+      alreadySolved: true,
+    });
+  });
+
+  it('detects when every mystery track has one solved row regardless of row order', () => {
     expect(
-      scorePuzzle({
-        solved: true,
-        attempts: 3,
-        fullPlays: 4,
-        joinChecks: 12,
-        hints: 1,
-      })
-    ).toBe(480);
-  });
-
-  it('scores exhaustive one-guess checking below a cleaner two-guess solve', () => {
-    const exhaustive = scorePuzzle({
-      solved: true,
-      attempts: 1,
-      fullPlays: 18,
-      joinChecks: 40,
-    });
-    const cleaner = scorePuzzle({
-      solved: true,
-      attempts: 2,
-      fullPlays: 4,
-      joinChecks: 10,
-    });
-
-    expect(exhaustive).toBe(460);
-    expect(cleaner).toBe(740);
-    expect(cleaner).toBeGreaterThan(exhaustive);
-  });
-
-  it('returns 0 for unsolved games', () => {
-    expect(scorePuzzle({ solved: false, attempts: 3, fullPlays: 1 })).toBe(0);
-  });
-});
-
-describe('scoreBand', () => {
-  it('labels shareable score ranges', () => {
-    expect(scoreBand(950)).toBe('Perfect mix');
-    expect(scoreBand(800)).toBe('Clean solve');
-    expect(scoreBand(600)).toBe('Solid solve');
-    expect(scoreBand(400)).toBe('Scrappy solve');
-    expect(scoreBand(1)).toBe('Barely spliced');
-    expect(scoreBand(0)).toBe('Unsolved');
+      isMixerSolved(
+        [
+          makeTrackPieces('b', 4),
+          makeTrackPieces('a', 4),
+          makeTrackPieces('c', 4),
+        ],
+        3
+      )
+    ).toBe(true);
+    expect(
+      isMixerSolved(
+        [
+          makeTrackPieces('a', 4),
+          makeTrackPieces('b', 4),
+          makeTrackPieces('b', 4),
+        ],
+        3
+      )
+    ).toBe(false);
   });
 });

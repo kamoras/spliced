@@ -1,6 +1,5 @@
-// A single puzzle piece. Each piece has a stable identity (a colour and letter)
-// that travels with it as it is reordered. One clip is locked in place;
-// movable clips expose only their drag handle because playback is sequence-only.
+// A single puzzle clip tile. Each clip has a neutral token that travels with it
+// as it is reordered; solved tracks become locked.
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -41,7 +40,7 @@ function SortablePieceTile(props) {
         <button
           type="button"
           className="tile-grip"
-          aria-label={`Reorder clip ${props.letter} (currently position ${props.position + 1})`}
+          aria-label={`Reorder clip ${props.letter} currently in slot ${props.position + 1}`}
           {...attributes}
           {...listeners}
         >
@@ -63,14 +62,14 @@ function LockedPieceTile(props) {
       grip={
         <div
           className="tile-grip tile-grip--locked"
-          aria-label={`Start clip ${props.letter}, fixed at position ${props.position + 1}`}
+          aria-label={`Locked clip ${props.letter} at slot ${props.position + 1}`}
         >
           <span className="tile-grip-main">
             <TilePosition position={props.position} />
             <TileIdentity letter={props.letter} color={props.color} />
           </span>
           <span className="tile-locked-label">
-            <Icon name="lock" /> Start
+            <Icon name="lock" /> Locked
           </span>
         </div>
       }
@@ -82,23 +81,27 @@ function TileShell({
   piece,
   color,
   isPlaying,
-  isCorrect,
+  tileState,
   isDragging = false,
   locked = false,
   revealed,
   nodeRef,
   style,
   grip,
+  onPlay,
 }) {
   const className = [
     'tile',
     locked && 'tile-locked',
     isPlaying && 'tile-playing',
     isDragging && 'tile-dragging',
-    revealed && (isCorrect ? 'tile-correct' : 'tile-wrong'),
+    revealed && tileState === 'correct' && 'tile-correct',
+    revealed && tileState === 'misplaced' && 'tile-misplaced',
   ]
     .filter(Boolean)
     .join(' ');
+
+  const stateLabel = tileState === 'correct' ? 'Correct spot' : 'Right track';
 
   return (
     <div ref={nodeRef} style={style} className={className}>
@@ -108,12 +111,17 @@ function TileShell({
         <Waveform peaks={piece.peaks} active={isPlaying} color={color} />
       </div>
 
-      {revealed && (
-        <div
-          className={`tile-state ${isCorrect ? 'tile-state--ok' : 'tile-state--no'}`}
-        >
-          <Icon name={isCorrect ? 'check' : 'close'} />
-          {isCorrect ? 'Correct spot' : 'Wrong spot'}
+      {onPlay && !revealed && (
+        <button type="button" className="tile-play" onClick={onPlay}>
+          <Icon name={isPlaying ? 'stop' : 'play'} />
+          {isPlaying ? 'Stop' : 'Play clip'}
+        </button>
+      )}
+
+      {revealed && tileState && (
+        <div className={`tile-state tile-state--${tileState}`}>
+          <Icon name={tileState === 'correct' ? 'check' : 'shuffle'} />
+          {stateLabel}
         </div>
       )}
     </div>

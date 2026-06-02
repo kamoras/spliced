@@ -40,25 +40,23 @@ export default function HowToPlay({ onClose }) {
           </button>
         </div>
         <ol>
+          <li>Four mystery songs are mixed together as sixteen clip tiles.</li>
           <li>
-            The first slice is fixed as the starting anchor for today’s mystery
-            clip.
+            Play any clip, or play a whole row, then drag clips between mixer
+            tracks until each row sounds like one song.
           </li>
           <li>
-            Drag the movable tiles to reorder them — or focus a tile’s handle
-            and use the arrow keys.
+            Pick the row you want to check with the switchboard button, then
+            submit the armed track.
           </li>
           <li>
-            Press <strong>Play</strong> to hear your current mix, or use a Join
-            button under a tile to check its transition into the next clip.
+            The first clip in the submitted row sets the song being checked.
+            Green means correct song and slot; yellow means correct song in the
+            wrong slot; uncolored clips belong with another song.
           </li>
           <li>
-            Press <strong>Submit guess</strong> to score the current order and
-            see which positions were right.
-          </li>
-          <li>
-            You get three guesses. Your score rewards fewer guesses, plays, and
-            join checks.
+            Correct rows lock in place. Wrong submissions use one mistake; you
+            have four mistakes before the tracks are revealed.
           </li>
         </ol>
       </div>

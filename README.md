@@ -1,11 +1,11 @@
 # Spliced
 
-A **daily music puzzle**. Each day a short, _mystery_ song clip gets chopped
-into equal pieces and shuffled — listen to the current mix, check clip joins,
-drag the pieces back into order, and rebuild the song **by ear**. Your score
-rewards solving with fewer guesses, full plays, and join checks.
+A **daily music puzzle** built like a tiny audio mixer. Each day, four mystery
+songs are sampled into four non-adjacent clips each. Route the sixteen clips into
+track rows, order each row by ear, and lock all four songs before you run out of
+mistakes.
 
-Everyone gets the **same puzzle and the same scramble each day** (it flips at
+Everyone gets the **same puzzle, samples, and scramble each day** (it flips at
 UTC midnight), so results are shareable.
 
 <p align="center">
@@ -23,38 +23,38 @@ UTC midnight), so results are shareable.
 
 ## How to play
 
-1. The first tile is fixed as the starting anchor for today’s mystery clip.
-2. **Drag** the six movable tiles to reorder them — or focus a tile’s handle and
-   use the **arrow keys**.
-3. Press **Play** to hear your current mix. Individual tiles cannot be
-   auditioned.
-4. Use the **Join** buttons under the tiles to hear only the tail of one clip
-   and the start of the next.
-5. Press **Submit guess** to score the current order and add a color-coded
-   history row showing which positions were right.
-6. You get **3 guesses**. Scores start at **1000** and lose points for wrong
-   guesses, extra full plays, and join checks.
+1. The board starts with **4 mixer tracks** and **16 shuffled clips**.
+2. **Play any clip** or **play a whole row**, then drag clips between rows until
+   each row sounds like one complete song.
+3. Use the switchboard to arm the row you want to check, then press **Submit
+   armed track**.
+4. The first clip in the submitted row sets the song being checked. Green means
+   correct song and slot; yellow means correct song in the wrong slot; uncolored
+   clips belong with another song.
+5. A correct row locks in place. A wrong row submission spends one mistake.
+6. You have **4 mistakes** before the answer is revealed.
 
-A separate **Practice mode** picks a random song and builds a one-off puzzle
-with the same clip count as the daily (this spoils the song, so it's kept apart
-from the daily).
+A separate **Practice mode** picks four random catalog songs and builds a
+one-off mixer puzzle with the same rules as the daily.
 
 ## How it works
 
-- **`/api/daily`** deterministically picks today's song by UTC date (identical
-  for everyone) and resolves a free 30-second preview from the public
-  [iTunes Search API](https://performance-partners.apple.com/search-api) — no
-  API key. The title stays hidden in the UI until you finish.
-- The preview is decoded with the **Web Audio API** and sliced into equal
-  pieces, each with its own waveform thumbnail.
-- The first slice is **locked to the start position** and the remaining slices
-  are **shuffled with a seed derived from the puzzle number**, so the scramble is
-  identical for every player.
+- **`/api/daily`** deterministically picks todays four songs by UTC date
+  (identical for everyone) and resolves free 30-second previews from the public
+  [iTunes Search API](https://performance-partners.apple.com/search-api) - no
+  API key. Titles stay hidden in the UI until you finish.
+- Each preview is decoded with the **Web Audio API** and sampled into four short
+  clips with deliberate gaps between them, so the puzzle is about recognizing
+  and ordering songs rather than brute-forcing adjacent seams.
+- The daily puzzle uses the puzzle number as a seed for both clip sampling and
+  the initial scramble, so every player gets the same board.
+- Results share as a compact grid: green for correct slot, yellow for correct
+  song in the wrong slot, and black for a clip from another song.
 
-Three tiny serverless functions live in [`api/`](./api): `daily` (today's
-mystery song), `search` (Practice search proxy), and `audio` (re-serves an
-Apple preview with permissive CORS so `decodeAudioData` can read it — locked to
-Apple's media hosts so it can't be used as an open proxy). The same handlers are
+Three tiny serverless functions live in [`api/`](./api): `daily` (todays mystery
+songs), `search` (Practice search proxy), and `audio` (re-serves an Apple
+preview with permissive CORS so `decodeAudioData` can read it, locked to Apple
+media hosts so it cannot be used as an open proxy). The same handlers are
 mounted as Vite dev middleware (see [`vite.config.js`](./vite.config.js)), so
 `npm run dev` gives full functionality without `vercel dev`.
 
@@ -70,7 +70,7 @@ Other scripts:
 ```bash
 npm run lint       # ESLint (incl. jsx-a11y accessibility rules)
 npm test           # Vitest unit tests
-npm run build      # production build → dist/
+npm run build      # production build -> dist/
 npm run format     # Prettier
 ```
 
@@ -78,12 +78,12 @@ npm run format     # Prettier
 
 This is a zero-config Vercel project:
 
-- Framework preset **Vite** (auto-detected) → builds to `dist/`.
+- Framework preset **Vite** (auto-detected) -> builds to `dist/`.
 - The `api/` directory is deployed automatically as serverless functions.
 
-Import the repo in Vercel and deploy — no environment variables required. Vercel
-also gives you a **preview deployment for every pull request** and **production
-deploys from `main`** automatically.
+Import the repo in Vercel and deploy. No environment variables are required.
+Vercel also gives you a **preview deployment for every pull request** and
+**production deploys from `main`** automatically.
 
 ## Accessibility
 
@@ -101,7 +101,7 @@ and the `eslint-plugin-jsx-a11y` lint rules.
 
 ## Contributing
 
-Issues and PRs are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). The daily
+Issues and PRs are welcome - see [CONTRIBUTING.md](./CONTRIBUTING.md). The daily
 song rotation lives in [`api/_songs.js`](./api/_songs.js); you can also open a
 **Song suggestion** issue. Dependencies are kept current by Dependabot, with
 patch/minor/security updates merged automatically once CI passes.

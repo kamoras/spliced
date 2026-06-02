@@ -41,8 +41,8 @@ export default function App() {
 
       <main id="main">
         <p className="tagline">
-          Today’s mystery clip got chopped up and shuffled. Drag the pieces back
-          into order and rebuild the song — by ear.
+          Four mystery songs are split into mixer clips. Route each row into one
+          complete track and lock the songs by ear.
         </p>
         {mode === 'daily' ? (
           <DailyGame onPractice={() => setMode('practice')} />

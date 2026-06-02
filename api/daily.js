@@ -5,7 +5,14 @@
 // is the same trade-off Heardle-style games make: discoverable in the network
 // tab, but the experience is honest.
 
-import { SONGS, DAILY_PIECES, DAILY_GUESSES, LAUNCH_UTC } from './_songs.js';
+import {
+  SONGS,
+  DAILY_TRACKS,
+  DAILY_CLIPS_PER_TRACK,
+  DAILY_PIECES,
+  DAILY_GUESSES,
+  LAUNCH_UTC,
+} from './_songs.js';
 
 const DAY_MS = 86400000;
 
@@ -41,7 +48,41 @@ export function selectDaily(nowMs) {
     0,
     Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS)
   );
-  return { puzzleNumber, song: SONGS[puzzleNumber % SONGS.length] };
+  const start = (puzzleNumber * DAILY_TRACKS) % SONGS.length;
+  const songs = Array.from(
+    { length: DAILY_TRACKS },
+    (_, i) => SONGS[(start + i) % SONGS.length]
+  );
+  return { puzzleNumber, songs };
+}
+
+async function resolveSong(song) {
+  const api =
+    'https://itunes.apple.com/search?' +
+    new URLSearchParams({
+      term: `${song.title} ${song.artist}`,
+      media: 'music',
+      entity: 'song',
+      limit: '10',
+    }).toString();
+
+  const r = await fetch(api, {
+    headers: { 'User-Agent': 'Spliced/0.1 (music puzzle)' },
+  });
+  if (!r.ok) throw new Error('itunes_unavailable');
+
+  const data = await r.json();
+  const match = pickMatch(data.results, song);
+  if (!match) throw new Error('no_preview');
+
+  return {
+    previewUrl: match.previewUrl,
+    answer: {
+      title: match.trackName,
+      artist: match.artistName,
+      artwork: (match.artworkUrl100 || '').replace('100x100bb', '200x200bb'),
+    },
+  };
 }
 
 export default async function handler(req, res) {
@@ -52,48 +93,31 @@ export default async function handler(req, res) {
   const nowMs = dateParam ? Date.parse(dateParam) : Date.now();
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
 
-  const { puzzleNumber, song } = selectDaily(nowMs);
-
-  const api =
-    'https://itunes.apple.com/search?' +
-    new URLSearchParams({
-      term: `${song.title} ${song.artist}`,
-      media: 'music',
-      entity: 'song',
-      limit: '10',
-    }).toString();
+  const { puzzleNumber, songs } = selectDaily(nowMs);
 
   try {
-    const r = await fetch(api, {
-      headers: { 'User-Agent': 'Spliced/0.1 (music puzzle)' },
-    });
-    if (!r.ok) return json(res, 502, { error: 'itunes_unavailable' });
-
-    const data = await r.json();
-    const match = pickMatch(data.results, song);
-    if (!match) return json(res, 502, { error: 'no_preview' });
+    const resolved = await Promise.all(songs.map(resolveSong));
+    const tracks = resolved.map((track, idx) => ({
+      id: `track-${idx}`,
+      ...track,
+    }));
 
     return json(
       res,
       200,
       {
         puzzleNumber,
+        trackCount: DAILY_TRACKS,
+        clipsPerTrack: DAILY_CLIPS_PER_TRACK,
         numPieces: DAILY_PIECES,
         maxGuesses: DAILY_GUESSES,
-        previewUrl: match.previewUrl,
-        answer: {
-          title: match.trackName,
-          artist: match.artistName,
-          artwork: (match.artworkUrl100 || '').replace(
-            '100x100bb',
-            '200x200bb'
-          ),
-        },
+        tracks,
+        answers: tracks.map((track) => track.answer),
       },
       // Short cache: preview URLs rotate, and the puzzle flips at UTC midnight.
       'public, max-age=300'
     );
-  } catch {
-    return json(res, 502, { error: 'daily_failed' });
+  } catch (err) {
+    return json(res, 502, { error: err.message || 'daily_failed' });
   }
 }
