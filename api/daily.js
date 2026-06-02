@@ -5,7 +5,7 @@
 // is the same trade-off Heardle-style games make: discoverable in the network
 // tab, but the experience is honest.
 
-import { SONGS, DAILY_PIECES, LAUNCH_UTC } from './_songs.js';
+import { SONGS, DAILY_PIECES, DAILY_GUESSES, LAUNCH_UTC } from './_songs.js';
 
 const DAY_MS = 86400000;
 
@@ -17,18 +17,26 @@ const json = (res, status, body, cache) => {
   res.end(JSON.stringify(body));
 };
 
-const norm = (s) =>
+export const norm = (s) =>
   (s || '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim();
 
 // Prefer a result whose artist matches; require a preview; else first preview.
-function pickMatch(results, song) {
+export function pickMatch(results, song) {
   const withPreview = (results || []).filter((t) => t.previewUrl);
   const wantArtist = norm(song.artist);
   const byArtist = withPreview.find((t) => norm(t.artistName).includes(wantArtist));
   return byArtist || withPreview[0] || null;
+}
+
+// Pure: which puzzle + song corresponds to a given moment (UTC). Identical for
+// everyone on a given UTC day; clamps to puzzle #0 before launch.
+export function selectDaily(nowMs) {
+  const todayUtc = Math.floor(nowMs / DAY_MS) * DAY_MS;
+  const puzzleNumber = Math.max(0, Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS));
+  return { puzzleNumber, song: SONGS[puzzleNumber % SONGS.length] };
 }
 
 export default async function handler(req, res) {
@@ -39,9 +47,7 @@ export default async function handler(req, res) {
   const nowMs = dateParam ? Date.parse(dateParam) : Date.now();
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
 
-  const todayUtc = Math.floor(nowMs / DAY_MS) * DAY_MS;
-  const puzzleNumber = Math.max(0, Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS));
-  const song = SONGS[puzzleNumber % SONGS.length];
+  const { puzzleNumber, song } = selectDaily(nowMs);
 
   const api =
     'https://itunes.apple.com/search?' +
@@ -68,6 +74,7 @@ export default async function handler(req, res) {
       {
         puzzleNumber,
         numPieces: DAILY_PIECES,
+        maxGuesses: DAILY_GUESSES,
         previewUrl: match.previewUrl,
         answer: {
           title: match.trackName,
@@ -78,7 +85,7 @@ export default async function handler(req, res) {
       // Short cache: preview URLs rotate, and the puzzle flips at UTC midnight.
       'public, max-age=300'
     );
-  } catch (err) {
+  } catch {
     return json(res, 502, { error: 'daily_failed' });
   }
 }

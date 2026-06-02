@@ -24,4 +24,9 @@ function devApi() {
 
 export default defineConfig({
   plugins: [react(), devApi()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['**/*.test.{js,jsx}'],
+  },
 });

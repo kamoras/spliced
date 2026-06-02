@@ -44,5 +44,8 @@ export const SONGS = [
 // Pieces per daily puzzle (the same for everyone).
 export const DAILY_PIECES = 6;
 
+// Wordle-style guess cap: "Check" attempts before the answer is revealed.
+export const DAILY_GUESSES = 6;
+
 // Day 0 of the daily rotation (UTC).
 export const LAUNCH_UTC = Date.UTC(2026, 0, 1); // 2026-01-01
