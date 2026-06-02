@@ -286,6 +286,14 @@ export default function Puzzle({
         </div>
       )}
 
+      {!over && (
+        <PlaybackOrder
+          order={playbackOrder}
+          identity={identity}
+          playingId={playingId}
+        />
+      )}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -398,6 +406,49 @@ export default function Puzzle({
         )}
       </div>
     </div>
+  );
+}
+
+function PlaybackOrder({ order, identity, playingId }) {
+  return (
+    <section className="playback-order" aria-label="Playback order">
+      <div className="playback-order-title">
+        <Icon name="play" /> Playback order
+      </div>
+      <ol className="playback-order-list">
+        {order.map((piece, idx) => {
+          const item = identity[piece.id];
+          const active = playingId === piece.id;
+          return (
+            <li
+              key={piece.id}
+              className={[
+                'playback-order-cell',
+                piece.locked && 'playback-order-cell--locked',
+                active && 'playback-order-cell--active',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              aria-current={active ? 'true' : undefined}
+              aria-label={`Position ${idx + 1}: clip ${item?.letter ?? '?'}`}
+            >
+              <span className="playback-order-index">{idx + 1}</span>
+              <span className="playback-order-id">
+                <span
+                  className="tile-dot"
+                  style={{ background: item?.color }}
+                  aria-hidden="true"
+                />
+                {item?.letter ?? '?'}
+              </span>
+              {piece.locked && (
+                <Icon name="lock" className="playback-order-lock" />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
