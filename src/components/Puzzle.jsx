@@ -66,6 +66,21 @@ export default function Puzzle({
   const orderedIds = useMemo(() => order.map((p) => p.id), [order]);
   const slotOf = (id) => order.findIndex((p) => p.id === id) + 1;
 
+  // Stable identity (letter + colour) per piece, assigned from a scramble so it
+  // never correlates with the correct order. Travels with the piece as it moves.
+  const identity = useMemo(() => {
+    const scrambled = shufflePieces(pieces, seed);
+    const map = {};
+    scrambled.forEach((p, i) => {
+      map[p.id] = {
+        letter: String.fromCharCode(65 + i),
+        color: `hsl(${Math.round((i * 360) / scrambled.length)} 70% 55%)`,
+      };
+    });
+    return map;
+  }, [pieces, seed]);
+  const letterOf = (id) => identity[id]?.letter ?? '?';
+
   const limited = Number.isFinite(maxGuesses);
   const over = solved || lost || revealed;
 
@@ -173,12 +188,12 @@ export default function Puzzle({
         'To reorder a piece, press Space or Enter to pick it up, use the arrow keys to move it, then press Space or Enter to drop it.',
     },
     announcements: {
-      onDragStart: ({ active }) => `Picked up the piece in slot ${slotOf(active.id)}.`,
+      onDragStart: ({ active }) => `Picked up clip ${letterOf(active.id)}.`,
       onDragOver: ({ over: o }) =>
-        o ? `Piece now over slot ${slotOf(o.id)}.` : undefined,
-      onDragEnd: ({ over: o }) =>
+        o ? `Clip now over position ${slotOf(o.id)}.` : undefined,
+      onDragEnd: ({ active, over: o }) =>
         o
-          ? `Dropped the piece into slot ${slotOf(o.id)}.`
+          ? `Clip ${letterOf(active.id)} dropped into position ${slotOf(o.id)}.`
           : 'Reorder cancelled.',
       onDragCancel: () => 'Reorder cancelled.',
     },
@@ -235,6 +250,8 @@ export default function Puzzle({
                 <PieceTile
                   piece={piece}
                   position={idx}
+                  letter={identity[piece.id]?.letter}
+                  color={identity[piece.id]?.color}
                   isPlaying={playingId === piece.id || seqIndex === idx}
                   isCorrect={piece.correctIndex === idx}
                   revealed={revealed}
