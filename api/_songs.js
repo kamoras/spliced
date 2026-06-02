@@ -41,9 +41,9 @@ export const SONGS = [
   { title: 'Toxic', artist: 'Britney Spears' },
 ];
 
-// Pieces per daily puzzle (the same for everyone). More pieces = shorter
-// clips = harder to place by ear.
-export const DAILY_PIECES = 8;
+// Pieces per daily puzzle (the same for everyone): one locked start clip
+// plus six movable clips to arrange by ear.
+export const DAILY_PIECES = 7;
 
 // Wordle-style guess cap: "Check" attempts before the answer is revealed.
 export const DAILY_GUESSES = 6;

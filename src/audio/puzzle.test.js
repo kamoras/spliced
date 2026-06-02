@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   mulberry32,
   shufflePieces,
+  buildAnchoredOrder,
+  gradeOrder,
   isSolved,
   countCorrect,
   guessesLeft,
@@ -56,6 +58,53 @@ describe('shufflePieces', () => {
         .map((p) => p.id)
         .sort()
     ).toEqual(pieces.map((p) => p.id).sort());
+  });
+});
+
+describe('buildAnchoredOrder', () => {
+  it('locks the first clip in the first position', () => {
+    const pieces = makePieces(7);
+    const order = buildAnchoredOrder(pieces, 12);
+
+    expect(order[0]).toEqual(pieces[0]);
+  });
+
+  it('shuffles only the movable clips deterministically', () => {
+    const pieces = makePieces(7);
+    const first = buildAnchoredOrder(pieces, 42);
+    const second = buildAnchoredOrder(pieces, 42);
+
+    expect(first.map((p) => p.id)).toEqual(second.map((p) => p.id));
+    expect(
+      first
+        .slice(1)
+        .map((p) => p.id)
+        .sort()
+    ).toEqual(
+      pieces
+        .slice(1)
+        .map((p) => p.id)
+        .sort()
+    );
+  });
+
+  it('does not return a solved full arrangement when movable clips can be shuffled', () => {
+    const pieces = makePieces(7);
+    for (let seed = 0; seed < 200; seed++) {
+      expect(isSolved(buildAnchoredOrder(pieces, seed))).toBe(false);
+    }
+  });
+});
+
+describe('gradeOrder', () => {
+  it('marks each guessed slot as correct or wrong', () => {
+    const pieces = makePieces(4);
+    expect(gradeOrder([pieces[0], pieces[2], pieces[1], pieces[3]])).toEqual([
+      { id: 'p0', correct: true, anchor: true },
+      { id: 'p2', correct: false, anchor: false },
+      { id: 'p1', correct: false, anchor: false },
+      { id: 'p3', correct: true, anchor: false },
+    ]);
   });
 });
 

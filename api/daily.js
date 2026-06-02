@@ -27,7 +27,9 @@ export const norm = (s) =>
 export function pickMatch(results, song) {
   const withPreview = (results || []).filter((t) => t.previewUrl);
   const wantArtist = norm(song.artist);
-  const byArtist = withPreview.find((t) => norm(t.artistName).includes(wantArtist));
+  const byArtist = withPreview.find((t) =>
+    norm(t.artistName).includes(wantArtist)
+  );
   return byArtist || withPreview[0] || null;
 }
 
@@ -35,7 +37,10 @@ export function pickMatch(results, song) {
 // everyone on a given UTC day; clamps to puzzle #0 before launch.
 export function selectDaily(nowMs) {
   const todayUtc = Math.floor(nowMs / DAY_MS) * DAY_MS;
-  const puzzleNumber = Math.max(0, Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS));
+  const puzzleNumber = Math.max(
+    0,
+    Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS)
+  );
   return { puzzleNumber, song: SONGS[puzzleNumber % SONGS.length] };
 }
 
@@ -79,7 +84,10 @@ export default async function handler(req, res) {
         answer: {
           title: match.trackName,
           artist: match.artistName,
-          artwork: (match.artworkUrl100 || '').replace('100x100bb', '200x200bb'),
+          artwork: (match.artworkUrl100 || '').replace(
+            '100x100bb',
+            '200x200bb'
+          ),
         },
       },
       // Short cache: preview URLs rotate, and the puzzle flips at UTC midnight.
