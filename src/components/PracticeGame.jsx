@@ -8,9 +8,9 @@ import { loadAndSlice, unlockAudio } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
 
 const DIFFICULTIES = [
-  { label: 'Easy', pieces: 4 },
-  { label: 'Medium', pieces: 6 },
-  { label: 'Hard', pieces: 8 },
+  { label: 'Easy', pieces: 5 },
+  { label: 'Medium', pieces: 7 },
+  { label: 'Hard', pieces: 9 },
 ];
 
 export default function PracticeGame({ onDaily }) {
@@ -76,7 +76,7 @@ export default function PracticeGame({ onDaily }) {
             disabled={phase === 'loading'}
           >
             {d.label}
-            <span className="chip-sub">{d.pieces} pieces</span>
+            <span className="chip-sub">{d.pieces - 1} movable</span>
           </button>
         ))}
       </div>

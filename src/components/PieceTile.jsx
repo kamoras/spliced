@@ -1,7 +1,6 @@
-// A single draggable puzzle piece. Each piece has a stable identity (a colour
-// and letter) that travels with it as it's reordered, so a move is visibly the
-// same clip in a new spot. When the answer is revealed, correctness is shown
-// with an icon AND a word — never colour alone.
+// A single puzzle piece. Each piece has a stable identity (a colour and letter)
+// that travels with it as it is reordered. The first clip is locked in place;
+// movable clips expose only their drag handle because playback is sequence-only.
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -15,11 +14,17 @@ export default function PieceTile({
   color,
   isPlaying,
   isCorrect,
+  locked = false,
   revealed,
-  onPlay,
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: piece.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: piece.id, disabled: locked });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -29,6 +34,7 @@ export default function PieceTile({
 
   const className = [
     'tile',
+    locked && 'tile-locked',
     isPlaying && 'tile-playing',
     isDragging && 'tile-dragging',
     revealed && (isCorrect ? 'tile-correct' : 'tile-wrong'),
@@ -36,38 +42,50 @@ export default function PieceTile({
     .filter(Boolean)
     .join(' ');
 
+  const identity = (
+    <span className="tile-id">
+      <span
+        className="tile-dot"
+        style={{ background: color }}
+        aria-hidden="true"
+      />
+      {letter}
+    </span>
+  );
+
   return (
     <div ref={setNodeRef} style={style} className={className}>
-      <button
-        type="button"
-        className="tile-grip"
-        aria-label={`Reorder clip ${letter} (currently position ${position + 1})`}
-        {...attributes}
-        {...listeners}
-      >
-        <span className="tile-id">
-          <span className="tile-dot" style={{ background: color }} aria-hidden="true" />
-          {letter}
-        </span>
-        <Icon name="grip" className="grip-dots" />
-      </button>
+      {locked ? (
+        <div
+          className="tile-grip tile-grip--locked"
+          aria-label={`Locked start clip ${letter} at position ${position + 1}`}
+        >
+          {identity}
+          <span className="tile-locked-label">
+            <Icon name="lock" /> Start
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="tile-grip"
+          aria-label={`Reorder clip ${letter} (currently position ${position + 1})`}
+          {...attributes}
+          {...listeners}
+        >
+          {identity}
+          <Icon name="grip" className="grip-dots" />
+        </button>
+      )}
 
       <div className="tile-wave">
         <Waveform peaks={piece.peaks} active={isPlaying} color={color} />
       </div>
 
-      <button
-        type="button"
-        className="tile-play"
-        aria-label={`${isPlaying ? 'Pause' : 'Play'} clip ${letter}`}
-        onClick={() => onPlay(piece)}
-      >
-        <Icon name={isPlaying ? 'pause' : 'play'} />
-        {isPlaying ? 'Pause' : 'Play'}
-      </button>
-
       {revealed && (
-        <div className={`tile-state ${isCorrect ? 'tile-state--ok' : 'tile-state--no'}`}>
+        <div
+          className={`tile-state ${isCorrect ? 'tile-state--ok' : 'tile-state--no'}`}
+        >
           <Icon name={isCorrect ? 'check' : 'close'} />
           {isCorrect ? 'Correct spot' : 'Wrong spot'}
         </div>
