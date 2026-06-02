@@ -51,7 +51,7 @@ export async function loadAndSlice(previewUrl, numPieces) {
 }
 
 // Downsample a slice of the waveform into `bars` normalized peak amplitudes.
-function computePeaks(buffer, offset, duration, bars) {
+export function computePeaks(buffer, offset, duration, bars) {
   const data = buffer.getChannelData(0);
   const sampleRate = buffer.sampleRate;
   const start = Math.floor(offset * sampleRate);

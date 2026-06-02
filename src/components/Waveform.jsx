@@ -1,8 +1,10 @@
-// Tiny canvas waveform rendered from a piece's precomputed peaks.
+// Tiny canvas waveform rendered from a piece's precomputed peaks. The bar
+// colour follows the inherited CSS `color` (set via .tile-wave) so it adapts
+// to the light/dark theme.
 
 import { useEffect, useRef } from 'react';
 
-export default function Waveform({ peaks, color = '#7af7c0', active = false }) {
+export default function Waveform({ peaks, active = false }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -18,7 +20,7 @@ export default function Waveform({ peaks, color = '#7af7c0', active = false }) {
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = color;
+    ctx.fillStyle = getComputedStyle(canvas).color || '#888';
 
     const n = peaks.length;
     const gap = 1.5;
@@ -28,10 +30,10 @@ export default function Waveform({ peaks, color = '#7af7c0', active = false }) {
     peaks.forEach((p, i) => {
       const barH = Math.max(2, p * (h * 0.92));
       const x = i * (w / n);
-      ctx.globalAlpha = active ? 1 : 0.85;
+      ctx.globalAlpha = active ? 1 : 0.8;
       ctx.fillRect(x, mid - barH / 2, barW, barH);
     });
-  }, [peaks, color, active]);
+  }, [peaks, active]);
 
   return <canvas ref={canvasRef} className="waveform" />;
 }

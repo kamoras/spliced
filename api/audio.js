@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     res.setHeader('content-length', String(buf.length));
     res.setHeader('cache-control', 'public, max-age=86400');
     res.end(buf);
-  } catch (err) {
+  } catch {
     res.statusCode = 502;
     res.end('fetch failed');
   }

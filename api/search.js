@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       }));
 
     return json(res, 200, { results }, 'public, max-age=3600');
-  } catch (err) {
+  } catch {
     return json(res, 502, { error: 'search_failed' });
   }
 }

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import SongSearch from './SongSearch.jsx';
 import Puzzle from './Puzzle.jsx';
 import { loadAndSlice, unlockAudio } from '../audio/slicer.js';
+import { MAX_GUESSES } from '../config.js';
 
 const DIFFICULTIES = [
   { label: 'Easy', pieces: 4 },
@@ -23,7 +24,10 @@ export default function PracticeGame({ onDaily }) {
     setPhase('loading');
     try {
       await unlockAudio();
-      const { buffer, pieces } = await loadAndSlice(song.previewUrl, difficulty.pieces);
+      const { buffer, pieces } = await loadAndSlice(
+        song.previewUrl,
+        difficulty.pieces
+      );
       setGame({ song, buffer, pieces });
       setPhase('play');
     } catch (err) {
@@ -44,27 +48,30 @@ export default function PracticeGame({ onDaily }) {
         song={game.song}
         buffer={game.buffer}
         pieces={game.pieces}
+        maxGuesses={MAX_GUESSES}
         onNewPuzzle={newPuzzle}
-        newPuzzleLabel="← Pick another song"
+        newPuzzleLabel="Pick another song"
       />
     );
   }
 
   return (
-    <section className="setup">
-      <div className="daily-bar">
-        <span className="daily-no">Practice mode</span>
+    <section className="panel">
+      <div className="bar">
+        <span className="bar-title">Practice mode</span>
         <button className="link" onClick={onDaily}>
           ← Back to daily
         </button>
       </div>
 
-      <div className="difficulty">
+      <div className="difficulty" role="group" aria-label="Difficulty">
         <span className="difficulty-label">Difficulty</span>
         {DIFFICULTIES.map((d) => (
           <button
             key={d.label}
-            className={`chip ${difficulty.label === d.label ? 'chip-on' : ''}`}
+            type="button"
+            className="chip"
+            aria-pressed={difficulty.label === d.label}
             onClick={() => setDifficulty(d)}
             disabled={phase === 'loading'}
           >
@@ -76,7 +83,9 @@ export default function PracticeGame({ onDaily }) {
 
       <SongSearch onPick={startPuzzle} disabled={phase === 'loading'} />
 
-      {phase === 'loading' && <p className="muted center">Slicing up the clip…</p>}
+      {phase === 'loading' && (
+        <p className="muted center">Slicing up the clip…</p>
+      )}
       {error && <p className="error center">{error}</p>}
     </section>
   );

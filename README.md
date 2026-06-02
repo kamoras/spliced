@@ -1,86 +1,108 @@
-# 🎚️ Spliced
+# Spliced
 
-A **daily music puzzle** for stream warm-ups. Each day a short, *mystery* song
-clip gets **chopped into equal pieces and shuffled** — you drag the pieces back
-into the right order and rebuild the song by ear, without being told what it is.
-Solve it and the answer is revealed.
+A **daily music puzzle**. Each day a short, *mystery* song clip gets chopped
+into equal pieces and shuffled — listen to the pieces, drag them back into the
+right order, and rebuild the song **by ear**. You get a limited number of
+guesses (Wordle-style); solve it and the answer is revealed.
 
 Everyone gets the **same puzzle and the same scramble each day** (it flips at
-UTC midnight), so it's shareable — perfect for kicking off a Twitch stream and
-comparing with chat.
+UTC midnight), so results are shareable.
+
+<p align="center">
+  <a href="https://github.com/kamoras/spliced/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/kamoras/spliced/actions/workflows/ci.yml/badge.svg" />
+  </a>
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="Node >= 18" src="https://img.shields.io/badge/node-%3E%3D18-339933.svg" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-light.png" alt="Spliced in light mode" width="49%" />
+  <img src="docs/screenshot-dark.png" alt="Spliced in dark mode" width="49%" />
+</p>
+
+## How to play
+
+1. Each tile is a slice of today’s mystery song. Press **Play** on a tile to
+   audition it while you think.
+2. **Drag** tiles to reorder them — or focus a tile’s handle and use the
+   **arrow keys**.
+3. Press **Submit guess** to hear your arrangement played back in order and find
+   out how many pieces are in the right spot.
+4. You get **6 guesses**. Solve it before they run out to reveal the song and
+   **share** your result.
+
+A separate **Practice mode** lets you search any song and build a one-off puzzle
+at Easy/Medium/Hard piece counts (this spoils the song, so it's kept apart from
+the daily).
 
 ## How it works
 
-1. `/api/daily` deterministically picks **today's song** from a curated list
-   (by UTC date, identical for everyone) and resolves a free 30-second
-   `previewUrl` from the public
-   [iTunes Search API](https://performance-partners.apple.com/search-api)
-   (no API key). The title stays hidden in the UI until you finish.
-2. The preview is **decoded with the Web Audio API** and sliced into N equal
-   pieces.
-3. Pieces are **shuffled with a seed derived from the puzzle number**, so the
-   scramble is identical for every player. Each tile has its own waveform
-   thumbnail and a play button so you can audition it.
-4. Drag to reorder, **Play arrangement** to hear your current order, then
-   **Check**. Solve it and the reassembled clip plays, the song is revealed,
-   and you can **share your result**. 🎉
-5. Your result is saved locally, with a countdown to the next puzzle. A
-   separate **Practice mode** lets you search any song and build a one-off
-   puzzle (this naturally spoils the song, so it's kept apart from the daily).
+- **`/api/daily`** deterministically picks today's song by UTC date (identical
+  for everyone) and resolves a free 30-second preview from the public
+  [iTunes Search API](https://performance-partners.apple.com/search-api) — no
+  API key. The title stays hidden in the UI until you finish.
+- The preview is decoded with the **Web Audio API** and sliced into equal
+  pieces, each with its own waveform thumbnail and play button.
+- Pieces are **shuffled with a seed derived from the puzzle number**, so the
+  scramble is identical for every player.
 
-### Adding / changing songs
-
-The daily rotation lives in [`api/_songs.js`](./api/_songs.js) as a simple list
-of `{ title, artist }`. The server resolves a fresh preview at request time, so
-there are no track IDs or preview URLs to maintain. Use widely recognizable
-songs so the top search result is reliably the real recording.
-
-### Why the serverless proxies?
-
-Three tiny functions live in [`api/`](./api):
-
-- **`/api/daily`** – resolves today's mystery song and its preview.
-- **`/api/search`** – proxies the iTunes Search API (used by Practice mode).
-  That endpoint doesn't send reliable CORS headers, so calling it from the
-  browser is flaky; the proxy makes it deterministic and trims the payload
-  down to what the puzzle needs.
-- **`/api/audio`** – re-serves an Apple preview clip with permissive CORS
-  headers, because `decodeAudioData` requires the audio bytes to be
-  cross-origin readable. The target URL is **locked to Apple's media hosts**
-  so it can't be used as an open proxy.
-
-The same handlers are mounted as Vite dev middleware (see
-[`vite.config.js`](./vite.config.js)), so `npm run dev` gives you full
-functionality without `vercel dev`.
+Three tiny serverless functions live in [`api/`](./api): `daily` (today's
+mystery song), `search` (Practice search proxy), and `audio` (re-serves an
+Apple preview with permissive CORS so `decodeAudioData` can read it — locked to
+Apple's media hosts so it can't be used as an open proxy). The same handlers are
+mounted as Vite dev middleware (see [`vite.config.js`](./vite.config.js)), so
+`npm run dev` gives full functionality without `vercel dev`.
 
 ## Develop
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev        # http://localhost:5173
 ```
 
-## Build
+Other scripts:
 
 ```bash
-npm run build    # outputs to dist/
-npm run preview  # serve the production build (note: /api functions need Vercel)
+npm run lint       # ESLint (incl. jsx-a11y accessibility rules)
+npm test           # Vitest unit tests
+npm run build      # production build → dist/
+npm run format     # Prettier
 ```
 
 ## Deploy (Vercel)
 
 This is a zero-config Vercel project:
 
-- Framework preset: **Vite** (auto-detected) → builds to `dist/`.
+- Framework preset **Vite** (auto-detected) → builds to `dist/`.
 - The `api/` directory is deployed automatically as serverless functions.
 
-Just import the repo in Vercel and deploy — no environment variables required.
+Import the repo in Vercel and deploy — no environment variables required. Vercel
+also gives you a **preview deployment for every pull request** and **production
+deploys from `main`** automatically.
 
-## Notes
+## Accessibility
 
-- Previews are 30 seconds, so even Hard pieces are ~3–4 seconds each — long
-  enough to recognize.
-- Audio playback requires a user gesture (clicking a song), which is when the
-  `AudioContext` is unlocked.
-- iTunes previews are intended for preview/discovery use. Keep it to
-  warm-up-sized clips.
+Spliced targets **WCAG 2.1 AA**:
+
+- Full keyboard play, including reordering pieces via the keyboard (dnd-kit
+  keyboard sensor) with screen-reader announcements.
+- Tile correctness is shown with an **icon and a word**, never color alone.
+- Visible focus styles, semantic landmarks, labelled controls, and an
+  `aria-live` region for guess feedback.
+- Light and dark themes with AA contrast, and `prefers-reduced-motion` support.
+
+Accessibility is checked in review with [axe](https://github.com/dequelabs/axe-core)
+and the `eslint-plugin-jsx-a11y` lint rules.
+
+## Contributing
+
+Issues and PRs are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). The daily
+song rotation lives in [`api/_songs.js`](./api/_songs.js); you can also open a
+**Song suggestion** issue. Dependencies are kept current by Dependabot, with
+patch/minor/security updates merged automatically once CI passes.
+
+## License
+
+[MIT](./LICENSE) © 2026 Ryan Mack. Previews are provided by the iTunes Search
+API and are intended for preview/discovery use; keep clips warm-up-sized.

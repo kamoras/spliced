@@ -1,0 +1,24 @@
+name: Song suggestion
+description: Suggest a song for the daily rotation
+labels: [song]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Song title
+    validations:
+      required: true
+  - type: input
+    id: artist
+    attributes:
+      label: Artist
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this one?
+      description: >-
+        Picks work best when they're widely recognizable, so the iTunes top
+        result is reliably the real recording. Anything that makes it a good
+        guess-by-ear puzzle?

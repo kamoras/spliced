@@ -48,3 +48,8 @@ export function countCorrect(order) {
     0
   );
 }
+
+// Guesses remaining given attempts used and a cap (never negative).
+export function guessesLeft(attempts, maxGuesses) {
+  return Math.max(0, maxGuesses - attempts);
+}

@@ -1,7 +1,9 @@
-// Today's shared puzzle. The song is a mystery until you solve (or reveal) it.
+// Today's shared puzzle. The song is a mystery until you solve, run out of
+// guesses, or reveal it.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
+import Icon from './Icon.jsx';
 import { loadAndSlice } from '../audio/slicer.js';
 import {
   getResult,
@@ -13,12 +15,9 @@ import {
 export default function DailyGame({ onPractice }) {
   const [status, setStatus] = useState('loading'); // loading | ready | error
   const [error, setError] = useState(null);
-  const [daily, setDaily] = useState(null); // { puzzleNumber, numPieces, answer }
-  const [game, setGame] = useState(null); // { buffer, pieces }
-  const [result, setResult] = useState(null); // { solved, attempts } | null
-  // True only if the puzzle was finished on a *previous* visit. Solving during
-  // this session updates `result` (for the share bar) without yanking the
-  // board away mid-celebration.
+  const [daily, setDaily] = useState(null);
+  const [game, setGame] = useState(null);
+  const [result, setResult] = useState(null);
   const [playedBefore, setPlayedBefore] = useState(false);
   const [replay, setReplay] = useState(false);
 
@@ -48,7 +47,7 @@ export default function DailyGame({ onPractice }) {
 
   if (status === 'loading') {
     return (
-      <section className="setup center">
+      <section className="panel center">
         <p className="muted">Loading today’s puzzle…</p>
       </section>
     );
@@ -56,9 +55,9 @@ export default function DailyGame({ onPractice }) {
 
   if (status === 'error') {
     return (
-      <section className="setup center">
+      <section className="panel center">
         <p className="error">{error}</p>
-        <button className="btn btn-primary" onClick={load}>
+        <button className="btn btn--primary" onClick={load}>
           Try again
         </button>
       </section>
@@ -69,8 +68,8 @@ export default function DailyGame({ onPractice }) {
 
   return (
     <div>
-      <div className="daily-bar">
-        <span className="daily-no">Daily Puzzle #{daily.puzzleNumber}</span>
+      <div className="bar">
+        <span className="bar-title">Daily Puzzle #{daily.puzzleNumber}</span>
         <button className="link" onClick={onPractice}>
           Practice mode →
         </button>
@@ -90,26 +89,38 @@ export default function DailyGame({ onPractice }) {
             buffer={game.buffer}
             pieces={game.pieces}
             seed={daily.puzzleNumber}
-            onNewPuzzle={null}
+            maxGuesses={daily.maxGuesses}
             onResult={
               replay
                 ? undefined // a replay shouldn't overwrite your official result
                 : (r) => setResult(saveResult(daily.puzzleNumber, r))
             }
           />
-          {result && (
-            <ShareBar daily={daily} result={result} />
-          )}
+          {result && <ShareBar daily={daily} result={result} />}
         </>
       )}
     </div>
   );
 }
 
+function outcome(daily, result) {
+  if (result.solved) return 'solved';
+  if (result.attempts >= daily.maxGuesses) return 'lost';
+  return 'revealed';
+}
+
 function CompletedPanel({ daily, result, onReplay }) {
+  const kind = outcome(daily, result);
+  const message =
+    kind === 'solved'
+      ? `Solved in ${result.attempts}/${daily.maxGuesses}.`
+      : kind === 'lost'
+        ? 'Out of guesses today.'
+        : 'You revealed today’s answer.';
+
   return (
-    <section className="setup completed">
-      <div className="completed-head">
+    <section className="panel">
+      <div className="now-playing">
         {daily.answer.artwork && (
           <img src={daily.answer.artwork} alt="" className="np-art" />
         )}
@@ -119,21 +130,18 @@ function CompletedPanel({ daily, result, onReplay }) {
         </div>
       </div>
 
-      <p className="completed-msg">
-        {result.solved
-          ? `🎉 You solved it in ${result.attempts} ${
-              result.attempts === 1 ? 'try' : 'tries'
-            }!`
-          : '👀 You revealed today’s answer.'}
+      <p
+        className={`result-banner ${kind === 'solved' ? 'is-win' : 'is-loss'}`}
+      >
+        {message}
       </p>
 
       <ShareBar daily={daily} result={result} />
-
       <Countdown />
 
       <div className="controls">
         <button className="btn" onClick={onReplay}>
-          ⟲ Replay this clip
+          <Icon name="reset" /> Replay this clip
         </button>
       </div>
     </section>
@@ -142,15 +150,17 @@ function CompletedPanel({ daily, result, onReplay }) {
 
 function ShareBar({ daily, result }) {
   const [copied, setCopied] = useState(false);
+  const kind = outcome(daily, result);
+  const score =
+    kind === 'solved'
+      ? `${result.attempts}/${daily.maxGuesses}`
+      : kind === 'lost'
+        ? `X/${daily.maxGuesses}`
+        : 'revealed';
 
   const text =
-    `🎚️ Spliced #${daily.puzzleNumber}\n` +
-    (result.solved
-      ? `Reassembled in ${result.attempts} ${
-          result.attempts === 1 ? 'try' : 'tries'
-        } 🎶`
-      : 'Revealed 👀') +
-    `\n${typeof location !== 'undefined' ? location.origin : ''}`;
+    `Spliced #${daily.puzzleNumber} — ${score}\n` +
+    `${typeof location !== 'undefined' ? location.origin : ''}`;
 
   async function share() {
     try {
@@ -162,13 +172,13 @@ function ShareBar({ daily, result }) {
         setTimeout(() => setCopied(false), 1800);
       }
     } catch {
-      /* user dismissed share sheet */
+      /* user dismissed the share sheet */
     }
   }
 
   return (
-    <button className="btn btn-accent share-btn" onClick={share}>
-      {copied ? '✓ Copied result' : '↗ Share result'}
+    <button className="btn btn--primary share-btn" onClick={share}>
+      <Icon name="share" /> {copied ? 'Copied result' : 'Share result'}
     </button>
   );
 }
