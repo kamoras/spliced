@@ -30,6 +30,20 @@ import {
   shufflePieces,
 } from '../audio/puzzle.js';
 
+const DEFAULT_VOLUME = 0.85;
+
+function clampIndex(value, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(max, Math.max(0, Math.round(numeric)));
+}
+
+function clampVolume(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_VOLUME;
+  return Math.min(1, Math.max(0, numeric));
+}
+
 export default function Puzzle({
   song,
   buffer,
@@ -57,14 +71,26 @@ export default function Puzzle({
   const [feedback, setFeedback] = useState(null);
   const [attempts, setAttempts] = useState(0);
   const [guessHistory, setGuessHistory] = useState([]);
+  const [playbackStart, setPlaybackStart] = useState(0);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
 
   const playerRef = useRef(null);
   if (!playerRef.current) {
     playerRef.current = new Player(getAudioContext(), buffer);
   }
   const player = playerRef.current;
+  const playbackStartMax = Math.max(0, playbackOrder.length - 1);
+  const playbackStartIndex = clampIndex(playbackStart, playbackStartMax);
 
   useEffect(() => () => player.stop(), [player]);
+
+  useEffect(() => {
+    player.setVolume(volume);
+  }, [player, volume]);
+
+  useEffect(() => {
+    setPlaybackStart((current) => clampIndex(current, playbackStartMax));
+  }, [playbackStartMax]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -110,6 +136,15 @@ export default function Puzzle({
     setFeedback(null);
   }
 
+  function handlePlaybackStartChange(value) {
+    if (playingSequence) stopAll();
+    setPlaybackStart(clampIndex(value, playbackStartMax));
+  }
+
+  function handleVolumeChange(value) {
+    setVolume(clampVolume(value));
+  }
+
   function stopAll() {
     player.stop();
     setPlayingId(null);
@@ -133,7 +168,7 @@ export default function Puzzle({
       stopAll();
       return;
     }
-    playSequence(playbackOrder);
+    playSequence(playbackOrder.slice(playbackStartIndex));
   }
 
   // Play the correct song end-to-end (offered once the game is over).
@@ -164,6 +199,7 @@ export default function Puzzle({
 
     setAttempts(tries);
     setPlaybackOrder(guess);
+    setPlaybackStart(0);
     setPlayingId(null);
     setGuessHistory(nextGuessHistory);
 
@@ -204,6 +240,7 @@ export default function Puzzle({
 
   // Give up: reveal the title, keep your order graded, and play the answer.
   function reveal() {
+    setPlaybackStart(0);
     setRevealed(true);
     setSolved(false);
     setFeedback(null);
@@ -221,6 +258,7 @@ export default function Puzzle({
     const next = buildAnchoredOrder(pieces, seed);
     setOrder(next);
     setPlaybackOrder(next);
+    setPlaybackStart(0);
     setRevealed(false);
     setSolved(false);
     setLost(false);
@@ -246,11 +284,7 @@ export default function Puzzle({
     },
   };
 
-  const playLabel = playingSequence
-    ? 'Stop playback'
-    : attempts > 0
-      ? 'Replay last guess'
-      : 'Play starting order';
+  const playLabel = playingSequence ? 'Stop' : 'Play';
 
   return (
     <div className="panel">
@@ -291,6 +325,10 @@ export default function Puzzle({
           order={playbackOrder}
           identity={identity}
           playingId={playingId}
+          startIndex={playbackStartIndex}
+          onStartIndexChange={handlePlaybackStartChange}
+          volume={volume}
+          onVolumeChange={handleVolumeChange}
         />
       )}
 
@@ -358,6 +396,15 @@ export default function Puzzle({
         )}
       </div>
 
+      {over && (
+        <section
+          className="playback-order playback-order--compact"
+          aria-label="Playback controls"
+        >
+          <VolumeControl volume={volume} onVolumeChange={handleVolumeChange} />
+        </section>
+      )}
+
       <div className="controls">
         {!over ? (
           <>
@@ -391,7 +438,7 @@ export default function Puzzle({
               onClick={playSong}
             >
               <Icon name={playingSequence ? 'stop' : 'play'} />
-              {playingSequence ? 'Stop playback' : 'Play song'}
+              {playingSequence ? 'Stop' : 'Play song'}
             </button>
             {onNewPuzzle && (
               <button
@@ -409,28 +456,53 @@ export default function Puzzle({
   );
 }
 
-function PlaybackOrder({ order, identity, playingId }) {
+function PlaybackOrder({
+  order,
+  identity,
+  playingId,
+  startIndex,
+  onStartIndexChange,
+  volume,
+  onVolumeChange,
+}) {
+  const maxStart = Math.max(0, order.length - 1);
+  const startPiece = order[startIndex];
+  const startLetter = identity[startPiece?.id]?.letter ?? '?';
+
   return (
     <section className="playback-order" aria-label="Playback order">
-      <div className="playback-order-title">
-        <Icon name="play" /> Playback order
+      <div className="playback-order-head">
+        <div className="playback-order-title">
+          <Icon name="play" /> Playback order
+        </div>
+        <span className="playback-order-readout">Start {startIndex + 1}</span>
       </div>
       <ol className="playback-order-list">
         {order.map((piece, idx) => {
           const item = identity[piece.id];
           const active = playingId === piece.id;
+          const beforeStart = idx < startIndex;
+          const start = idx === startIndex;
           return (
             <li
               key={piece.id}
               className={[
                 'playback-order-cell',
                 piece.locked && 'playback-order-cell--locked',
+                beforeStart && 'playback-order-cell--before-start',
+                start && 'playback-order-cell--start',
                 active && 'playback-order-cell--active',
               ]
                 .filter(Boolean)
                 .join(' ')}
               aria-current={active ? 'true' : undefined}
-              aria-label={`Position ${idx + 1}: clip ${item?.letter ?? '?'}`}
+              aria-label={`Position ${idx + 1}: clip ${item?.letter ?? '?'}${
+                start
+                  ? ', playback starts here'
+                  : beforeStart
+                    ? ', skipped by current start point'
+                    : ''
+              }`}
             >
               <span className="playback-order-index">{idx + 1}</span>
               <span className="playback-order-id">
@@ -448,7 +520,47 @@ function PlaybackOrder({ order, identity, playingId }) {
           );
         })}
       </ol>
+      <div className="mixer-sliders">
+        <label className="mixer-slider">
+          <span className="mixer-slider-label">Start</span>
+          <input
+            className="mixer-range"
+            type="range"
+            min="0"
+            max={maxStart}
+            step="1"
+            value={startIndex}
+            aria-valuetext={`Position ${startIndex + 1}, clip ${startLetter}`}
+            onChange={(event) => onStartIndexChange(Number(event.target.value))}
+          />
+          <span className="mixer-slider-value">{startIndex + 1}</span>
+        </label>
+        <VolumeControl volume={volume} onVolumeChange={onVolumeChange} />
+      </div>
     </section>
+  );
+}
+
+function VolumeControl({ volume, onVolumeChange }) {
+  const percent = Math.round(volume * 100);
+
+  return (
+    <label className="mixer-slider mixer-slider--volume">
+      <span className="mixer-slider-label">
+        <Icon name="volume" /> Volume
+      </span>
+      <input
+        className="mixer-range"
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value={volume}
+        aria-valuetext={`${percent}%`}
+        onChange={(event) => onVolumeChange(Number(event.target.value))}
+      />
+      <span className="mixer-slider-value">{percent}%</span>
+    </label>
   );
 }
 

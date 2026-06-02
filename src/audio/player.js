@@ -1,13 +1,29 @@
 // Plays individual pieces or a full arrangement from a single decoded buffer.
 
+const DEFAULT_VOLUME = 0.85;
+
+function clampVolume(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_VOLUME;
+  return Math.min(1, Math.max(0, numeric));
+}
+
 export class Player {
   constructor(ctx, buffer) {
     this.ctx = ctx;
     this.buffer = buffer;
+    this.output = ctx.createGain();
+    this.output.connect(ctx.destination);
+    this.setVolume(DEFAULT_VOLUME);
     this.sources = [];
     this.timers = [];
     // Bumped on every stop/new playback so stale highlight callbacks no-op.
     this.token = 0;
+  }
+
+  setVolume(value) {
+    const volume = clampVolume(value);
+    this.output.gain.setValueAtTime(volume, this.ctx.currentTime);
   }
 
   stop() {
@@ -37,7 +53,7 @@ export class Player {
 
     const src = this.ctx.createBufferSource();
     src.buffer = this.buffer;
-    src.connect(this.ctx.destination);
+    src.connect(this.output);
     src.onended = () => {
       if (myToken === this.token) onEnd?.();
     };
@@ -60,7 +76,7 @@ export class Player {
     pieces.forEach((p, idx) => {
       const src = this.ctx.createBufferSource();
       src.buffer = this.buffer;
-      src.connect(this.ctx.destination);
+      src.connect(this.output);
       src.start(t, p.offset, p.duration);
       this.sources.push(src);
 
