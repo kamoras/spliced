@@ -1,40 +1,75 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, pickMatch, norm, manifestKey } from './daily.js';
-import { SONGS, DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
-import manifest from './_manifest.json';
+import { selectDaily, pickMatch, norm } from './daily.js';
+import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
+import catalog from './_catalog.json';
 
 const DAY = 86400000;
 
+// Small synthetic catalog so selection invariants don't depend on the real one.
+const fakeCatalog = Array.from({ length: 20 }, (_, i) => ({
+  trackId: 1000 + i,
+  title: `Song ${i}`,
+  artist: `Artist ${i}`,
+  artwork: 'art',
+  previewUrl: 'https://example.test/p.m4a',
+}));
+const perEpoch = Math.floor(fakeCatalog.length / DAILY_TRACKS);
+const key = (s) => `${s.title}|${s.artist}`;
+
 describe('selectDaily', () => {
-  it('is puzzle #0 with the first four songs at launch', () => {
-    const { puzzleNumber, songs } = selectDaily(LAUNCH_UTC);
-    expect(puzzleNumber).toBe(0);
-    expect(songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
+  it('advances one puzzle per UTC day', () => {
+    expect(selectDaily(LAUNCH_UTC, fakeCatalog).puzzleNumber).toBe(0);
+    expect(selectDaily(LAUNCH_UTC + 3 * DAY, fakeCatalog).puzzleNumber).toBe(3);
   });
 
-  it('advances one puzzle per UTC day and wraps the song list by track groups', () => {
-    const dayThree = selectDaily(LAUNCH_UTC + 3 * DAY);
-    expect(dayThree.puzzleNumber).toBe(3);
-    expect(dayThree.songs).toEqual(
-      Array.from(
-        { length: DAILY_TRACKS },
-        (_, i) => SONGS[(3 * DAILY_TRACKS + i) % SONGS.length]
-      )
-    );
+  it('returns DAILY_TRACKS songs drawn from the catalog', () => {
+    const { songs } = selectDaily(LAUNCH_UTC + 5 * DAY, fakeCatalog);
+    expect(songs).toHaveLength(DAILY_TRACKS);
+    songs.forEach((s) => expect(fakeCatalog).toContainEqual(s));
+  });
 
-    const wrapped = selectDaily(LAUNCH_UTC + SONGS.length * DAY);
-    expect(wrapped.puzzleNumber).toBe(SONGS.length);
-    expect(wrapped.songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
+  it('never repeats a song within one epoch', () => {
+    const seen = new Set();
+    for (let p = 0; p < perEpoch; p++) {
+      for (const s of selectDaily(LAUNCH_UTC + p * DAY, fakeCatalog).songs) {
+        expect(seen.has(key(s))).toBe(false);
+        seen.add(key(s));
+      }
+    }
+  });
+
+  it('reshuffles each epoch (fresh groupings, not a fixed cycle)', () => {
+    const first = selectDaily(LAUNCH_UTC, fakeCatalog).songs.map(key);
+    const next = selectDaily(
+      LAUNCH_UTC + perEpoch * DAY,
+      fakeCatalog
+    ).songs.map(key);
+    expect(next).not.toEqual(first);
   });
 
   it('is identical at any moment within the same UTC day', () => {
-    const morning = selectDaily(LAUNCH_UTC + 5 * DAY + 1);
-    const night = selectDaily(LAUNCH_UTC + 5 * DAY + (DAY - 1));
+    const morning = selectDaily(LAUNCH_UTC + 5 * DAY + 1, fakeCatalog);
+    const night = selectDaily(LAUNCH_UTC + 5 * DAY + (DAY - 1), fakeCatalog);
     expect(morning).toEqual(night);
   });
 
   it('clamps to puzzle #0 before launch', () => {
-    expect(selectDaily(LAUNCH_UTC - 10 * DAY).puzzleNumber).toBe(0);
+    expect(selectDaily(LAUNCH_UTC - 10 * DAY, fakeCatalog).puzzleNumber).toBe(
+      0
+    );
+  });
+});
+
+describe('catalog', () => {
+  it('is roughly a year of unique, previewable songs', () => {
+    // ~4 tracks * 365 days, allowing a little slack from dedupe.
+    expect(catalog.length).toBeGreaterThanOrEqual(4 * 365 - 60);
+    expect(new Set(catalog.map((c) => c.trackId)).size).toBe(catalog.length);
+    expect(
+      catalog.every(
+        (c) => c.title && c.artist && c.trackId && /^https?:/.test(c.previewUrl)
+      )
+    ).toBe(true);
   });
 });
 
@@ -69,19 +104,5 @@ describe('norm', () => {
     expect(norm("Guns N' Roses")).toBe('gunsnroses');
     expect(norm('Earth, Wind & Fire')).toBe('earthwindfire');
     expect(norm(null)).toBe('');
-  });
-});
-
-describe('daily manifest', () => {
-  // If this fails after editing SONGS, regenerate with `npm run resolve:songs`.
-  it('pins every curated song with a preview and track id', () => {
-    for (const song of SONGS) {
-      const entry = manifest[manifestKey(song)];
-      expect(entry, `missing manifest entry for ${song.title}`).toBeTruthy();
-      expect(entry.previewUrl).toMatch(/^https:\/\//);
-      expect(entry.trackId).toBeGreaterThan(0);
-      expect(entry.answer?.title).toBeTruthy();
-      expect(entry.answer?.artist).toBeTruthy();
-    }
   });
 });

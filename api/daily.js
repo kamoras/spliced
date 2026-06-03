@@ -1,13 +1,13 @@
 // Returns today's puzzle: deterministic by UTC date, identical for everyone.
 //
-// The response includes the answer (title/artist/artwork) because the client
-// needs it to celebrate on a solve — the UI keeps it hidden until then. This
-// is the same trade-off Heardle-style games make: discoverable in the network
-// tab, but the experience is honest.
+// Songs come from api/_catalog.json — a large catalog of iTunes tracks (charts
+// + curated classics) pinned by scripts/build-catalog.mjs. Each entry already
+// carries its preview URL and answer, so serving is just selection: no live
+// resolution, no drift. The response includes the answer (title/artist/artwork)
+// because the client needs it to celebrate on a solve; the UI keeps it hidden.
 
 import { readFileSync } from 'node:fs';
 import {
-  SONGS,
   DAILY_TRACKS,
   DAILY_CLIPS_PER_TRACK,
   DAILY_PIECES,
@@ -17,17 +17,15 @@ import {
 
 const DAY_MS = 86400000;
 
-// Pinned resolutions written by `npm run resolve:songs`. Serving from this keeps
-// the daily audio byte-identical for every player; if it is missing we fall back
-// to a live iTunes lookup so the game still runs.
-const MANIFEST = loadManifest();
-function loadManifest() {
+// The pinned catalog (source of truth). Empty only if the build wasn't run.
+const CATALOG = loadCatalog();
+function loadCatalog() {
   try {
     return JSON.parse(
-      readFileSync(new URL('./_manifest.json', import.meta.url), 'utf8')
+      readFileSync(new URL('./_catalog.json', import.meta.url), 'utf8')
     );
   } catch {
-    return {};
+    return [];
   }
 }
 
@@ -45,11 +43,8 @@ export const norm = (s) =>
     .replace(/[^a-z0-9]/g, '')
     .trim();
 
-// Manifest entries are keyed by the curated title + artist, so a SONGS reorder
-// can never mismatch a pin. Must match scripts/resolve-songs.mjs.
-export const manifestKey = (song) => `${norm(song.title)}|${norm(song.artist)}`;
-
 // Prefer a result whose artist matches; require a preview; else first preview.
+// Used by scripts/build-catalog.mjs to resolve curated songs.
 export function pickMatch(results, song) {
   const withPreview = (results || []).filter((t) => t.previewUrl);
   const wantArtist = norm(song.artist);
@@ -59,58 +54,45 @@ export function pickMatch(results, song) {
   return byArtist || withPreview[0] || null;
 }
 
-// Pure: which puzzle + song corresponds to a given moment (UTC). Identical for
+// Deterministic seeded shuffle (Fisher–Yates with a mulberry32 PRNG), so the
+// same seed yields the same order in every browser/runtime.
+function seededShuffle(items, seed) {
+  const arr = [...items];
+  let a = (seed + 1) >>> 0;
+  const rand = () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Pure: which puzzle + songs correspond to a given moment (UTC). Identical for
 // everyone on a given UTC day; clamps to puzzle #0 before launch.
-export function selectDaily(nowMs) {
+//
+// Songs are drawn from a per-epoch shuffle of the whole catalog, taking the
+// next DAILY_TRACKS each day. An epoch is one full pass (floor(N / tracks)
+// puzzles), so no song repeats within an epoch and each epoch reshuffles for
+// fresh groupings — maximizing variety. `catalog` is injectable for tests.
+export function selectDaily(nowMs, catalog = CATALOG) {
   const todayUtc = Math.floor(nowMs / DAY_MS) * DAY_MS;
   const puzzleNumber = Math.max(
     0,
     Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS)
   );
-  const start = (puzzleNumber * DAILY_TRACKS) % SONGS.length;
-  const songs = Array.from(
-    { length: DAILY_TRACKS },
-    (_, i) => SONGS[(start + i) % SONGS.length]
-  );
+  const perEpoch = Math.max(1, Math.floor(catalog.length / DAILY_TRACKS));
+  const epoch = Math.floor(puzzleNumber / perEpoch);
+  const indexInEpoch = puzzleNumber % perEpoch;
+  const ordered = seededShuffle(catalog, epoch);
+  const start = indexInEpoch * DAILY_TRACKS;
+  const songs = ordered.slice(start, start + DAILY_TRACKS);
   return { puzzleNumber, songs };
-}
-
-async function resolveSong(song) {
-  // Pinned audio first: identical for everyone, no network, no drift.
-  const pinned = MANIFEST[manifestKey(song)];
-  if (pinned?.previewUrl) {
-    return { previewUrl: pinned.previewUrl, answer: pinned.answer };
-  }
-
-  // Fallback for an unpinned song: resolve live against a fixed storefront so
-  // the result at least doesn't depend on which region the request runs in.
-  const api =
-    'https://itunes.apple.com/search?' +
-    new URLSearchParams({
-      term: `${song.title} ${song.artist}`,
-      media: 'music',
-      entity: 'song',
-      country: 'US',
-      limit: '10',
-    }).toString();
-
-  const r = await fetch(api, {
-    headers: { 'User-Agent': 'Spliced/0.1 (music puzzle)' },
-  });
-  if (!r.ok) throw new Error('itunes_unavailable');
-
-  const data = await r.json();
-  const match = pickMatch(data.results, song);
-  if (!match) throw new Error('no_preview');
-
-  return {
-    previewUrl: match.previewUrl,
-    answer: {
-      title: match.trackName,
-      artist: match.artistName,
-      artwork: (match.artworkUrl100 || '').replace('100x100bb', '200x200bb'),
-    },
-  };
 }
 
 export default async function handler(req, res) {
@@ -121,36 +103,36 @@ export default async function handler(req, res) {
   const nowMs = dateParam ? Date.parse(dateParam) : Date.now();
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
 
+  if (CATALOG.length < DAILY_TRACKS) {
+    return json(res, 502, { error: 'catalog_unavailable' });
+  }
+
   const { puzzleNumber, songs } = selectDaily(nowMs);
+  const tracks = songs.map((song, idx) => ({
+    id: `track-${idx}`,
+    previewUrl: song.previewUrl,
+    answer: { title: song.title, artist: song.artist, artwork: song.artwork },
+  }));
+
   // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the
-  // next midnight flip; the manifest no longer rotates within a day.
+  // next midnight flip.
   const secondsLeft = Math.max(
     60,
     Math.ceil((DAY_MS - (nowMs % DAY_MS)) / 1000)
   );
 
-  try {
-    const resolved = await Promise.all(songs.map(resolveSong));
-    const tracks = resolved.map((track, idx) => ({
-      id: `track-${idx}`,
-      ...track,
-    }));
-
-    return json(
-      res,
-      200,
-      {
-        puzzleNumber,
-        trackCount: DAILY_TRACKS,
-        clipsPerTrack: DAILY_CLIPS_PER_TRACK,
-        numPieces: DAILY_PIECES,
-        maxGuesses: DAILY_GUESSES,
-        tracks,
-        answers: tracks.map((track) => track.answer),
-      },
-      `public, max-age=300, s-maxage=${secondsLeft}, stale-while-revalidate=86400`
-    );
-  } catch (err) {
-    return json(res, 502, { error: err.message || 'daily_failed' });
-  }
+  return json(
+    res,
+    200,
+    {
+      puzzleNumber,
+      trackCount: DAILY_TRACKS,
+      clipsPerTrack: DAILY_CLIPS_PER_TRACK,
+      numPieces: DAILY_PIECES,
+      maxGuesses: DAILY_GUESSES,
+      tracks,
+      answers: tracks.map((track) => track.answer),
+    },
+    `public, max-age=300, s-maxage=${secondsLeft}, stale-while-revalidate=86400`
+  );
 }
