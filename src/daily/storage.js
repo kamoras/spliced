@@ -64,22 +64,6 @@ export function computeStats(currentPuzzleNumber) {
   return { played, wins, winPct, perfect, currentStreak, maxStreak };
 }
 
-export function formatGuessGrid(grid = []) {
-  return grid
-    .map((row) =>
-      (row || [])
-        .filter((cell) => !cell.anchor)
-        .map((cell) => {
-          if (cell.correct) return '🟩';
-          if (cell.sameTrack) return '🟨';
-          return '⬛';
-        })
-        .join('')
-    )
-    .filter(Boolean)
-    .join('\n');
-}
-
 // ms until the next UTC midnight (when the puzzle flips).
 export function msUntilNextPuzzle() {
   const now = Date.now();

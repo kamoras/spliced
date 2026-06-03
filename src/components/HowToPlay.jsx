@@ -40,23 +40,23 @@ export default function HowToPlay({ onClose }) {
           </button>
         </div>
         <ol>
-          <li>Four mystery songs are mixed together as sixteen clip tiles.</li>
+          <li>Four mystery songs are sliced into clips and mixed together.</li>
           <li>
-            Play any clip, or play a whole row, then drag clips between mixer
-            tracks until each row sounds like one song.
+            Play a clip to hear it — click along its waveform to start from any
+            point — then drag clips between tracks until each row is one song in
+            order.
           </li>
           <li>
-            Pick the row you want to check with the switchboard button, then
-            submit the armed track.
+            Each track has a Submit button that plays that row and checks it.
           </li>
           <li>
-            The first clip in the submitted row sets the song being checked.
-            Green means correct song and slot; yellow means correct song in the
-            wrong slot; uncolored clips belong with another song.
+            The first clip in a checked row sets the song. Green means correct
+            song and slot; yellow means correct song in the wrong slot;
+            uncolored clips belong with another song.
           </li>
           <li>
-            Correct rows lock in place. Wrong submissions use one mistake; you
-            have four mistakes before the tracks are revealed.
+            Correct rows lock in place. A wrong check uses one mistake; you have
+            four mistakes before the tracks are revealed.
           </li>
         </ol>
       </div>

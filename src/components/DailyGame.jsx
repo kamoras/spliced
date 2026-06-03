@@ -13,7 +13,6 @@ import {
   msUntilNextPuzzle,
   formatCountdown,
   formatDuration,
-  formatGuessGrid,
 } from '../daily/storage.js';
 
 export default function DailyGame({ onPractice }) {
@@ -86,6 +85,8 @@ export default function DailyGame({ onPractice }) {
         </button>
       </div>
 
+      <Countdown />
+
       {alreadyPlayed ? (
         <CompletedPanel
           daily={daily}
@@ -141,8 +142,7 @@ function StatsRow({ puzzleNumber }) {
 
 function outcome(daily, result) {
   if (result.solved) return 'solved';
-  if ((result.mistakes ?? result.attempts ?? 0) >= daily.maxGuesses)
-    return 'lost';
+  if ((result.mistakes ?? 0) >= daily.maxGuesses) return 'lost';
   return 'revealed';
 }
 
@@ -185,7 +185,6 @@ function CompletedPanel({ daily, result, onReplay }) {
 
       <StatsRow puzzleNumber={daily.puzzleNumber} />
       <ShareBar daily={daily} result={result} />
-      <Countdown />
 
       <div className="controls">
         <button className="btn" onClick={onReplay}>
@@ -205,25 +204,14 @@ function ShareBar({ daily, result }) {
       : kind === 'lost'
         ? `X/${daily.maxGuesses}`
         : 'revealed';
-  const detail =
-    kind === 'solved'
-      ? [
-          `${result.attempts ?? 0} submissions`,
-          `${result.fullPlays ?? 0} track plays`,
-          result.elapsedMs ? `⏱ ${formatDuration(result.elapsedMs)}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ')
+  // Time and mistakes are the score; nothing else clutters the share.
+  const time =
+    kind === 'solved' && result.elapsedMs
+      ? `⏱ ${formatDuration(result.elapsedMs)}`
       : '';
 
-  const grid = formatGuessGrid(result.grid);
   const origin = typeof location !== 'undefined' ? location.origin : '';
-  const text = [
-    `Spliced #${daily.puzzleNumber} — ${summary}`,
-    detail,
-    grid,
-    origin,
-  ]
+  const text = [`Spliced #${daily.puzzleNumber} — ${summary}`, time, origin]
     .filter(Boolean)
     .join('\n');
 
