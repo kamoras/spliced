@@ -85,18 +85,22 @@ function TileShell({
   isDragging = false,
   locked = false,
   revealed,
+  gradeVisible = false,
   nodeRef,
   style,
   grip,
   onPlay,
 }) {
+  // `revealed` lights status on locked/finished rows; `gradeVisible` lights it
+  // on an active row right after a wrong submit, while keeping the clip playable.
+  const showGrade = revealed || gradeVisible;
   const className = [
     'tile',
     locked && 'tile-locked',
     isPlaying && 'tile-playing',
     isDragging && 'tile-dragging',
-    revealed && tileState === 'correct' && 'tile-correct',
-    revealed && tileState === 'misplaced' && 'tile-misplaced',
+    showGrade && tileState === 'correct' && 'tile-correct',
+    showGrade && tileState === 'misplaced' && 'tile-misplaced',
   ]
     .filter(Boolean)
     .join(' ');
@@ -118,7 +122,7 @@ function TileShell({
         </button>
       )}
 
-      {revealed && tileState && (
+      {showGrade && tileState && (
         <div className={`tile-state tile-state--${tileState}`}>
           <Icon name={tileState === 'correct' ? 'check' : 'shuffle'} />
           {stateLabel}

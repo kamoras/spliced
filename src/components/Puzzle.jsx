@@ -82,6 +82,10 @@ export default function Puzzle({
   const [solvedTrackIds, setSolvedTrackIds] = useState([]);
   const [lost, setLost] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  // Row index whose per-clip status is lit on the board after a wrong submit.
+  // It persists until that row is rearranged, so players can see exactly which
+  // clips landed in the right slot. `null` means no row is showing live status.
+  const [gradedRow, setGradedRow] = useState(null);
   const [submissions, setSubmissions] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [guessHistory, setGuessHistory] = useState([]);
@@ -150,16 +154,17 @@ export default function Puzzle({
   function handleDragEnd(event) {
     const { active, over: target } = event;
     if (!target || active.id === target.id) return;
-    setOrder((cur) => {
-      const from = cur.findIndex((p) => p.id === active.id);
-      const to = cur.findIndex((p) => p.id === target.id);
-      if (from < 0 || to < 0) return cur;
-      const fromRow = Math.floor(from / clipsPerTrack);
-      const toRow = Math.floor(to / clipsPerTrack);
-      if (rowLocked(fromRow) || rowLocked(toRow)) return cur;
-      return arrayMove(cur, from, to);
-    });
+    const from = order.findIndex((p) => p.id === active.id);
+    const to = order.findIndex((p) => p.id === target.id);
+    if (from < 0 || to < 0) return;
+    const fromRow = Math.floor(from / clipsPerTrack);
+    const toRow = Math.floor(to / clipsPerTrack);
+    if (rowLocked(fromRow) || rowLocked(toRow)) return;
+    setOrder((cur) => arrayMove(cur, from, to));
     setFeedback(null);
+    // Drop the live status as soon as its row changes; leave it lit when an
+    // unrelated row is rearranged, since its grade is still accurate.
+    if (gradedRow === fromRow || gradedRow === toRow) setGradedRow(null);
   }
 
   function handleVolumeChange(value) {
@@ -246,6 +251,9 @@ export default function Puzzle({
     setGuessHistory(nextGuessHistory);
     if (grade.solved && !allSolved)
       setArmedRow(firstOpenRow(nextSolvedTrackIds));
+    // A solving submit locks the row (which reveals its status anyway); a wrong
+    // submit lights the armed row so its correct/right-track clips stand out.
+    setGradedRow(grade.solved ? null : armedRow);
     stopAll();
 
     if (grade.solved) {
@@ -311,6 +319,7 @@ export default function Puzzle({
   function reveal() {
     setRevealed(true);
     setFeedback(null);
+    setGradedRow(null);
     setOrder(solvedOrder(tracks));
     onResult?.(
       buildResult(false, submissions, mistakes, solvedTrackIds, guessHistory)
@@ -326,6 +335,7 @@ export default function Puzzle({
     setSolvedTrackIds([]);
     setLost(false);
     setFeedback(null);
+    setGradedRow(null);
     setSubmissions(0);
     setMistakes(0);
     setGuessHistory([]);
@@ -393,13 +403,18 @@ export default function Puzzle({
             {rows.map((row, rowIndex) => {
               const locked = rowLocked(rowIndex) || over;
               const trackId = row[0]?.trackId;
-              const rowGrade = gradeMixerRow(row);
+              // Light per-clip status when a row is locked/revealed, or when it
+              // is the row showing live feedback from the last wrong submit.
+              const graded = gradedRow === rowIndex && !locked;
+              const showGrade = locked || revealed || graded;
+              const rowGrade = showGrade ? gradeMixerRow(row) : null;
               return (
                 <li
                   key={rowIndex}
                   className={[
                     'track-lane',
                     armedRow === rowIndex && !over && 'track-lane--armed',
+                    graded && 'track-lane--graded',
                     locked && 'track-lane--locked',
                   ]
                     .filter(Boolean)
@@ -415,7 +430,7 @@ export default function Puzzle({
                   <div className="track-slots">
                     {row.map((piece, slotIndex) => {
                       const item = identity[piece.id];
-                      const cell = rowGrade.cells[slotIndex];
+                      const cell = rowGrade?.cells[slotIndex];
                       const tileState = cell?.correct
                         ? 'correct'
                         : cell?.sameTrack
@@ -430,6 +445,7 @@ export default function Puzzle({
                           color={item?.color}
                           isPlaying={playingId === piece.id}
                           tileState={tileState}
+                          gradeVisible={graded}
                           locked={locked}
                           revealed={revealed || locked}
                           onPlay={locked ? undefined : () => playClip(piece)}

@@ -681,6 +681,16 @@ body {
 .track-lane--locked {
   border-color: var(--ok);
 }
+/* A row that was just submitted but not solved: lit so its per-clip status
+   reads as feedback the moment you check it, like a metered channel. */
+.track-lane--graded {
+  border-color: #c99700;
+  box-shadow: 0 0 0 1px rgba(201, 151, 0, 0.45);
+}
+.track-lane--graded .track-led {
+  background: #c99700;
+  box-shadow: 0 0 12px rgba(201, 151, 0, 0.5);
+}
 .track-strip {
   display: grid;
   align-content: center;
@@ -754,10 +764,24 @@ body {
 .tile-correct {
   border-color: var(--ok);
   background: var(--ok-bg);
+  --tile-pulse: rgba(15, 122, 66, 0.5);
+  animation: tilePulse 0.55s ease-out;
 }
 .tile-misplaced {
   border-color: #c99700;
   background: rgba(201, 151, 0, 0.15);
+  --tile-pulse: rgba(201, 151, 0, 0.55);
+  animation: tilePulse 0.55s ease-out;
+}
+/* One-shot glow when a clip's status first lights up, so checking a track
+   feels like LEDs latching rather than a silent color swap. */
+@keyframes tilePulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--tile-pulse);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(0, 0, 0, 0);
+  }
 }
 .tile-grip {
   display: flex;
