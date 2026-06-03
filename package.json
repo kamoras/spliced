@@ -27,7 +27,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "resolve:songs": "node scripts/resolve-songs.mjs"
+    "build:catalog": "node scripts/build-catalog.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
