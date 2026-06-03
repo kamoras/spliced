@@ -13,12 +13,33 @@ export class Player {
     this.ctx = ctx;
     this.buffer = buffer;
     this.output = ctx.createGain();
-    this.output.connect(ctx.destination);
+    // Tap the master bus with an analyser so the UI can render live VU meters.
+    // Graph: sources -> output(gain) -> analyser -> destination.
+    this.analyser = ctx.createAnalyser();
+    this.analyser.fftSize = 256;
+    this.analyser.smoothingTimeConstant = 0.5;
+    this._timeData = new Uint8Array(this.analyser.fftSize);
+    this.output.connect(this.analyser);
+    this.analyser.connect(ctx.destination);
     this.setVolume(DEFAULT_VOLUME);
     this.sources = [];
     this.timers = [];
     // Bumped on every stop/new playback so stale highlight callbacks no-op.
     this.token = 0;
+  }
+
+  // Current output loudness as a 0..1 level (RMS of the master bus, scaled so
+  // typical music roughly fills the meter). Returns 0 when nothing is playing.
+  getLevel() {
+    if (this.sources.length === 0) return 0;
+    this.analyser.getByteTimeDomainData(this._timeData);
+    let sum = 0;
+    for (let i = 0; i < this._timeData.length; i++) {
+      const v = (this._timeData[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / this._timeData.length);
+    return Math.min(1, rms * 2.6);
   }
 
   setVolume(value) {
