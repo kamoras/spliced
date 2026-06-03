@@ -8,6 +8,7 @@ import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
   getResult,
   saveResult,
+  computeStats,
   msUntilNextPuzzle,
   formatCountdown,
   formatDuration,
@@ -104,10 +105,36 @@ export default function DailyGame({ onPractice }) {
                 : (r) => setResult(saveResult(daily.puzzleNumber, r))
             }
           />
-          {result && <ShareBar daily={daily} result={result} />}
+          {result && (
+            <>
+              <StatsRow puzzleNumber={daily.puzzleNumber} />
+              <ShareBar daily={daily} result={result} />
+            </>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function StatsRow({ puzzleNumber }) {
+  const stats = computeStats(puzzleNumber);
+  const cells = [
+    { label: 'Played', value: stats.played },
+    { label: 'Win %', value: stats.winPct },
+    { label: 'Streak', value: stats.currentStreak },
+    { label: 'Max', value: stats.maxStreak },
+    { label: 'Perfect', value: stats.perfect },
+  ];
+  return (
+    <section className="stats-row" aria-label="Your stats">
+      {cells.map((cell) => (
+        <div className="stat-cell" key={cell.label}>
+          <span className="stat-value">{cell.value}</span>
+          <span className="stat-label">{cell.label}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -154,6 +181,7 @@ function CompletedPanel({ daily, result, onReplay }) {
         {message}
       </p>
 
+      <StatsRow puzzleNumber={daily.puzzleNumber} />
       <ShareBar daily={daily} result={result} />
       <Countdown />
 

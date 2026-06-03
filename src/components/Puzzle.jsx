@@ -1,6 +1,6 @@
 // Multi-track mixer puzzle: sort random song clips into complete track rows.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -19,6 +19,7 @@ import {
 
 import PieceTile from './PieceTile.jsx';
 import Icon from './Icon.jsx';
+import VuMeter from './VuMeter.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
 import { formatDuration } from '../daily/storage.js';
@@ -106,6 +107,7 @@ export default function Puzzle({
     playerRef.current = new Player(getAudioContext());
   }
   const player = playerRef.current;
+  const getLevel = useCallback(() => player.getLevel(), [player]);
   useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
@@ -121,6 +123,14 @@ export default function Puzzle({
   );
 
   const rows = chunkTracks(order, clipsPerTrack);
+  // The strip whose VU meter should be live: the row playing as a sequence, or
+  // the row that owns the single clip being auditioned.
+  const meterRow =
+    playingRow != null
+      ? playingRow
+      : playingId != null
+        ? Math.floor(order.findIndex((p) => p.id === playingId) / clipsPerTrack)
+        : null;
   const solved = solvedTrackIds.length === trackCount;
   const limited = Number.isFinite(maxGuesses);
   const over = solved || lost || revealed;
@@ -446,6 +456,10 @@ export default function Puzzle({
                   <div className="track-strip">
                     <span className="track-name">Track {rowIndex + 1}</span>
                     <span className="track-led" aria-hidden="true" />
+                    <VuMeter
+                      getLevel={getLevel}
+                      active={meterRow === rowIndex}
+                    />
                     <span className="track-status">
                       {solvedHere ? 'Locked' : 'Route'}
                     </span>
