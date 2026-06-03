@@ -29,6 +29,11 @@ export default function DailyGame({ onPractice }) {
       const r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = await r.json();
+      if (!Array.isArray(d.tracks)) {
+        throw new Error(
+          'The puzzle API responded in an old format (no tracks). The deployed /api is likely a version behind this app — redeploy them together.'
+        );
+      }
       const tracks = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
         seed: d.puzzleNumber,
       });
