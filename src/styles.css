@@ -469,6 +469,24 @@ body {
   font-size: 20px;
   line-height: 1.15;
 }
+.board-meters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.solve-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.solve-timer svg {
+  font-size: 16px;
+  color: var(--muted);
+}
 .submission-meter {
   display: grid;
   justify-items: center;

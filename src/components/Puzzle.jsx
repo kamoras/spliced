@@ -91,12 +91,58 @@ export default function Puzzle({
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [elapsedMs, setElapsedMs] = useState(null);
 
-  // Solve timer: starts on the first real interaction, freezes when the game
-  // ends. Lives in a ref so it never triggers a re-render mid-play.
-  const startRef = useRef(null);
+  // Solve timer that pauses when the window/tab loses focus. Active time is
+  // banked in `accumulatedRef`; `runningSinceRef` marks the start of the current
+  // active stretch (null while paused or before the first move). Refs keep
+  // ticking from re-rendering the board.
+  const startedRef = useRef(false);
+  const accumulatedRef = useRef(0);
+  const runningSinceRef = useRef(null);
+  const overRef = useRef(false);
+  overRef.current = over;
+
+  const elapsedNow = useCallback(
+    () =>
+      accumulatedRef.current +
+      (runningSinceRef.current != null
+        ? Date.now() - runningSinceRef.current
+        : 0),
+    []
+  );
+
   function beginTiming() {
-    if (startRef.current == null) startRef.current = Date.now();
+    if (overRef.current) return;
+    startedRef.current = true;
+    if (runningSinceRef.current == null) runningSinceRef.current = Date.now();
   }
+
+  // Pause on blur / hidden tab, resume on focus — but never resume once over.
+  useEffect(() => {
+    const bank = () => {
+      if (runningSinceRef.current != null) {
+        accumulatedRef.current += Date.now() - runningSinceRef.current;
+        runningSinceRef.current = null;
+      }
+    };
+    const resume = () => {
+      if (
+        startedRef.current &&
+        !overRef.current &&
+        runningSinceRef.current == null
+      ) {
+        runningSinceRef.current = Date.now();
+      }
+    };
+    const onVisibility = () => (document.hidden ? bank() : resume());
+    window.addEventListener('blur', bank);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', bank);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   const playerRef = useRef(null);
   if (!playerRef.current) {
@@ -316,8 +362,12 @@ export default function Puzzle({
   }
 
   function buildResult(nextSolved, mistakeCount, solvedIds) {
-    const elapsed =
-      startRef.current != null ? Date.now() - startRef.current : 0;
+    // Bank any in-flight time and stop the clock.
+    if (runningSinceRef.current != null) {
+      accumulatedRef.current += Date.now() - runningSinceRef.current;
+      runningSinceRef.current = null;
+    }
+    const elapsed = accumulatedRef.current;
     setElapsedMs(elapsed);
     return {
       solved: nextSolved,
@@ -325,14 +375,6 @@ export default function Puzzle({
       solvedTracks: solvedIds.length,
       elapsedMs: elapsed,
     };
-  }
-
-  function reveal() {
-    setRevealed(true);
-    setFeedback(null);
-    setGradedRow(null);
-    setOrder(solvedOrder(tracks));
-    onResult?.(buildResult(false, mistakes, solvedTrackIds));
   }
 
   function reshuffle() {
@@ -346,7 +388,9 @@ export default function Puzzle({
     setGradedRow(null);
     setMistakes(0);
     setElapsedMs(null);
-    startRef.current = null;
+    startedRef.current = false;
+    accumulatedRef.current = 0;
+    runningSinceRef.current = null;
   }
 
   const a11y = {
@@ -373,10 +417,15 @@ export default function Puzzle({
           <div className="board-kicker">Mixer puzzle</div>
           <h2 className="mixer-title">Sort four mystery songs into tracks</h2>
         </div>
-        {limited && !over && (
-          <div className="submission-meter">
-            <span>{remaining}</span>
-            <span>mistakes left</span>
+        {!over && (
+          <div className="board-meters">
+            <SolveTimer getElapsed={elapsedNow} />
+            {limited && (
+              <div className="submission-meter">
+                <span>{remaining}</span>
+                <span>mistakes left</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -530,25 +579,17 @@ export default function Puzzle({
             <strong>Out of mistakes.</strong> The tracks are revealed below.
           </p>
         )}
-        {revealed && !solved && !lost && (
-          <p className="result-banner is-loss">Tracks revealed.</p>
-        )}
       </div>
 
       <div className={over ? 'controls' : 'controls controls--secondary'}>
         {!over ? (
-          <>
-            {/* Practice only: re-scramble for a fresh round. The daily has no
-                reset — that would wipe your mistakes and let you brute-force. */}
-            {typeof seed !== 'number' && (
-              <button type="button" className="btn" onClick={reshuffle}>
-                <Icon name="shuffle" /> Reshuffle
-              </button>
-            )}
-            <button type="button" className="btn btn--ghost" onClick={reveal}>
-              <Icon name="eye" /> Reveal tracks
+          // Practice only: re-scramble for a fresh round. The daily has no
+          // reset/reveal — that would wipe mistakes or skip the challenge.
+          typeof seed !== 'number' && (
+            <button type="button" className="btn" onClick={reshuffle}>
+              <Icon name="shuffle" /> Reshuffle
             </button>
-          </>
+          )
         ) : (
           <>
             {onNewPuzzle && (
@@ -563,6 +604,19 @@ export default function Puzzle({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function SolveTimer({ getElapsed }) {
+  const [ms, setMs] = useState(() => getElapsed());
+  useEffect(() => {
+    const id = setInterval(() => setMs(getElapsed()), 250);
+    return () => clearInterval(id);
+  }, [getElapsed]);
+  return (
+    <div className="solve-timer" role="timer" aria-label="Time elapsed">
+      <Icon name="clock" /> {formatDuration(ms)}
     </div>
   );
 }
