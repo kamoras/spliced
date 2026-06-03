@@ -85,6 +85,8 @@ export default function DailyGame({ onPractice }) {
         </button>
       </div>
 
+      <Countdown />
+
       {alreadyPlayed ? (
         <CompletedPanel
           daily={daily}
@@ -183,7 +185,6 @@ function CompletedPanel({ daily, result, onReplay }) {
 
       <StatsRow puzzleNumber={daily.puzzleNumber} />
       <ShareBar daily={daily} result={result} />
-      <Countdown />
 
       <div className="controls">
         <button className="btn" onClick={onReplay}>
