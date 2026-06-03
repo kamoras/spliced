@@ -985,6 +985,31 @@ body {
   width: 100%;
   height: 54px;
 }
+/* Scrubbable waveform: click/tap anywhere to play from that point. */
+.waveform-seek {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+}
+.wave-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  transform: translateX(-1px);
+  opacity: 0;
+  pointer-events: none;
+}
 .tile-play {
   display: inline-flex;
   align-items: center;

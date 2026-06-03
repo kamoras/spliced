@@ -12,8 +12,7 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
-  arrayMove,
-  rectSortingStrategy,
+  rectSwappingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
@@ -109,6 +108,10 @@ export default function Puzzle({
   }
   const player = playerRef.current;
   const getLevel = useCallback(() => player.getLevel(), [player]);
+  const getClipProgress = useCallback(
+    (id) => player.getClipProgress(id),
+    [player]
+  );
   useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
@@ -181,7 +184,13 @@ export default function Puzzle({
     const toRow = Math.floor(to / clipsPerTrack);
     if (rowLocked(fromRow) || rowLocked(toRow)) return;
     beginTiming();
-    setOrder((cur) => arrayMove(cur, from, to));
+    // Swap the two clips rather than shifting the row, so dropping onto a slot
+    // never pushes an already-correct clip out into the next row.
+    setOrder((cur) => {
+      const next = [...cur];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
     setFeedback(null);
     // Drop the live status as soon as its row changes; leave it lit when an
     // unrelated row is rearranged, since its grade is still accurate.
@@ -213,6 +222,24 @@ export default function Puzzle({
       setPlayingId(null);
       setPlayingSequence(false);
     });
+  }
+
+  // Scrub: play a clip from a fraction (0..1) of the way in, set by clicking the
+  // waveform — so players can jump to and audition a specific part of a clip.
+  function seekClip(piece, fraction) {
+    beginTiming();
+    stopAll();
+    setPlayingId(piece.id);
+    setPlayingRow(null);
+    setPlayingSequence(true);
+    player.playPiece(
+      piece,
+      () => {
+        setPlayingId(null);
+        setPlayingSequence(false);
+      },
+      fraction
+    );
   }
 
   function playSequence(rowIndex, sequence) {
@@ -428,7 +455,7 @@ export default function Puzzle({
         onDragEnd={handleDragEnd}
         accessibility={a11y}
       >
-        <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+        <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
           <ol className="track-board" aria-label="Mixer tracks">
             {rows.map((row, rowIndex) => {
               const locked = rowLocked(rowIndex) || over;
@@ -439,9 +466,13 @@ export default function Puzzle({
               const showGrade = locked || revealed || graded;
               const rowGrade = showGrade ? gradeMixerRow(row) : null;
               const solvedHere = solvedTrackIds.includes(trackId);
-              const answer = solvedHere
-                ? tracks.find((track) => track.id === trackId)?.answer
-                : null;
+              // Reveal the song on rows you solved, and on every row once the
+              // game is over (the board is in solved order) — so a wrong finish
+              // clearly shows the correct mix, track by track.
+              const answer =
+                solvedHere || over
+                  ? tracks.find((track) => track.id === trackId)?.answer
+                  : null;
               return (
                 <li
                   key={rowIndex}
@@ -488,7 +519,8 @@ export default function Puzzle({
                           />
                         </div>
                         <span className="track-reveal-badge">
-                          <Icon name="check" /> Discovered
+                          <Icon name={solvedHere ? 'check' : 'eye'} />
+                          {solvedHere ? 'Discovered' : 'Answer'}
                         </span>
                       </div>
                     )}
@@ -514,6 +546,10 @@ export default function Puzzle({
                             locked={locked}
                             revealed={revealed || locked}
                             onPlay={locked ? undefined : () => playClip(piece)}
+                            onSeek={
+                              locked ? undefined : (f) => seekClip(piece, f)
+                            }
+                            getClipProgress={getClipProgress}
                           />
                         );
                       })}

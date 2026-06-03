@@ -26,6 +26,20 @@ export class Player {
     this.timers = [];
     // Bumped on every stop/new playback so stale highlight callbacks no-op.
     this.token = 0;
+    // Tracks the single clip currently playing so the UI can draw a playhead.
+    this._clip = null;
+  }
+
+  // Fraction (0..1) through the currently playing clip, or null when that clip
+  // isn't the one playing. Used to position the waveform playhead.
+  getClipProgress(pieceId) {
+    const clip = this._clip;
+    if (!clip || clip.pieceId !== pieceId) return null;
+    const elapsed = this.ctx.currentTime - clip.startedAt;
+    return Math.min(
+      1,
+      Math.max(0, clip.fromFraction + elapsed / clip.duration)
+    );
   }
 
   // Current output loudness as a 0..1 level (RMS of the master bus, scaled so
@@ -60,6 +74,7 @@ export class Player {
     this.timers.forEach((t) => clearTimeout(t));
     this.sources = [];
     this.timers = [];
+    this._clip = null;
   }
 
   async _resume() {
@@ -70,20 +85,34 @@ export class Player {
     return piece.buffer || this.buffer;
   }
 
-  // Play a single piece. `onEnd` fires when it finishes naturally.
-  async playPiece(piece, onEnd) {
+  // Play a single piece, optionally starting partway through (`fromFraction` in
+  // 0..1, for scrubbing). `onEnd` fires when it finishes naturally.
+  async playPiece(piece, onEnd, fromFraction = 0) {
     await this._resume();
     this.stop();
     const myToken = this.token;
+
+    const from = Math.min(0.999, Math.max(0, fromFraction));
+    const startOffset = piece.offset + from * piece.duration;
+    const playLength = piece.duration * (1 - from);
 
     const src = this.ctx.createBufferSource();
     src.buffer = this._bufferFor(piece);
     src.connect(this.output);
     src.onended = () => {
-      if (myToken === this.token) onEnd?.();
+      if (myToken === this.token) {
+        this._clip = null;
+        onEnd?.();
+      }
     };
-    src.start(0, piece.offset, piece.duration);
+    src.start(0, startOffset, playLength);
     this.sources.push(src);
+    this._clip = {
+      pieceId: piece.id,
+      startedAt: this.ctx.currentTime,
+      duration: piece.duration,
+      fromFraction: from,
+    };
   }
 
   /**
