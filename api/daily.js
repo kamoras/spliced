@@ -59,19 +59,44 @@ export function pickMatch(results, song) {
   return byArtist || withPreview[0] || null;
 }
 
-// Pure: which puzzle + song corresponds to a given moment (UTC). Identical for
+// Deterministic seeded shuffle (Fisher–Yates with a mulberry32 PRNG), so the
+// same seed yields the same order in every browser/runtime.
+function seededShuffle(items, seed) {
+  const arr = [...items];
+  let a = (seed + 1) >>> 0;
+  const rand = () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Pure: which puzzle + songs correspond to a given moment (UTC). Identical for
 // everyone on a given UTC day; clamps to puzzle #0 before launch.
+//
+// Songs are drawn from a per-epoch shuffle of the whole catalog, taking the
+// next DAILY_TRACKS each day. An epoch is one full pass (floor(N / tracks)
+// puzzles), so no song repeats within an epoch and each epoch reshuffles for
+// fresh groupings — maximizing variety from a fixed catalog.
 export function selectDaily(nowMs) {
   const todayUtc = Math.floor(nowMs / DAY_MS) * DAY_MS;
   const puzzleNumber = Math.max(
     0,
     Math.floor((todayUtc - LAUNCH_UTC) / DAY_MS)
   );
-  const start = (puzzleNumber * DAILY_TRACKS) % SONGS.length;
-  const songs = Array.from(
-    { length: DAILY_TRACKS },
-    (_, i) => SONGS[(start + i) % SONGS.length]
-  );
+  const puzzlesPerEpoch = Math.max(1, Math.floor(SONGS.length / DAILY_TRACKS));
+  const epoch = Math.floor(puzzleNumber / puzzlesPerEpoch);
+  const indexInEpoch = puzzleNumber % puzzlesPerEpoch;
+  const ordered = seededShuffle(SONGS, epoch);
+  const start = indexInEpoch * DAILY_TRACKS;
+  const songs = ordered.slice(start, start + DAILY_TRACKS);
   return { puzzleNumber, songs };
 }
 

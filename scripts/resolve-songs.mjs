@@ -52,17 +52,28 @@ async function resolve(song) {
 
 async function main() {
   const manifest = {};
+  const failed = [];
   for (const song of SONGS) {
     process.stdout.write(`resolving ${song.title} — ${song.artist}… `);
-    const entry = await resolve(song);
-    manifest[manifestKey(song)] = entry;
-    console.log(`#${entry.trackId} (${entry.answer.artist})`);
+    try {
+      const entry = await resolve(song);
+      manifest[manifestKey(song)] = entry;
+      console.log(`#${entry.trackId} (${entry.answer.artist})`);
+    } catch (err) {
+      failed.push(`${song.title} — ${song.artist} (${err.message})`);
+      console.log(`SKIP — ${err.message}`);
+    }
     await new Promise((done) => setTimeout(done, 150)); // be polite to iTunes
   }
   await writeFile(OUT, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(
     `\nwrote ${Object.keys(manifest).length} songs → api/_manifest.json`
   );
+  if (failed.length) {
+    console.warn(`\n${failed.length} unresolved (remove from SONGS):`);
+    for (const f of failed) console.warn(`  - ${f}`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {

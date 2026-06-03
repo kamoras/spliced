@@ -6,25 +6,36 @@ import manifest from './_manifest.json';
 const DAY = 86400000;
 
 describe('selectDaily', () => {
-  it('is puzzle #0 with the first four songs at launch', () => {
-    const { puzzleNumber, songs } = selectDaily(LAUNCH_UTC);
-    expect(puzzleNumber).toBe(0);
-    expect(songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
+  const key = (s) => `${s.title}|${s.artist}`;
+  const puzzlesPerEpoch = Math.floor(SONGS.length / DAILY_TRACKS);
+
+  it('advances one puzzle per UTC day', () => {
+    expect(selectDaily(LAUNCH_UTC).puzzleNumber).toBe(0);
+    expect(selectDaily(LAUNCH_UTC + 3 * DAY).puzzleNumber).toBe(3);
   });
 
-  it('advances one puzzle per UTC day and wraps the song list by track groups', () => {
-    const dayThree = selectDaily(LAUNCH_UTC + 3 * DAY);
-    expect(dayThree.puzzleNumber).toBe(3);
-    expect(dayThree.songs).toEqual(
-      Array.from(
-        { length: DAILY_TRACKS },
-        (_, i) => SONGS[(3 * DAILY_TRACKS + i) % SONGS.length]
-      )
-    );
+  it('returns DAILY_TRACKS real catalog songs', () => {
+    const { songs } = selectDaily(LAUNCH_UTC + 5 * DAY);
+    expect(songs).toHaveLength(DAILY_TRACKS);
+    songs.forEach((s) => expect(SONGS).toContainEqual(s));
+  });
 
-    const wrapped = selectDaily(LAUNCH_UTC + SONGS.length * DAY);
-    expect(wrapped.puzzleNumber).toBe(SONGS.length);
-    expect(wrapped.songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
+  it('never repeats a song within one epoch', () => {
+    const seen = new Set();
+    for (let p = 0; p < puzzlesPerEpoch; p++) {
+      for (const s of selectDaily(LAUNCH_UTC + p * DAY).songs) {
+        expect(seen.has(key(s))).toBe(false);
+        seen.add(key(s));
+      }
+    }
+  });
+
+  it('reshuffles each epoch (fresh groupings, not a fixed cycle)', () => {
+    const first = selectDaily(LAUNCH_UTC).songs.map(key);
+    const nextEpoch = selectDaily(LAUNCH_UTC + puzzlesPerEpoch * DAY).songs.map(
+      key
+    );
+    expect(nextEpoch).not.toEqual(first);
   });
 
   it('is identical at any moment within the same UTC day', () => {
