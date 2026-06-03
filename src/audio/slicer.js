@@ -81,7 +81,7 @@ export function computePeaks(buffer, offset, duration, bars) {
 export async function loadAndSampleTracks(
   trackDefs,
   clipsPerTrack,
-  { seed = 0, clipSeconds = 2.4, minGapSeconds = 2.2 } = {}
+  { seed = 0, clipSeconds = 2.4 } = {}
 ) {
   return Promise.all(
     trackDefs.map(async (track, trackIndex) => {
@@ -95,7 +95,6 @@ export async function loadAndSampleTracks(
         clipsPerTrack,
         seed: seed + trackIndex * 101,
         clipSeconds,
-        minGapSeconds,
       });
 
       return {
@@ -109,7 +108,19 @@ export async function loadAndSampleTracks(
   );
 }
 
-function samplePieces({
+// Offsets snap to this grid (seconds) so a tiny difference in a preview's
+// decoded length can't shift where clips are cut — the layout stays identical
+// for everyone playing the same seed.
+const OFFSET_STEP = 0.05;
+const snap = (t) => Math.round(t / OFFSET_STEP) * OFFSET_STEP;
+
+/**
+ * Cut `clipsPerTrack` contiguous, back-to-back clips from one track. Because the
+ * clips are consecutive, the correct order reconstructs a continuous passage and
+ * any wrong order leaves an audible seam. A seeded start point keeps the window
+ * from always being the intro while staying identical for a given seed.
+ */
+export function samplePieces({
   buffer,
   trackId,
   trackIndex,
@@ -117,42 +128,26 @@ function samplePieces({
   clipsPerTrack,
   seed,
   clipSeconds,
-  minGapSeconds,
 }) {
-  const clipDuration = Math.min(clipSeconds, duration / (clipsPerTrack * 2.2));
-  const availableGap = Math.max(0, duration - clipsPerTrack * clipDuration);
-  const minimumGap = Math.min(
-    minGapSeconds,
-    availableGap / Math.max(1, clipsPerTrack)
-  );
-  const fixedGapTotal = minimumGap * Math.max(0, clipsPerTrack - 1);
-  const freeSpace = Math.max(0, availableGap - fixedGapTotal);
-  const extras = distributeSpace(freeSpace, clipsPerTrack + 1, seed);
+  const clipDuration = Math.min(clipSeconds, duration / clipsPerTrack);
+  const span = clipDuration * clipsPerTrack;
+  const slack = Math.max(0, duration - span);
+  const start = snap(slack * seededRand(seed)());
+  const maxOffset = Math.max(0, duration - clipDuration);
 
-  let offset = extras[0] || 0;
   return Array.from({ length: clipsPerTrack }, (_, i) => {
-    const safeOffset = Math.min(Math.max(0, duration - clipDuration), offset);
-    offset += clipDuration + minimumGap + (extras[i + 1] || 0);
+    const offset = snap(Math.min(maxOffset, start + i * clipDuration));
     return {
       id: `${trackId}-piece-${i}`,
       trackId,
       trackIndex,
       correctIndex: i,
-      offset: safeOffset,
+      offset,
       duration: clipDuration,
       buffer,
-      peaks: computePeaks(buffer, safeOffset, clipDuration, 56),
+      peaks: computePeaks(buffer, offset, clipDuration, 56),
     };
   });
-}
-
-function distributeSpace(total, buckets, seed) {
-  if (total <= 0 || buckets <= 0)
-    return Array.from({ length: buckets }, () => 0);
-  const rand = seededRand(seed);
-  const weights = Array.from({ length: buckets }, () => 0.2 + rand());
-  const sum = weights.reduce((acc, weight) => acc + weight, 0);
-  return weights.map((weight) => (weight / sum) * total);
 }
 
 function seededRand(seed) {
