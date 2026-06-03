@@ -75,6 +75,13 @@ const ICONS = {
       <circle cx="15" cy="18" r="1.4" />
     </>
   ),
+  external: (
+    <>
+      <path d="M14 4h6v6" />
+      <path d="M20 4 11 13" />
+      <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+    </>
+  ),
 };
 
 export default function Icon({ name, className }) {

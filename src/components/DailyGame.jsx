@@ -1,15 +1,18 @@
-// Today's shared puzzle. The song is a mystery until you solve, run out of
-// guesses, or reveal it.
+// Today's shared puzzle. The songs stay hidden until you solve, run out of
+// mistakes, or reveal them.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
 import Icon from './Icon.jsx';
-import { loadAndSlice } from '../audio/slicer.js';
+import ListenLinks from './ListenLinks.jsx';
+import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
   getResult,
   saveResult,
+  computeStats,
   msUntilNextPuzzle,
   formatCountdown,
+  formatDuration,
   formatGuessGrid,
 } from '../daily/storage.js';
 
@@ -29,10 +32,17 @@ export default function DailyGame({ onPractice }) {
       const r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = await r.json();
-      const { buffer, pieces } = await loadAndSlice(d.previewUrl, d.numPieces);
+      if (!Array.isArray(d.tracks)) {
+        throw new Error(
+          'The puzzle API responded in an old format (no tracks). The deployed /api is likely a version behind this app — redeploy them together.'
+        );
+      }
+      const tracks = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
+        seed: d.puzzleNumber,
+      });
       const existing = getResult(d.puzzleNumber);
       setDaily(d);
-      setGame({ buffer, pieces });
+      setGame({ tracks });
       setResult(existing);
       setPlayedBefore(!!existing);
       setStatus('ready');
@@ -86,9 +96,8 @@ export default function DailyGame({ onPractice }) {
         <>
           <Puzzle
             key={`daily-${daily.puzzleNumber}`}
-            song={daily.answer}
-            buffer={game.buffer}
-            pieces={game.pieces}
+            tracks={game.tracks}
+            clipsPerTrack={daily.clipsPerTrack}
             seed={daily.puzzleNumber}
             maxGuesses={daily.maxGuesses}
             onResult={
@@ -97,16 +106,43 @@ export default function DailyGame({ onPractice }) {
                 : (r) => setResult(saveResult(daily.puzzleNumber, r))
             }
           />
-          {result && <ShareBar daily={daily} result={result} />}
+          {result && (
+            <>
+              <StatsRow puzzleNumber={daily.puzzleNumber} />
+              <ShareBar daily={daily} result={result} />
+            </>
+          )}
         </>
       )}
     </div>
   );
 }
 
+function StatsRow({ puzzleNumber }) {
+  const stats = computeStats(puzzleNumber);
+  const cells = [
+    { label: 'Played', value: stats.played },
+    { label: 'Win %', value: stats.winPct },
+    { label: 'Streak', value: stats.currentStreak },
+    { label: 'Max', value: stats.maxStreak },
+    { label: 'Perfect', value: stats.perfect },
+  ];
+  return (
+    <section className="stats-row" aria-label="Your stats">
+      {cells.map((cell) => (
+        <div className="stat-cell" key={cell.label}>
+          <span className="stat-value">{cell.value}</span>
+          <span className="stat-label">{cell.label}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function outcome(daily, result) {
   if (result.solved) return 'solved';
-  if (result.attempts >= daily.maxGuesses) return 'lost';
+  if ((result.mistakes ?? result.attempts ?? 0) >= daily.maxGuesses)
+    return 'lost';
   return 'revealed';
 }
 
@@ -114,21 +150,31 @@ function CompletedPanel({ daily, result, onReplay }) {
   const kind = outcome(daily, result);
   const message =
     kind === 'solved'
-      ? `Solved in ${result.attempts}/${daily.maxGuesses}.`
+      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes${
+          result.elapsedMs ? ` in ${formatDuration(result.elapsedMs)}` : ''
+        }.`
       : kind === 'lost'
-        ? 'Out of guesses today.'
+        ? 'Out of mistakes today.'
         : 'You revealed today’s answer.';
 
   return (
     <section className="panel">
-      <div className="now-playing">
-        {daily.answer.artwork && (
-          <img src={daily.answer.artwork} alt="" className="np-art" />
-        )}
-        <div>
-          <div className="np-title">{daily.answer.title}</div>
-          <div className="np-artist">{daily.answer.artist}</div>
-        </div>
+      <div className="answer-stack">
+        {daily.answers.map((answer) => (
+          <div
+            className="now-playing answer-row"
+            key={`${answer.title}-${answer.artist}`}
+          >
+            {answer.artwork && (
+              <img src={answer.artwork} alt="" className="np-art" />
+            )}
+            <div>
+              <div className="np-title">{answer.title}</div>
+              <div className="np-artist">{answer.artist}</div>
+              <ListenLinks title={answer.title} artist={answer.artist} />
+            </div>
+          </div>
+        ))}
       </div>
 
       <p
@@ -137,12 +183,13 @@ function CompletedPanel({ daily, result, onReplay }) {
         {message}
       </p>
 
+      <StatsRow puzzleNumber={daily.puzzleNumber} />
       <ShareBar daily={daily} result={result} />
       <Countdown />
 
       <div className="controls">
         <button className="btn" onClick={onReplay}>
-          <Icon name="reset" /> Replay this clip
+          <Icon name="reset" /> Replay this mix
         </button>
       </div>
     </section>
@@ -152,16 +199,31 @@ function CompletedPanel({ daily, result, onReplay }) {
 function ShareBar({ daily, result }) {
   const [copied, setCopied] = useState(false);
   const kind = outcome(daily, result);
-  const score =
+  const summary =
     kind === 'solved'
-      ? `${result.attempts}/${daily.maxGuesses}`
+      ? `${result.mistakes ?? 0}/${daily.maxGuesses} mistakes`
       : kind === 'lost'
         ? `X/${daily.maxGuesses}`
         : 'revealed';
+  const detail =
+    kind === 'solved'
+      ? [
+          `${result.attempts ?? 0} submissions`,
+          `${result.fullPlays ?? 0} track plays`,
+          result.elapsedMs ? `⏱ ${formatDuration(result.elapsedMs)}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '';
 
   const grid = formatGuessGrid(result.grid);
   const origin = typeof location !== 'undefined' ? location.origin : '';
-  const text = [`Spliced #${daily.puzzleNumber} — ${score}`, grid, origin]
+  const text = [
+    `Spliced #${daily.puzzleNumber} — ${summary}`,
+    detail,
+    grid,
+    origin,
+  ]
     .filter(Boolean)
     .join('\n');
 

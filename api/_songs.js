@@ -41,12 +41,13 @@ export const SONGS = [
   { title: 'Toxic', artist: 'Britney Spears' },
 ];
 
-// Pieces per daily puzzle (the same for everyone): one locked start clip
-// plus six movable clips to arrange by ear.
-export const DAILY_PIECES = 7;
+// Multi-track daily: four mystery songs, four clips per song.
+export const DAILY_TRACKS = 4;
+export const DAILY_CLIPS_PER_TRACK = 4;
+export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
 
-// Wordle-style guess cap: "Check" attempts before the answer is revealed.
-export const DAILY_GUESSES = 3;
+// Harmonies-style mistake cap: correct track submissions do not consume one.
+export const DAILY_GUESSES = 4;
 
 // Day 0 of the daily rotation (UTC).
 export const LAUNCH_UTC = Date.UTC(2026, 0, 1); // 2026-01-01
