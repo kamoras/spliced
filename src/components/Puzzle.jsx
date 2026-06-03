@@ -538,10 +538,13 @@ export default function Puzzle({
       <div className={over ? 'controls' : 'controls controls--secondary'}>
         {!over ? (
           <>
-            <button type="button" className="btn" onClick={reshuffle}>
-              <Icon name={typeof seed === 'number' ? 'reset' : 'shuffle'} />
-              {typeof seed === 'number' ? 'Reset mix' : 'Reshuffle'}
-            </button>
+            {/* Practice only: re-scramble for a fresh round. The daily has no
+                reset — that would wipe your mistakes and let you brute-force. */}
+            {typeof seed !== 'number' && (
+              <button type="button" className="btn" onClick={reshuffle}>
+                <Icon name="shuffle" /> Reshuffle
+              </button>
+            )}
             <button type="button" className="btn btn--ghost" onClick={reveal}>
               <Icon name="eye" /> Reveal tracks
             </button>
@@ -594,4 +597,3 @@ function VolumeControl({ volume, onVolumeChange }) {
     </label>
   );
 }
-
