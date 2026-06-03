@@ -1,6 +1,6 @@
 // Multi-track mixer puzzle: sort random song clips into complete track rows.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -12,15 +12,17 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
-  arrayMove,
-  rectSortingStrategy,
+  rectSwappingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
 import PieceTile from './PieceTile.jsx';
 import Icon from './Icon.jsx';
+import VuMeter from './VuMeter.jsx';
+import ListenLinks from './ListenLinks.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
+import { formatDuration } from '../daily/storage.js';
 import {
   buildMixerOrder,
   chunkTracks,
@@ -91,12 +93,25 @@ export default function Puzzle({
   const [guessHistory, setGuessHistory] = useState([]);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [trackPlays, setTrackPlays] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(null);
+
+  // Solve timer: starts on the first real interaction, freezes when the game
+  // ends. Lives in a ref so it never triggers a re-render mid-play.
+  const startRef = useRef(null);
+  function beginTiming() {
+    if (startRef.current == null) startRef.current = Date.now();
+  }
 
   const playerRef = useRef(null);
   if (!playerRef.current) {
     playerRef.current = new Player(getAudioContext());
   }
   const player = playerRef.current;
+  const getLevel = useCallback(() => player.getLevel(), [player]);
+  const getClipProgress = useCallback(
+    (id) => player.getClipProgress(id),
+    [player]
+  );
   useEffect(() => () => player.stop(), [player]);
 
   useEffect(() => {
@@ -112,6 +127,14 @@ export default function Puzzle({
   );
 
   const rows = chunkTracks(order, clipsPerTrack);
+  // The strip whose VU meter should be live: the row playing as a sequence, or
+  // the row that owns the single clip being auditioned.
+  const meterRow =
+    playingRow != null
+      ? playingRow
+      : playingId != null
+        ? Math.floor(order.findIndex((p) => p.id === playingId) / clipsPerTrack)
+        : null;
   const solved = solvedTrackIds.length === trackCount;
   const limited = Number.isFinite(maxGuesses);
   const over = solved || lost || revealed;
@@ -160,7 +183,14 @@ export default function Puzzle({
     const fromRow = Math.floor(from / clipsPerTrack);
     const toRow = Math.floor(to / clipsPerTrack);
     if (rowLocked(fromRow) || rowLocked(toRow)) return;
-    setOrder((cur) => arrayMove(cur, from, to));
+    beginTiming();
+    // Swap the two clips rather than shifting the row, so dropping onto a slot
+    // never pushes an already-correct clip out into the next row.
+    setOrder((cur) => {
+      const next = [...cur];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
     setFeedback(null);
     // Drop the live status as soon as its row changes; leave it lit when an
     // unrelated row is rearranged, since its grade is still accurate.
@@ -183,6 +213,7 @@ export default function Puzzle({
       stopAll();
       return;
     }
+    beginTiming();
     stopAll();
     setPlayingId(piece.id);
     setPlayingRow(null);
@@ -191,6 +222,24 @@ export default function Puzzle({
       setPlayingId(null);
       setPlayingSequence(false);
     });
+  }
+
+  // Scrub: play a clip from a fraction (0..1) of the way in, set by clicking the
+  // waveform — so players can jump to and audition a specific part of a clip.
+  function seekClip(piece, fraction) {
+    beginTiming();
+    stopAll();
+    setPlayingId(piece.id);
+    setPlayingRow(null);
+    setPlayingSequence(true);
+    player.playPiece(
+      piece,
+      () => {
+        setPlayingId(null);
+        setPlayingSequence(false);
+      },
+      fraction
+    );
   }
 
   function playSequence(rowIndex, sequence) {
@@ -212,6 +261,7 @@ export default function Puzzle({
       stopAll();
       return;
     }
+    beginTiming();
     stopAll();
     setTrackPlays((current) => current + 1);
     playSequence(rowIndex, rows[rowIndex]);
@@ -221,6 +271,7 @@ export default function Puzzle({
     if (over || rowLocked(armedRow)) return;
     const row = rows[armedRow];
     if (!row?.length) return;
+    beginTiming();
 
     const submissionNumber = submissions + 1;
     const grade = gradeMixerRow(row, solvedTrackIds);
@@ -305,6 +356,9 @@ export default function Puzzle({
   }
 
   function buildResult(nextSolved, tries, mistakeCount, solvedIds, history) {
+    const elapsed =
+      startRef.current != null ? Date.now() - startRef.current : 0;
+    setElapsedMs(elapsed);
     return {
       solved: nextSolved,
       attempts: tries,
@@ -312,6 +366,7 @@ export default function Puzzle({
       solvedTracks: solvedIds.length,
       trackPlays,
       fullPlays: trackPlays,
+      elapsedMs: elapsed,
       grid: shareGridFromHistory(history),
     };
   }
@@ -340,6 +395,8 @@ export default function Puzzle({
     setMistakes(0);
     setGuessHistory([]);
     setTrackPlays(0);
+    setElapsedMs(null);
+    startRef.current = null;
   }
 
   const a11y = {
@@ -398,7 +455,7 @@ export default function Puzzle({
         onDragEnd={handleDragEnd}
         accessibility={a11y}
       >
-        <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+        <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
           <ol className="track-board" aria-label="Mixer tracks">
             {rows.map((row, rowIndex) => {
               const locked = rowLocked(rowIndex) || over;
@@ -409,9 +466,13 @@ export default function Puzzle({
               const showGrade = locked || revealed || graded;
               const rowGrade = showGrade ? gradeMixerRow(row) : null;
               const solvedHere = solvedTrackIds.includes(trackId);
-              const answer = solvedHere
-                ? tracks.find((track) => track.id === trackId)?.answer
-                : null;
+              // Reveal the song on rows you solved, and on every row once the
+              // game is over (the board is in solved order) — so a wrong finish
+              // clearly shows the correct mix, track by track.
+              const answer =
+                solvedHere || over
+                  ? tracks.find((track) => track.id === trackId)?.answer
+                  : null;
               return (
                 <li
                   key={rowIndex}
@@ -427,6 +488,10 @@ export default function Puzzle({
                   <div className="track-strip">
                     <span className="track-name">Track {rowIndex + 1}</span>
                     <span className="track-led" aria-hidden="true" />
+                    <VuMeter
+                      getLevel={getLevel}
+                      active={meterRow === rowIndex}
+                    />
                     <span className="track-status">
                       {solvedHere ? 'Locked' : 'Route'}
                     </span>
@@ -448,9 +513,14 @@ export default function Puzzle({
                           <span className="track-reveal-artist">
                             {answer.artist}
                           </span>
+                          <ListenLinks
+                            title={answer.title}
+                            artist={answer.artist}
+                          />
                         </div>
                         <span className="track-reveal-badge">
-                          <Icon name="check" /> Discovered
+                          <Icon name={solvedHere ? 'check' : 'eye'} />
+                          {solvedHere ? 'Discovered' : 'Answer'}
                         </span>
                       </div>
                     )}
@@ -476,6 +546,10 @@ export default function Puzzle({
                             locked={locked}
                             revealed={revealed || locked}
                             onPlay={locked ? undefined : () => playClip(piece)}
+                            onSeek={
+                              locked ? undefined : (f) => seekClip(piece, f)
+                            }
+                            getClipProgress={getClipProgress}
                           />
                         );
                       })}
@@ -495,7 +569,8 @@ export default function Puzzle({
         {solved && (
           <p className="result-banner is-win">
             <strong>Master mix complete.</strong> Solved with {mistakes}/
-            {maxGuesses} mistakes.
+            {maxGuesses} mistakes
+            {elapsedMs != null && ` in ${formatDuration(elapsedMs)}`}.
           </p>
         )}
         {lost && (
@@ -507,8 +582,6 @@ export default function Puzzle({
           <p className="result-banner is-loss">Tracks revealed.</p>
         )}
       </div>
-
-      {over && <AnswerList tracks={tracks} />}
 
       <div className={over ? 'controls' : 'controls controls--secondary'}>
         {!over ? (
@@ -630,26 +703,6 @@ function VolumeControl({ volume, onVolumeChange }) {
       />
       <span className="mixer-slider-value">{percent}%</span>
     </label>
-  );
-}
-
-function AnswerList({ tracks }) {
-  return (
-    <section className="answer-stack" aria-label="Answer tracks">
-      {tracks.map((track, idx) => (
-        <div className="now-playing answer-row" key={track.id}>
-          {track.answer?.artwork && (
-            <img src={track.answer.artwork} alt="" className="np-art" />
-          )}
-          <div>
-            <div className="np-title">
-              Track {idx + 1}: {track.answer?.title}
-            </div>
-            <div className="np-artist">{track.answer?.artist}</div>
-          </div>
-        </div>
-      ))}
-    </section>
   );
 }
 
