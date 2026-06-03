@@ -3,12 +3,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
-import { loadAndSlice } from '../audio/slicer.js';
+import { loadAndSliceTracks } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
-import { DAILY_PIECES, SONGS } from '../../api/_songs.js';
+import {
+  DAILY_CLIPS_PER_TRACK,
+  DAILY_TRACKS,
+  SONGS,
+} from '../../api/_songs.js';
 
-function randomCatalogSong() {
-  return SONGS[Math.floor(Math.random() * SONGS.length)];
+function randomCatalogSongs() {
+  const shuffled = [...SONGS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, DAILY_TRACKS);
 }
 
 export default function PracticeGame({ onDaily }) {
@@ -19,25 +24,33 @@ export default function PracticeGame({ onDaily }) {
 
   const startRandomPuzzle = useCallback(async () => {
     const requestId = ++requestRef.current;
-    const catalogSong = randomCatalogSong();
+    const catalogSongs = randomCatalogSongs();
     setError(null);
     setGame(null);
     setPhase('loading');
     try {
-      const search = await fetch(
-        `/api/search?term=${encodeURIComponent(`${catalogSong.title} ${catalogSong.artist}`)}`
+      const resolved = await Promise.all(
+        catalogSongs.map(async (catalogSong, idx) => {
+          const search = await fetch(
+            `/api/search?term=${encodeURIComponent(`${catalogSong.title} ${catalogSong.artist}`)}`
+          );
+          if (!search.ok) throw new Error('Could not find a practice song.');
+          const data = await search.json();
+          const song = data.results?.[0];
+          if (!song) throw new Error('Could not find a playable preview.');
+          return {
+            id: `track-${idx}`,
+            previewUrl: song.previewUrl,
+            answer: song,
+          };
+        })
       );
-      if (!search.ok) throw new Error('Could not find a practice song.');
-      const data = await search.json();
-      const song = data.results?.[0];
-      if (!song) throw new Error('Could not find a playable preview.');
 
-      const { buffer, pieces } = await loadAndSlice(
-        song.previewUrl,
-        DAILY_PIECES
-      );
+      const tracks = await loadAndSliceTracks(resolved, DAILY_CLIPS_PER_TRACK, {
+        seed: Date.now(),
+      });
       if (requestId !== requestRef.current) return;
-      setGame({ song, buffer, pieces });
+      setGame({ tracks });
       setPhase('play');
     } catch (err) {
       if (requestId !== requestRef.current) return;
@@ -63,19 +76,18 @@ export default function PracticeGame({ onDaily }) {
             onClick={() => startRandomPuzzle()}
             disabled={phase === 'loading'}
           >
-            Different song
+            Different mix
           </button>
         </div>
       </div>
 
       {phase === 'play' && game ? (
         <Puzzle
-          song={game.song}
-          buffer={game.buffer}
-          pieces={game.pieces}
+          tracks={game.tracks}
+          clipsPerTrack={DAILY_CLIPS_PER_TRACK}
           maxGuesses={MAX_GUESSES}
           onNewPuzzle={() => startRandomPuzzle()}
-          newPuzzleLabel="Different song"
+          newPuzzleLabel="Different mix"
         />
       ) : (
         <section className="panel center">

@@ -29,12 +29,51 @@ export function saveResult(puzzleNumber, result) {
   return all[puzzleNumber];
 }
 
+// Aggregate play history into headline stats. `currentPuzzleNumber` anchors the
+// active streak so it only counts when today's puzzle was solved.
+export function computeStats(currentPuzzleNumber) {
+  const all = readAll();
+  const entries = Object.entries(all).map(([n, r]) => ({ n: Number(n), ...r }));
+  const played = entries.length;
+  const wins = entries.filter((e) => e.solved).length;
+  const perfect = entries.filter(
+    (e) => e.solved && (e.mistakes ?? 0) === 0
+  ).length;
+  const winPct = played ? Math.round((wins / played) * 100) : 0;
+
+  // Current streak: consecutive solved days ending at the current puzzle.
+  let currentStreak = 0;
+  if (typeof currentPuzzleNumber === 'number') {
+    for (let k = currentPuzzleNumber; all[k]?.solved; k--) currentStreak++;
+  }
+
+  // Max streak: longest run of consecutive solved puzzle numbers.
+  const solvedNums = entries
+    .filter((e) => e.solved)
+    .map((e) => e.n)
+    .sort((a, b) => a - b);
+  let maxStreak = 0;
+  let run = 0;
+  let prev = null;
+  for (const n of solvedNums) {
+    run = prev !== null && n === prev + 1 ? run + 1 : 1;
+    if (run > maxStreak) maxStreak = run;
+    prev = n;
+  }
+
+  return { played, wins, winPct, perfect, currentStreak, maxStreak };
+}
+
 export function formatGuessGrid(grid = []) {
   return grid
     .map((row) =>
       (row || [])
         .filter((cell) => !cell.anchor)
-        .map((cell) => (cell.correct ? '🟩' : '⬛'))
+        .map((cell) => {
+          if (cell.correct) return '🟩';
+          if (cell.sameTrack) return '🟨';
+          return '⬛';
+        })
         .join('')
     )
     .filter(Boolean)
@@ -54,4 +93,12 @@ export function formatCountdown(ms) {
   const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
   const sec = String(s % 60).padStart(2, '0');
   return `${h}:${m}:${sec}`;
+}
+
+// Solve time as m:ss (e.g. 2:05); hours roll into the minutes field.
+export function formatDuration(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return `${m}:${sec}`;
 }
