@@ -583,8 +583,6 @@ export default function Puzzle({
         )}
       </div>
 
-      {over && <AnswerList tracks={tracks} />}
-
       <div className={over ? 'controls' : 'controls controls--secondary'}>
         {!over ? (
           <>
@@ -705,30 +703,6 @@ function VolumeControl({ volume, onVolumeChange }) {
       />
       <span className="mixer-slider-value">{percent}%</span>
     </label>
-  );
-}
-
-function AnswerList({ tracks }) {
-  return (
-    <section className="answer-stack" aria-label="Answer tracks">
-      {tracks.map((track, idx) => (
-        <div className="now-playing answer-row" key={track.id}>
-          {track.answer?.artwork && (
-            <img src={track.answer.artwork} alt="" className="np-art" />
-          )}
-          <div>
-            <div className="np-title">
-              Track {idx + 1}: {track.answer?.title}
-            </div>
-            <div className="np-artist">{track.answer?.artist}</div>
-            <ListenLinks
-              title={track.answer?.title}
-              artist={track.answer?.artist}
-            />
-          </div>
-        </div>
-      ))}
-    </section>
   );
 }
 
