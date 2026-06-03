@@ -21,6 +21,7 @@ import PieceTile from './PieceTile.jsx';
 import Icon from './Icon.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
+import { formatDuration } from '../daily/storage.js';
 import {
   buildMixerOrder,
   chunkTracks,
@@ -91,6 +92,14 @@ export default function Puzzle({
   const [guessHistory, setGuessHistory] = useState([]);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [trackPlays, setTrackPlays] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(null);
+
+  // Solve timer: starts on the first real interaction, freezes when the game
+  // ends. Lives in a ref so it never triggers a re-render mid-play.
+  const startRef = useRef(null);
+  function beginTiming() {
+    if (startRef.current == null) startRef.current = Date.now();
+  }
 
   const playerRef = useRef(null);
   if (!playerRef.current) {
@@ -160,6 +169,7 @@ export default function Puzzle({
     const fromRow = Math.floor(from / clipsPerTrack);
     const toRow = Math.floor(to / clipsPerTrack);
     if (rowLocked(fromRow) || rowLocked(toRow)) return;
+    beginTiming();
     setOrder((cur) => arrayMove(cur, from, to));
     setFeedback(null);
     // Drop the live status as soon as its row changes; leave it lit when an
@@ -183,6 +193,7 @@ export default function Puzzle({
       stopAll();
       return;
     }
+    beginTiming();
     stopAll();
     setPlayingId(piece.id);
     setPlayingRow(null);
@@ -212,6 +223,7 @@ export default function Puzzle({
       stopAll();
       return;
     }
+    beginTiming();
     stopAll();
     setTrackPlays((current) => current + 1);
     playSequence(rowIndex, rows[rowIndex]);
@@ -221,6 +233,7 @@ export default function Puzzle({
     if (over || rowLocked(armedRow)) return;
     const row = rows[armedRow];
     if (!row?.length) return;
+    beginTiming();
 
     const submissionNumber = submissions + 1;
     const grade = gradeMixerRow(row, solvedTrackIds);
@@ -305,6 +318,9 @@ export default function Puzzle({
   }
 
   function buildResult(nextSolved, tries, mistakeCount, solvedIds, history) {
+    const elapsed =
+      startRef.current != null ? Date.now() - startRef.current : 0;
+    setElapsedMs(elapsed);
     return {
       solved: nextSolved,
       attempts: tries,
@@ -312,6 +328,7 @@ export default function Puzzle({
       solvedTracks: solvedIds.length,
       trackPlays,
       fullPlays: trackPlays,
+      elapsedMs: elapsed,
       grid: shareGridFromHistory(history),
     };
   }
@@ -340,6 +357,8 @@ export default function Puzzle({
     setMistakes(0);
     setGuessHistory([]);
     setTrackPlays(0);
+    setElapsedMs(null);
+    startRef.current = null;
   }
 
   const a11y = {
@@ -495,7 +514,8 @@ export default function Puzzle({
         {solved && (
           <p className="result-banner is-win">
             <strong>Master mix complete.</strong> Solved with {mistakes}/
-            {maxGuesses} mistakes.
+            {maxGuesses} mistakes
+            {elapsedMs != null && ` in ${formatDuration(elapsedMs)}`}.
           </p>
         )}
         {lost && (

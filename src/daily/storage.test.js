@@ -3,6 +3,7 @@ import {
   getResult,
   saveResult,
   formatCountdown,
+  formatDuration,
   formatGuessGrid,
   msUntilNextPuzzle,
 } from './storage.js';
@@ -50,6 +51,15 @@ describe('formatGuessGrid', () => {
   it('returns an empty string when there is no guess history', () => {
     expect(formatGuessGrid()).toBe('');
     expect(formatGuessGrid([])).toBe('');
+  });
+});
+
+describe('formatDuration', () => {
+  it('formats m:ss and rolls hours into minutes', () => {
+    expect(formatDuration(0)).toBe('0:00');
+    expect(formatDuration(5000)).toBe('0:05');
+    expect(formatDuration((2 * 60 + 5) * 1000)).toBe('2:05');
+    expect(formatDuration(75 * 60 * 1000)).toBe('75:00');
   });
 });
 

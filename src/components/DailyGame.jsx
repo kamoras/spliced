@@ -10,6 +10,7 @@ import {
   saveResult,
   msUntilNextPuzzle,
   formatCountdown,
+  formatDuration,
   formatGuessGrid,
 } from '../daily/storage.js';
 
@@ -121,7 +122,9 @@ function CompletedPanel({ daily, result, onReplay }) {
   const kind = outcome(daily, result);
   const message =
     kind === 'solved'
-      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes.`
+      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes${
+          result.elapsedMs ? ` in ${formatDuration(result.elapsedMs)}` : ''
+        }.`
       : kind === 'lost'
         ? 'Out of mistakes today.'
         : 'You revealed today’s answer.';
@@ -174,7 +177,13 @@ function ShareBar({ daily, result }) {
         : 'revealed';
   const detail =
     kind === 'solved'
-      ? `${result.attempts ?? 0} submissions · ${result.fullPlays ?? 0} track plays`
+      ? [
+          `${result.attempts ?? 0} submissions`,
+          `${result.fullPlays ?? 0} track plays`,
+          result.elapsedMs ? `⏱ ${formatDuration(result.elapsedMs)}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : '';
 
   const grid = formatGuessGrid(result.grid);

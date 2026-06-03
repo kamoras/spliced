@@ -59,3 +59,11 @@ export function formatCountdown(ms) {
   const sec = String(s % 60).padStart(2, '0');
   return `${h}:${m}:${sec}`;
 }
+
+// Solve time as m:ss (e.g. 2:05); hours roll into the minutes field.
+export function formatDuration(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return `${m}:${sec}`;
+}
