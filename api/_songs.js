@@ -41,10 +41,19 @@ export const SONGS = [
   { title: 'Toxic', artist: 'Britney Spears' },
 ];
 
-// Multi-track daily: four mystery songs, four clips per song.
+// Multi-track daily: four mystery songs; clips per song ramp with the weekday.
 export const DAILY_TRACKS = 4;
-export const DAILY_CLIPS_PER_TRACK = 4;
+export const DAILY_CLIPS_PER_TRACK = 4; // default (practice) and the midweek value
 export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
+
+// Gentle weekday difficulty: clips per track by UTC weekday (Sun..Sat). Keeps
+// four songs every day; only the board size grows, easy Mon/Tue → hard Fri/Sat.
+const CLIPS_BY_WEEKDAY = [4, 3, 3, 4, 4, 5, 5];
+
+// Deterministic for everyone on a given UTC day.
+export function clipsPerTrackForDay(nowMs) {
+  return CLIPS_BY_WEEKDAY[new Date(nowMs).getUTCDay()];
+}
 
 // Harmonies-style mistake cap: correct track submissions do not consume one.
 export const DAILY_GUESSES = 4;

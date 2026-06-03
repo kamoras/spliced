@@ -9,8 +9,7 @@ import { readFileSync } from 'node:fs';
 import {
   SONGS,
   DAILY_TRACKS,
-  DAILY_CLIPS_PER_TRACK,
-  DAILY_PIECES,
+  clipsPerTrackForDay,
   DAILY_GUESSES,
   LAUNCH_UTC,
 } from './_songs.js';
@@ -122,6 +121,7 @@ export default async function handler(req, res) {
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
 
   const { puzzleNumber, songs } = selectDaily(nowMs);
+  const clipsPerTrack = clipsPerTrackForDay(nowMs);
   // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the
   // next midnight flip; the manifest no longer rotates within a day.
   const secondsLeft = Math.max(
@@ -142,8 +142,8 @@ export default async function handler(req, res) {
       {
         puzzleNumber,
         trackCount: DAILY_TRACKS,
-        clipsPerTrack: DAILY_CLIPS_PER_TRACK,
-        numPieces: DAILY_PIECES,
+        clipsPerTrack,
+        numPieces: DAILY_TRACKS * clipsPerTrack,
         maxGuesses: DAILY_GUESSES,
         tracks,
         answers: tracks.map((track) => track.answer),

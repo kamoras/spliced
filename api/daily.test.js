@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { selectDaily, pickMatch, norm, manifestKey } from './daily.js';
-import { SONGS, DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
+import {
+  SONGS,
+  DAILY_TRACKS,
+  LAUNCH_UTC,
+  clipsPerTrackForDay,
+} from './_songs.js';
 import manifest from './_manifest.json';
 
 const DAY = 86400000;
@@ -35,6 +40,25 @@ describe('selectDaily', () => {
 
   it('clamps to puzzle #0 before launch', () => {
     expect(selectDaily(LAUNCH_UTC - 10 * DAY).puzzleNumber).toBe(0);
+  });
+});
+
+describe('clipsPerTrackForDay', () => {
+  it('ramps from easy early-week to hard late-week', () => {
+    expect(clipsPerTrackForDay(Date.UTC(2026, 0, 5))).toBe(3); // Monday
+    expect(clipsPerTrackForDay(Date.UTC(2026, 0, 7))).toBe(4); // Wednesday
+    expect(clipsPerTrackForDay(Date.UTC(2026, 0, 10))).toBe(5); // Saturday
+  });
+
+  it('is constant across a UTC day and always 3..5', () => {
+    const morning = clipsPerTrackForDay(Date.UTC(2026, 0, 5, 0, 0, 1));
+    const night = clipsPerTrackForDay(Date.UTC(2026, 0, 5, 23, 59, 59));
+    expect(morning).toBe(night);
+    for (let d = 0; d < 7; d++) {
+      const v = clipsPerTrackForDay(Date.UTC(2026, 0, 4 + d));
+      expect(v).toBeGreaterThanOrEqual(3);
+      expect(v).toBeLessThanOrEqual(5);
+    }
   });
 });
 
