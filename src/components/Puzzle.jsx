@@ -98,8 +98,9 @@ export default function Puzzle({
   const startedRef = useRef(false);
   const accumulatedRef = useRef(0);
   const runningSinceRef = useRef(null);
+  // Kept in sync with `over` (declared below) so the focus/blur listeners and
+  // beginTiming can read the latest value without resubscribing.
   const overRef = useRef(false);
-  overRef.current = over;
 
   const elapsedNow = useCallback(
     () =>
@@ -180,6 +181,7 @@ export default function Puzzle({
   const solved = solvedTrackIds.length === trackCount;
   const limited = Number.isFinite(maxGuesses);
   const over = solved || lost || revealed;
+  overRef.current = over;
   const remaining = limited ? Math.max(0, maxGuesses - mistakes) : null;
 
   const identity = useMemo(() => {
