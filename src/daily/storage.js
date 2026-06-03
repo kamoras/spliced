@@ -34,7 +34,11 @@ export function formatGuessGrid(grid = []) {
     .map((row) =>
       (row || [])
         .filter((cell) => !cell.anchor)
-        .map((cell) => (cell.correct ? '🟩' : '⬛'))
+        .map((cell) => {
+          if (cell.correct) return '🟩';
+          if (cell.sameTrack) return '🟨';
+          return '⬛';
+        })
         .join('')
     )
     .filter(Boolean)

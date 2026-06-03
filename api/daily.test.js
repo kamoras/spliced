@@ -1,21 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, pickMatch, norm } from './daily.js';
-import { SONGS, LAUNCH_UTC } from './_songs.js';
+import { selectDaily, pickMatch, norm, manifestKey } from './daily.js';
+import { SONGS, DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
+import manifest from './_manifest.json';
 
 const DAY = 86400000;
 
 describe('selectDaily', () => {
-  it('is puzzle #0 with the first song at launch', () => {
-    const { puzzleNumber, song } = selectDaily(LAUNCH_UTC);
+  it('is puzzle #0 with the first four songs at launch', () => {
+    const { puzzleNumber, songs } = selectDaily(LAUNCH_UTC);
     expect(puzzleNumber).toBe(0);
-    expect(song).toEqual(SONGS[0]);
+    expect(songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
   });
 
-  it('advances one puzzle per UTC day and wraps the song list', () => {
-    expect(selectDaily(LAUNCH_UTC + 3 * DAY).puzzleNumber).toBe(3);
+  it('advances one puzzle per UTC day and wraps the song list by track groups', () => {
+    const dayThree = selectDaily(LAUNCH_UTC + 3 * DAY);
+    expect(dayThree.puzzleNumber).toBe(3);
+    expect(dayThree.songs).toEqual(
+      Array.from(
+        { length: DAILY_TRACKS },
+        (_, i) => SONGS[(3 * DAILY_TRACKS + i) % SONGS.length]
+      )
+    );
+
     const wrapped = selectDaily(LAUNCH_UTC + SONGS.length * DAY);
     expect(wrapped.puzzleNumber).toBe(SONGS.length);
-    expect(wrapped.song).toEqual(SONGS[0]);
+    expect(wrapped.songs).toEqual(SONGS.slice(0, DAILY_TRACKS));
   });
 
   it('is identical at any moment within the same UTC day', () => {
@@ -60,5 +69,19 @@ describe('norm', () => {
     expect(norm("Guns N' Roses")).toBe('gunsnroses');
     expect(norm('Earth, Wind & Fire')).toBe('earthwindfire');
     expect(norm(null)).toBe('');
+  });
+});
+
+describe('daily manifest', () => {
+  // If this fails after editing SONGS, regenerate with `npm run resolve:songs`.
+  it('pins every curated song with a preview and track id', () => {
+    for (const song of SONGS) {
+      const entry = manifest[manifestKey(song)];
+      expect(entry, `missing manifest entry for ${song.title}`).toBeTruthy();
+      expect(entry.previewUrl).toMatch(/^https:\/\//);
+      expect(entry.trackId).toBeGreaterThan(0);
+      expect(entry.answer?.title).toBeTruthy();
+      expect(entry.answer?.artist).toBeTruthy();
+    }
   });
 });

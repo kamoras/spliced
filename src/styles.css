@@ -414,7 +414,7 @@ body {
   text-align: right;
 }
 
-/* ---------- guesses ---------- */
+/* ---------- mixer puzzle ---------- */
 .guesses {
   display: flex;
   align-items: center;
@@ -446,101 +446,119 @@ body {
   font-size: 13px;
   color: var(--muted);
 }
-
-/* ---------- playback order ---------- */
-.playback-order {
-  margin: 0 0 14px;
-  padding: 10px 12px;
+.mixer-panel {
+  max-width: 980px;
+  margin-inline: auto;
+}
+.mixer-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.board-kicker {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mixer-title {
+  margin: 2px 0 0;
+  font-size: 20px;
+  line-height: 1.15;
+}
+.submission-meter {
+  display: grid;
+  justify-items: center;
+  min-width: 88px;
+  padding: 8px 10px;
+  color: var(--accent-text);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-.playback-order--compact {
-  padding: 8px;
+.submission-meter span:first-child {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
 }
-.playback-order-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.playback-order-readout {
-  flex: none;
-  color: var(--accent-text);
-  font-size: 12px;
+.submission-meter span:last-child {
+  font-size: 10px;
   font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.playback-order-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 0;
-}
-.playback-order-title svg {
-  font-size: 12px;
-}
-.playback-order-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.switchboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
 }
-.playback-order-cell {
-  min-width: 0;
+.switch-channel {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 5px;
-  min-height: 34px;
-  padding: 5px 7px;
-  color: var(--text);
-  background: var(--surface);
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: var(--radius-sm);
 }
-.playback-order-cell--locked {
-  border-color: var(--accent);
-}
-.playback-order-cell--before-start {
-  opacity: 0.48;
-}
-.playback-order-cell--start {
-  border-color: var(--focus);
-  box-shadow: inset 0 -3px 0 var(--focus);
-}
-.playback-order-cell--active {
+.switch-channel--armed {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
-.playback-order-index {
-  color: var(--muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+.switch-channel--locked {
+  opacity: 0.72;
 }
-.playback-order-id {
-  min-width: 0;
+.switch-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 7px;
+  min-height: 38px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
 }
-.playback-order-lock {
-  color: var(--accent-text);
-  font-size: 12px;
+.switch-button:disabled {
+  cursor: not-allowed;
+}
+.switch-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.switch-channel--armed .switch-light,
+.switch-channel--locked .switch-light {
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(246, 183, 60, 0.45);
+}
+.btn--mini {
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 13px;
+}
+.submit-route {
+  grid-column: 1 / -1;
+}
+.volume-panel {
+  margin: 0 0 14px;
+  padding: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.volume-panel .mixer-slider,
+.playback-order--compact .mixer-slider {
+  width: 100%;
 }
 .mixer-sliders {
   display: grid;
@@ -561,9 +579,6 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 -1px 2px rgba(0, 0, 0, 0.14);
-}
-.playback-order--compact .mixer-slider {
-  width: 100%;
 }
 .mixer-slider-label {
   display: inline-flex;
@@ -642,51 +657,201 @@ body {
     0 0 0 3px var(--surface),
     0 0 0 5px var(--focus);
 }
-
-/* ---------- board / tiles ---------- */
-.board {
-  /* Grid (not flex) so a partial last row keeps the same tile width as full
-     rows instead of stretching to fill. */
+.track-board {
+  list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 10px;
-  margin-bottom: 18px;
+  padding: 0;
+  margin: 0 0 18px;
 }
-.tile {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
+.track-lane {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+  padding: 8px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  user-select: none;
 }
-.tile-playing {
+.track-lane--armed {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+.track-lane--locked {
+  border-color: var(--ok);
+}
+/* A row that was just submitted but not solved: lit so its per-clip status
+   reads as feedback the moment you check it, like a metered channel. */
+.track-lane--graded {
+  border-color: #c99700;
+  box-shadow: 0 0 0 1px rgba(201, 151, 0, 0.45);
+}
+.track-lane--graded .track-led {
+  background: #c99700;
+  box-shadow: 0 0 12px rgba(201, 151, 0, 0.5);
+}
+.track-strip {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.track-name {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.track-led {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.track-lane--armed .track-led,
+.track-lane--locked .track-led {
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(246, 183, 60, 0.45);
+}
+.track-lane--locked .track-led {
+  background: var(--ok);
+}
+.track-status {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+/* Right column of a lane: the optional reveal banner stacked above the slots. */
+.track-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+/* When a row is solved, reveal the song so players discover what they just
+   reassembled. */
+.track-reveal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok);
+  border-radius: var(--radius-sm);
+}
+.track-reveal-art {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex: none;
+}
+.track-reveal-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.track-reveal-title {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-reveal-artist {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-reveal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.track-slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(50px, 1fr) auto;
+  gap: 7px;
+  min-width: 0;
+  min-height: 142px;
+  padding: 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 0 rgba(0, 0, 0, 0.18);
+}
 .tile-dragging {
-  box-shadow: var(--shadow);
+  opacity: 0.9;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+.tile-playing {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 18px rgba(246, 183, 60, 0.22);
+}
+.tile-locked {
+  cursor: default;
 }
 .tile-correct {
   border-color: var(--ok);
+  background: var(--ok-bg);
+  --tile-pulse: rgba(15, 122, 66, 0.5);
+  animation: tilePulse 0.55s ease-out;
 }
-.tile-wrong {
-  border-color: var(--bad);
+.tile-misplaced {
+  border-color: #c99700;
+  background: rgba(201, 151, 0, 0.15);
+  --tile-pulse: rgba(201, 151, 0, 0.55);
+  animation: tilePulse 0.55s ease-out;
 }
-
+/* One-shot glow when a clip's status first lights up, so checking a track
+   feels like LEDs latching rather than a silent color swap. */
+@keyframes tilePulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--tile-pulse);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(0, 0, 0, 0);
+  }
+}
 .tile-grip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 7px;
+  color: var(--text);
   background: var(--surface-2);
-  border: none;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: grab;
-  touch-action: none;
   font: inherit;
 }
 .tile-grip:active {
@@ -695,98 +860,116 @@ body {
 .tile-grip--locked {
   cursor: default;
 }
-.tile-grip--locked:active {
-  cursor: default;
+.tile-grip-main {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
 }
-.tile-locked {
-  border-color: var(--accent);
+.tile-position {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.tile-id {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 900;
+}
+.tile-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
+}
+.grip-dots {
+  flex: none;
+  color: var(--muted);
+  font-size: 18px;
 }
 .tile-locked-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  color: var(--accent-text);
-  font-size: 12px;
-  font-weight: 700;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
-.tile-locked-label svg {
-  font-size: 14px;
-}
-/* Stable per-piece identity (colour + letter) so a moved clip is visibly the
-   same clip in a new spot — the colour/letter travel with the piece. */
-.tile-id {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  color: var(--text);
-}
-.tile-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  flex: none;
-}
-.grip-dots {
-  font-size: 18px;
-  line-height: 1;
-}
-
 .tile-wave {
-  height: 60px;
-  padding: 8px;
+  min-height: 50px;
   color: var(--wave);
-  background: rgba(0, 0, 0, 0.12);
-}
-.tile-playing .tile-wave {
-  color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 .waveform {
-  width: 100%;
-  height: 100%;
   display: block;
+  width: 100%;
+  height: 54px;
 }
-
 .tile-play {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
-  border: none;
-  border-top: 1px solid var(--border);
-  background: transparent;
-  color: var(--accent-text);
+  width: 100%;
+  min-height: 34px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 900;
   cursor: pointer;
 }
 .tile-play:hover {
-  background: var(--surface-2);
+  border-color: var(--accent);
 }
-
-/* not-color-alone: state shown with an icon + word, not just the border */
 .tile-state {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 5px;
+  min-height: 32px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 600;
-  border-top: 1px solid var(--border);
+  font-weight: 900;
 }
-.tile-state--ok {
+.tile-state--correct {
   color: var(--ok);
   background: var(--ok-bg);
 }
-.tile-state--no {
-  color: var(--bad);
-  background: var(--bad-bg);
+.tile-state--misplaced {
+  color: #8a6500;
+  background: rgba(201, 151, 0, 0.16);
 }
-
+.answer-stack {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.answer-row {
+  margin: 0;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
 /* ---------- guess history ---------- */
 .guess-history {
   margin: 0 0 16px;
@@ -811,6 +994,12 @@ body {
   grid-template-columns: 36px 1fr;
   align-items: center;
   gap: 8px;
+}
+.guess-entry--mixer {
+  grid-template-columns: 36px minmax(0, auto) minmax(0, 1fr);
+}
+.guess-row--tiles {
+  flex-wrap: nowrap;
 }
 .guess-number {
   color: var(--muted);
@@ -839,6 +1028,16 @@ body {
   color: var(--ok);
   background: var(--ok-bg);
   border-color: var(--ok);
+}
+.guess-cell--misplaced {
+  color: #8a6500;
+  background: rgba(201, 151, 0, 0.16);
+  border-color: #c99700;
+}
+.guess-note {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 .guess-cell--wrong {
   color: var(--bad);
@@ -1086,17 +1285,65 @@ body {
 }
 
 /* ---------- small screens ---------- */
+@media (max-width: 760px) {
+  .app {
+    padding-inline: 12px;
+  }
+  .mixer-topbar {
+    align-items: stretch;
+  }
+  .switchboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .track-lane {
+    grid-template-columns: 1fr;
+  }
+  .track-strip {
+    grid-template-columns: auto auto auto;
+    justify-content: space-between;
+  }
+  .track-slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 520px) {
-  .mixer-sliders {
+  .site-header,
+  .bar {
+    align-items: flex-start;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .mixer-topbar {
+    display: grid;
+  }
+  .submission-meter {
+    justify-self: start;
+  }
+  .switchboard {
     grid-template-columns: 1fr;
   }
   .mixer-slider {
     grid-template-columns: 64px minmax(0, 1fr) 42px;
+  }
+  .tile {
+    min-height: 132px;
+  }
+  .tile-grip {
+    align-items: flex-start;
+  }
+  .guess-entry--mixer {
+    grid-template-columns: 32px 1fr;
+  }
+  .guess-note {
+    grid-column: 2;
   }
   .np-meta {
     display: none;
   }
   .controls .btn {
     flex: 1 1 calc(50% - 5px);
+    min-width: 0;
   }
 }

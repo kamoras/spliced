@@ -35,8 +35,13 @@ export default [
 
   // Node contexts: serverless functions and build/config files.
   {
-    files: ['api/**/*.js', 'vite.config.js', 'eslint.config.js'],
-    languageOptions: { globals: globals.node },
+    files: [
+      'api/**/*.js',
+      'scripts/**/*.{js,mjs}',
+      'vite.config.js',
+      'eslint.config.js',
+    ],
+    languageOptions: { sourceType: 'module', globals: globals.node },
   },
 
   // Tests run under Vitest (jsdom): both browser and node globals available.
