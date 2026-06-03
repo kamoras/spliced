@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
+  rectSortingStrategy,
   rectSwappingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
@@ -210,6 +211,21 @@ export default function Puzzle({
   const sortableIds = order
     .filter((_, idx) => !over && !rowLocked(Math.floor(idx / clipsPerTrack)))
     .map((piece) => piece.id);
+
+  // Make the drag preview match the drop: a sort/push within a row, a swap
+  // across rows (see handleDragEnd). dnd-kit passes indices into `sortableIds`,
+  // so map them back to board rows.
+  const dragStrategy = (args) => {
+    const { activeIndex, overIndex } = args;
+    const rowOfSortable = (i) => {
+      const pos = order.findIndex((p) => p.id === sortableIds[i]);
+      return pos < 0 ? -1 : Math.floor(pos / clipsPerTrack);
+    };
+    if (activeIndex < 0 || overIndex < 0) return rectSortingStrategy(args);
+    return rowOfSortable(activeIndex) === rowOfSortable(overIndex)
+      ? rectSortingStrategy(args)
+      : rectSwappingStrategy(args);
+  };
 
   function handleDragEnd(event) {
     const { active, over: target } = event;
@@ -445,7 +461,7 @@ export default function Puzzle({
         onDragEnd={handleDragEnd}
         accessibility={a11y}
       >
-        <SortableContext items={sortableIds} strategy={rectSwappingStrategy}>
+        <SortableContext items={sortableIds} strategy={dragStrategy}>
           <ol className="track-board" aria-label="Mixer tracks">
             {rows.map((row, rowIndex) => {
               const locked = rowLocked(rowIndex) || over;
