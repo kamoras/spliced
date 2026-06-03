@@ -408,6 +408,10 @@ export default function Puzzle({
               const graded = gradedRow === rowIndex && !locked;
               const showGrade = locked || revealed || graded;
               const rowGrade = showGrade ? gradeMixerRow(row) : null;
+              const solvedHere = solvedTrackIds.includes(trackId);
+              const answer = solvedHere
+                ? tracks.find((track) => track.id === trackId)?.answer
+                : null;
               return (
                 <li
                   key={rowIndex}
@@ -424,9 +428,31 @@ export default function Puzzle({
                     <span className="track-name">Track {rowIndex + 1}</span>
                     <span className="track-led" aria-hidden="true" />
                     <span className="track-status">
-                      {solvedTrackIds.includes(trackId) ? 'Locked' : 'Route'}
+                      {solvedHere ? 'Locked' : 'Route'}
                     </span>
                   </div>
+                  {answer && (
+                    <div className="track-reveal">
+                      {answer.artwork && (
+                        <img
+                          src={answer.artwork}
+                          alt=""
+                          className="track-reveal-art"
+                        />
+                      )}
+                      <div className="track-reveal-meta">
+                        <span className="track-reveal-title">
+                          {answer.title}
+                        </span>
+                        <span className="track-reveal-artist">
+                          {answer.artist}
+                        </span>
+                      </div>
+                      <span className="track-reveal-badge">
+                        <Icon name="check" /> Discovered
+                      </span>
+                    </div>
+                  )}
                   <div className="track-slots">
                     {row.map((piece, slotIndex) => {
                       const item = identity[piece.id];

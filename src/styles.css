@@ -727,6 +727,57 @@ body {
   font-weight: 800;
   text-transform: uppercase;
 }
+/* When a row is solved, reveal the song across the full lane width so players
+   discover what they just reassembled. */
+.track-reveal {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok);
+  border-radius: var(--radius-sm);
+}
+.track-reveal-art {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex: none;
+}
+.track-reveal-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.track-reveal-title {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-reveal-artist {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-reveal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
 .track-slots {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
