@@ -30,6 +30,13 @@ export default [
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
       'react/prop-types': 'off',
+      // react-hooks v7 ships experimental React Compiler rules in its
+      // recommended preset. They flag idiomatic patterns we rely on (lazy ref
+      // init, ref reads while deriving render values, timer/mount state sync),
+      // so disable them here; rules-of-hooks and exhaustive-deps stay on.
+      'react-hooks/purity': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 
