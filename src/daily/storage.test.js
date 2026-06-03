@@ -5,7 +5,6 @@ import {
   computeStats,
   formatCountdown,
   formatDuration,
-  formatGuessGrid,
   msUntilNextPuzzle,
 } from './storage.js';
 
@@ -67,33 +66,6 @@ describe('computeStats', () => {
       currentStreak: 0,
       maxStreak: 0,
     });
-  });
-});
-
-describe('formatGuessGrid', () => {
-  it('renders a Harmonies-style mixer grid with same-track hints', () => {
-    expect(
-      formatGuessGrid([
-        [
-          { correct: true },
-          { correct: true },
-          { correct: true },
-          { correct: true },
-        ],
-        [
-          { sameTrack: true },
-          { sameTrack: true },
-          { sameTrack: true },
-          { sameTrack: true },
-        ],
-        [{}, {}, {}, {}],
-      ])
-    ).toBe('🟩🟩🟩🟩\n🟨🟨🟨🟨\n⬛⬛⬛⬛');
-  });
-
-  it('returns an empty string when there is no guess history', () => {
-    expect(formatGuessGrid()).toBe('');
-    expect(formatGuessGrid([])).toBe('');
   });
 });
 

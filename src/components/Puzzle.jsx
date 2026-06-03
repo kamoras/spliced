@@ -76,7 +76,6 @@ export default function Puzzle({
   }
 
   const [order, setOrder] = useState(() => initialOrderRef.current);
-  const [armedRow, setArmedRow] = useState(0);
   const [playingId, setPlayingId] = useState(null);
   const [playingRow, setPlayingRow] = useState(null);
   const [playingSequence, setPlayingSequence] = useState(false);
@@ -88,11 +87,8 @@ export default function Puzzle({
   // It persists until that row is rearranged, so players can see exactly which
   // clips landed in the right slot. `null` means no row is showing live status.
   const [gradedRow, setGradedRow] = useState(null);
-  const [submissions, setSubmissions] = useState(0);
   const [mistakes, setMistakes] = useState(0);
-  const [guessHistory, setGuessHistory] = useState([]);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
-  const [trackPlays, setTrackPlays] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(null);
 
   // Solve timer: starts on the first real interaction, freezes when the game
@@ -163,13 +159,6 @@ export default function Puzzle({
     return Boolean(trackId) && solvedIds.includes(trackId);
   }
 
-  function firstOpenRow(solvedIds) {
-    const idx = rows.findIndex(
-      (_, rowIndex) => !rowLocked(rowIndex, solvedIds)
-    );
-    return idx === -1 ? armedRow : idx;
-  }
-
   const sortableIds = order
     .filter((_, idx) => !over && !rowLocked(Math.floor(idx / clipsPerTrack)))
     .map((piece) => piece.id);
@@ -184,11 +173,18 @@ export default function Puzzle({
     const toRow = Math.floor(to / clipsPerTrack);
     if (rowLocked(fromRow) || rowLocked(toRow)) return;
     beginTiming();
-    // Swap the two clips rather than shifting the row, so dropping onto a slot
-    // never pushes an already-correct clip out into the next row.
     setOrder((cur) => {
       const next = [...cur];
-      [next[from], next[to]] = [next[to], next[from]];
+      if (fromRow === toRow) {
+        // Same row: shift/push into the slot — the natural reorder, and it
+        // can't disturb any other row.
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+      } else {
+        // Across rows: swap, so dropping onto a slot never pushes an
+        // already-correct clip out into the next row.
+        [next[from], next[to]] = [next[to], next[from]];
+      }
       return next;
     });
     setFeedback(null);
@@ -256,24 +252,15 @@ export default function Puzzle({
     });
   }
 
-  function playRow(rowIndex) {
-    if (playingSequence && playingRow === rowIndex) {
-      stopAll();
-      return;
-    }
-    beginTiming();
-    stopAll();
-    setTrackPlays((current) => current + 1);
-    playSequence(rowIndex, rows[rowIndex]);
-  }
-
-  function submitArmedRow() {
-    if (over || rowLocked(armedRow)) return;
-    const row = rows[armedRow];
+  // One action per track: play the assembled row and grade it. The full-row
+  // playback and the submit are intentionally the same button, since clips are
+  // auditioned individually.
+  function submitRow(rowIndex) {
+    if (over || rowLocked(rowIndex)) return;
+    const row = rows[rowIndex];
     if (!row?.length) return;
     beginTiming();
 
-    const submissionNumber = submissions + 1;
     const grade = gradeMixerRow(row, solvedTrackIds);
     const nextSolvedTrackIds = grade.solved
       ? [...solvedTrackIds, grade.trackId]
@@ -282,36 +269,25 @@ export default function Puzzle({
     const nextMistakes =
       grade.solved || grade.alreadySolved ? mistakes : mistakes + 1;
     const out = limited && nextMistakes >= maxGuesses && !allSolved;
-    const nextGuess = {
-      number: submissionNumber,
-      row: armedRow,
-      solved: grade.solved,
-      sameTrack: grade.sameTrack,
-      correctPositions: grade.correctPositions,
-      rightRowCount: grade.rightRowCount,
-      tiles: grade.cells.map((cell, idx) => ({
-        ...cell,
-        letter: letterOf(row[idx].id),
-      })),
-    };
-    const nextGuessHistory = [...guessHistory, nextGuess];
 
-    setSubmissions(submissionNumber);
     setMistakes(nextMistakes);
     setSolvedTrackIds(nextSolvedTrackIds);
-    setGuessHistory(nextGuessHistory);
-    if (grade.solved && !allSolved)
-      setArmedRow(firstOpenRow(nextSolvedTrackIds));
     // A solving submit locks the row (which reveals its status anyway); a wrong
-    // submit lights the armed row so its correct/right-track clips stand out.
-    setGradedRow(grade.solved ? null : armedRow);
-    stopAll();
+    // submit lights this row so its correct/right-track clips stand out.
+    setGradedRow(grade.solved ? null : rowIndex);
+
+    // Hear the row you're checking — unless this submit just ended the game.
+    if (allSolved || out) {
+      stopAll();
+    } else {
+      playSequence(rowIndex, row);
+    }
 
     if (grade.solved) {
       setFeedback(
         allSolved
           ? 'Master mix complete.'
-          : `Track ${armedRow + 1} locked: ${trackName(grade.trackId)}.`
+          : `Track ${rowIndex + 1} locked: ${trackName(grade.trackId)}.`
       );
     } else if (grade.alreadySolved) {
       setFeedback(
@@ -330,44 +306,24 @@ export default function Puzzle({
     }
 
     if (allSolved) {
-      onResult?.(
-        buildResult(
-          true,
-          submissionNumber,
-          nextMistakes,
-          nextSolvedTrackIds,
-          nextGuessHistory
-        )
-      );
+      onResult?.(buildResult(true, nextMistakes, nextSolvedTrackIds));
     } else if (out) {
       setLost(true);
       setRevealed(true);
       setOrder(solvedOrder(tracks));
-      onResult?.(
-        buildResult(
-          false,
-          submissionNumber,
-          nextMistakes,
-          nextSolvedTrackIds,
-          nextGuessHistory
-        )
-      );
+      onResult?.(buildResult(false, nextMistakes, nextSolvedTrackIds));
     }
   }
 
-  function buildResult(nextSolved, tries, mistakeCount, solvedIds, history) {
+  function buildResult(nextSolved, mistakeCount, solvedIds) {
     const elapsed =
       startRef.current != null ? Date.now() - startRef.current : 0;
     setElapsedMs(elapsed);
     return {
       solved: nextSolved,
-      attempts: tries,
       mistakes: mistakeCount,
       solvedTracks: solvedIds.length,
-      trackPlays,
-      fullPlays: trackPlays,
       elapsedMs: elapsed,
-      grid: shareGridFromHistory(history),
     };
   }
 
@@ -376,25 +332,19 @@ export default function Puzzle({
     setFeedback(null);
     setGradedRow(null);
     setOrder(solvedOrder(tracks));
-    onResult?.(
-      buildResult(false, submissions, mistakes, solvedTrackIds, guessHistory)
-    );
+    onResult?.(buildResult(false, mistakes, solvedTrackIds));
   }
 
   function reshuffle() {
     stopAll();
     const next = buildMixerOrder(tracks, seed);
     setOrder(next);
-    setArmedRow(0);
     setRevealed(false);
     setSolvedTrackIds([]);
     setLost(false);
     setFeedback(null);
     setGradedRow(null);
-    setSubmissions(0);
     setMistakes(0);
-    setGuessHistory([]);
-    setTrackPlays(0);
     setElapsedMs(null);
     startRef.current = null;
   }
@@ -432,21 +382,10 @@ export default function Puzzle({
       </div>
 
       {!over && (
-        <>
-          <TrackControls
-            rows={rows}
-            armedRow={armedRow}
-            solvedTrackIds={solvedTrackIds}
-            playingRow={playingRow}
-            onArm={setArmedRow}
-            onPlay={playRow}
-            onSubmit={submitArmedRow}
-          />
-          <VolumeControlPanel
-            volume={volume}
-            onVolumeChange={handleVolumeChange}
-          />
-        </>
+        <VolumeControlPanel
+          volume={volume}
+          onVolumeChange={handleVolumeChange}
+        />
       )}
 
       <DndContext
@@ -478,7 +417,6 @@ export default function Puzzle({
                   key={rowIndex}
                   className={[
                     'track-lane',
-                    armedRow === rowIndex && !over && 'track-lane--armed',
                     graded && 'track-lane--graded',
                     locked && 'track-lane--locked',
                   ]
@@ -492,8 +430,24 @@ export default function Puzzle({
                       getLevel={getLevel}
                       active={meterRow === rowIndex}
                     />
+                    {!locked && (
+                      <button
+                        type="button"
+                        className="btn btn--mini track-submit"
+                        onClick={() =>
+                          playingRow === rowIndex
+                            ? stopAll()
+                            : submitRow(rowIndex)
+                        }
+                      >
+                        <Icon
+                          name={playingRow === rowIndex ? 'stop' : 'check'}
+                        />
+                        {playingRow === rowIndex ? 'Stop' : 'Submit'}
+                      </button>
+                    )}
                     <span className="track-status">
-                      {solvedHere ? 'Locked' : 'Route'}
+                      {solvedHere ? 'Locked' : over ? 'Revealed' : 'Route'}
                     </span>
                   </div>
                   <div className="track-main">
@@ -562,8 +516,6 @@ export default function Puzzle({
         </SortableContext>
       </DndContext>
 
-      <GuessHistory guesses={guessHistory} />
-
       <div role="status" aria-live="polite">
         {feedback && <p className="feedback">{feedback}</p>}
         {solved && (
@@ -612,69 +564,6 @@ export default function Puzzle({
   );
 }
 
-function TrackControls({
-  rows,
-  armedRow,
-  solvedTrackIds,
-  playingRow,
-  onArm,
-  onPlay,
-  onSubmit,
-}) {
-  const armedTrackId = rows[armedRow]?.[0]?.trackId;
-  const armedLocked =
-    Boolean(armedTrackId) && solvedTrackIds.includes(armedTrackId);
-  return (
-    <section className="switchboard" aria-label="Track switchboard">
-      {rows.map((row, rowIndex) => {
-        const trackId = row[0]?.trackId;
-        const locked = Boolean(trackId) && solvedTrackIds.includes(trackId);
-        const armed = armedRow === rowIndex;
-        const playing = playingRow === rowIndex;
-        return (
-          <div
-            key={rowIndex}
-            className={[
-              'switch-channel',
-              armed && 'switch-channel--armed',
-              locked && 'switch-channel--locked',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <button
-              type="button"
-              className="switch-button"
-              aria-pressed={armed}
-              disabled={locked}
-              onClick={() => onArm(rowIndex)}
-            >
-              <span className="switch-light" />
-              Track {rowIndex + 1}
-            </button>
-            <button
-              type="button"
-              className="btn btn--mini"
-              onClick={() => onPlay(rowIndex)}
-            >
-              <Icon name={playing ? 'stop' : 'play'} />{' '}
-              {playing ? 'Stop' : 'Play row'}
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className="btn btn--primary submit-route"
-        disabled={armedLocked}
-        onClick={onSubmit}
-      >
-        <Icon name="check" /> Submit armed track
-      </button>
-    </section>
-  );
-}
-
 function VolumeControlPanel({ volume, onVolumeChange }) {
   return (
     <section className="volume-panel" aria-label="Playback volume">
@@ -706,49 +595,3 @@ function VolumeControl({ volume, onVolumeChange }) {
   );
 }
 
-function shareGridFromHistory(history) {
-  return history.map((guess) =>
-    guess.tiles.map((tile) => ({
-      correct: tile.correct,
-      sameTrack: tile.sameTrack,
-    }))
-  );
-}
-
-function GuessHistory({ guesses }) {
-  if (guesses.length === 0) return null;
-
-  return (
-    <section className="guess-history" aria-label="Submission history">
-      <div className="guess-history-title">Submissions</div>
-      <ol className="guess-list">
-        {guesses.map((guess) => (
-          <li key={guess.number} className="guess-entry guess-entry--mixer">
-            <span className="guess-number">#{guess.number}</span>
-            <span className="guess-row guess-row--tiles">
-              {guess.tiles.map((tile, idx) => (
-                <span
-                  key={`${guess.number}-${idx}`}
-                  className={[
-                    'guess-cell',
-                    tile.correct && 'guess-cell--correct',
-                    tile.sameTrack && 'guess-cell--misplaced',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  {tile.letter}
-                </span>
-              ))}
-            </span>
-            <span className="guess-note">
-              {guess.solved
-                ? 'track locked'
-                : `${guess.correctPositions}/${guess.tiles.length} placed, ${guess.rightRowCount}/${guess.tiles.length} routed`}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
