@@ -727,10 +727,15 @@ body {
   font-weight: 800;
   text-transform: uppercase;
 }
-/* When a row is solved, reveal the song across the full lane width so players
-   discover what they just reassembled. */
+/* Right column of a lane: the optional reveal banner stacked above the slots. */
+.track-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+/* When a row is solved, reveal the song so players discover what they just
+   reassembled. */
 .track-reveal {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 10px;

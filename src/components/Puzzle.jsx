@@ -431,53 +431,55 @@ export default function Puzzle({
                       {solvedHere ? 'Locked' : 'Route'}
                     </span>
                   </div>
-                  {answer && (
-                    <div className="track-reveal">
-                      {answer.artwork && (
-                        <img
-                          src={answer.artwork}
-                          alt=""
-                          className="track-reveal-art"
-                        />
-                      )}
-                      <div className="track-reveal-meta">
-                        <span className="track-reveal-title">
-                          {answer.title}
-                        </span>
-                        <span className="track-reveal-artist">
-                          {answer.artist}
+                  <div className="track-main">
+                    {answer && (
+                      <div className="track-reveal">
+                        {answer.artwork && (
+                          <img
+                            src={answer.artwork}
+                            alt=""
+                            className="track-reveal-art"
+                          />
+                        )}
+                        <div className="track-reveal-meta">
+                          <span className="track-reveal-title">
+                            {answer.title}
+                          </span>
+                          <span className="track-reveal-artist">
+                            {answer.artist}
+                          </span>
+                        </div>
+                        <span className="track-reveal-badge">
+                          <Icon name="check" /> Discovered
                         </span>
                       </div>
-                      <span className="track-reveal-badge">
-                        <Icon name="check" /> Discovered
-                      </span>
+                    )}
+                    <div className="track-slots">
+                      {row.map((piece, slotIndex) => {
+                        const item = identity[piece.id];
+                        const cell = rowGrade?.cells[slotIndex];
+                        const tileState = cell?.correct
+                          ? 'correct'
+                          : cell?.sameTrack
+                            ? 'misplaced'
+                            : null;
+                        return (
+                          <PieceTile
+                            key={piece.id}
+                            piece={piece}
+                            position={slotIndex}
+                            letter={item?.letter}
+                            color={item?.color}
+                            isPlaying={playingId === piece.id}
+                            tileState={tileState}
+                            gradeVisible={graded}
+                            locked={locked}
+                            revealed={revealed || locked}
+                            onPlay={locked ? undefined : () => playClip(piece)}
+                          />
+                        );
+                      })}
                     </div>
-                  )}
-                  <div className="track-slots">
-                    {row.map((piece, slotIndex) => {
-                      const item = identity[piece.id];
-                      const cell = rowGrade?.cells[slotIndex];
-                      const tileState = cell?.correct
-                        ? 'correct'
-                        : cell?.sameTrack
-                          ? 'misplaced'
-                          : null;
-                      return (
-                        <PieceTile
-                          key={piece.id}
-                          piece={piece}
-                          position={slotIndex}
-                          letter={item?.letter}
-                          color={item?.color}
-                          isPlaying={playingId === piece.id}
-                          tileState={tileState}
-                          gradeVisible={graded}
-                          locked={locked}
-                          revealed={revealed || locked}
-                          onPlay={locked ? undefined : () => playClip(piece)}
-                        />
-                      );
-                    })}
                   </div>
                 </li>
               );
