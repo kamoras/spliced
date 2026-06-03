@@ -20,6 +20,7 @@ import {
 import PieceTile from './PieceTile.jsx';
 import Icon from './Icon.jsx';
 import VuMeter from './VuMeter.jsx';
+import ListenLinks from './ListenLinks.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
 import { formatDuration } from '../daily/storage.js';
@@ -481,6 +482,10 @@ export default function Puzzle({
                           <span className="track-reveal-artist">
                             {answer.artist}
                           </span>
+                          <ListenLinks
+                            title={answer.title}
+                            artist={answer.artist}
+                          />
                         </div>
                         <span className="track-reveal-badge">
                           <Icon name="check" /> Discovered
@@ -680,6 +685,10 @@ function AnswerList({ tracks }) {
               Track {idx + 1}: {track.answer?.title}
             </div>
             <div className="np-artist">{track.answer?.artist}</div>
+            <ListenLinks
+              title={track.answer?.title}
+              artist={track.answer?.artist}
+            />
           </div>
         </div>
       ))}

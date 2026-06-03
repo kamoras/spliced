@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
 import Icon from './Icon.jsx';
+import ListenLinks from './ListenLinks.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
   getResult,
@@ -170,6 +171,7 @@ function CompletedPanel({ daily, result, onReplay }) {
             <div>
               <div className="np-title">{answer.title}</div>
               <div className="np-artist">{answer.artist}</div>
+              <ListenLinks title={answer.title} artist={answer.artist} />
             </div>
           </div>
         ))}

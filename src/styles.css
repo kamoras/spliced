@@ -810,6 +810,41 @@ body {
   font-weight: 800;
   text-transform: uppercase;
 }
+/* Discovery links shown once a song is revealed. */
+.listen-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.listen-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.listen-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.listen-link:hover {
+  border-color: var(--accent);
+}
+.listen-link svg {
+  font-size: 11px;
+  opacity: 0.7;
+}
 .track-slots {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
