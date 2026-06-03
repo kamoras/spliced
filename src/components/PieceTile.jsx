@@ -90,10 +90,14 @@ function TileShell({
   style,
   grip,
   onPlay,
+  onSeek,
+  getClipProgress,
 }) {
   // `revealed` lights status on locked/finished rows; `gradeVisible` lights it
   // on an active row right after a wrong submit, while keeping the clip playable.
   const showGrade = revealed || gradeVisible;
+  // The waveform is scrubbable exactly when the clip is playable.
+  const seekable = Boolean(onSeek) && !revealed;
   const className = [
     'tile',
     locked && 'tile-locked',
@@ -112,7 +116,14 @@ function TileShell({
       {grip}
 
       <div className="tile-wave">
-        <Waveform peaks={piece.peaks} active={isPlaying} color={color} />
+        <Waveform
+          peaks={piece.peaks}
+          active={isPlaying}
+          color={color}
+          pieceId={piece.id}
+          onSeek={seekable ? onSeek : undefined}
+          getClipProgress={seekable ? getClipProgress : undefined}
+        />
       </div>
 
       {onPlay && !revealed && (

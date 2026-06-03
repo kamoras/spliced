@@ -4,12 +4,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Puzzle from './Puzzle.jsx';
 import Icon from './Icon.jsx';
+import ListenLinks from './ListenLinks.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
   getResult,
   saveResult,
+  computeStats,
   msUntilNextPuzzle,
   formatCountdown,
+  formatDuration,
   formatGuessGrid,
 } from '../daily/storage.js';
 
@@ -29,6 +32,11 @@ export default function DailyGame({ onPractice }) {
       const r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = await r.json();
+      if (!Array.isArray(d.tracks)) {
+        throw new Error(
+          'The puzzle API responded in an old format (no tracks). The deployed /api is likely a version behind this app — redeploy them together.'
+        );
+      }
       const tracks = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
         seed: d.puzzleNumber,
       });
@@ -98,10 +106,36 @@ export default function DailyGame({ onPractice }) {
                 : (r) => setResult(saveResult(daily.puzzleNumber, r))
             }
           />
-          {result && <ShareBar daily={daily} result={result} />}
+          {result && (
+            <>
+              <StatsRow puzzleNumber={daily.puzzleNumber} />
+              <ShareBar daily={daily} result={result} />
+            </>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function StatsRow({ puzzleNumber }) {
+  const stats = computeStats(puzzleNumber);
+  const cells = [
+    { label: 'Played', value: stats.played },
+    { label: 'Win %', value: stats.winPct },
+    { label: 'Streak', value: stats.currentStreak },
+    { label: 'Max', value: stats.maxStreak },
+    { label: 'Perfect', value: stats.perfect },
+  ];
+  return (
+    <section className="stats-row" aria-label="Your stats">
+      {cells.map((cell) => (
+        <div className="stat-cell" key={cell.label}>
+          <span className="stat-value">{cell.value}</span>
+          <span className="stat-label">{cell.label}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -116,7 +150,9 @@ function CompletedPanel({ daily, result, onReplay }) {
   const kind = outcome(daily, result);
   const message =
     kind === 'solved'
-      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes.`
+      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes${
+          result.elapsedMs ? ` in ${formatDuration(result.elapsedMs)}` : ''
+        }.`
       : kind === 'lost'
         ? 'Out of mistakes today.'
         : 'You revealed today’s answer.';
@@ -135,6 +171,7 @@ function CompletedPanel({ daily, result, onReplay }) {
             <div>
               <div className="np-title">{answer.title}</div>
               <div className="np-artist">{answer.artist}</div>
+              <ListenLinks title={answer.title} artist={answer.artist} />
             </div>
           </div>
         ))}
@@ -146,6 +183,7 @@ function CompletedPanel({ daily, result, onReplay }) {
         {message}
       </p>
 
+      <StatsRow puzzleNumber={daily.puzzleNumber} />
       <ShareBar daily={daily} result={result} />
       <Countdown />
 
@@ -169,7 +207,13 @@ function ShareBar({ daily, result }) {
         : 'revealed';
   const detail =
     kind === 'solved'
-      ? `${result.attempts ?? 0} submissions · ${result.fullPlays ?? 0} track plays`
+      ? [
+          `${result.attempts ?? 0} submissions`,
+          `${result.fullPlays ?? 0} track plays`,
+          result.elapsedMs ? `⏱ ${formatDuration(result.elapsedMs)}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : '';
 
   const grid = formatGuessGrid(result.grid);

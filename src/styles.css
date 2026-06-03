@@ -727,6 +727,33 @@ body {
   font-weight: 800;
   text-transform: uppercase;
 }
+/* Per-channel VU meter: lights left-to-right while that strip's audio plays. */
+.vu-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 10px;
+}
+.vu-seg {
+  width: 4px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--border);
+  opacity: 0.45;
+  transition:
+    opacity 0.06s linear,
+    background 0.06s linear;
+}
+.vu-seg[data-lit='true'] {
+  opacity: 1;
+  background: var(--ok);
+}
+.vu-seg:nth-child(4)[data-lit='true'] {
+  background: #c99700;
+}
+.vu-seg:nth-child(5)[data-lit='true'] {
+  background: var(--bad);
+}
 /* Right column of a lane: the optional reveal banner stacked above the slots. */
 .track-main {
   display: grid;
@@ -782,6 +809,41 @@ body {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
+}
+/* Discovery links shown once a song is revealed. */
+.listen-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.listen-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.listen-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.listen-link:hover {
+  border-color: var(--accent);
+}
+.listen-link svg {
+  font-size: 11px;
+  opacity: 0.7;
 }
 .track-slots {
   display: grid;
@@ -884,12 +946,15 @@ body {
   align-items: center;
   min-width: 0;
   gap: 5px;
-  font-size: 14px;
-  font-weight: 900;
+  /* Color leads the clip's identity; the letter stays as a quiet, legible
+     backup for colorblind players, screen readers, and the guess history. */
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
 }
 .tile-dot {
-  width: 10px;
-  height: 10px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
 }
@@ -919,6 +984,31 @@ body {
   display: block;
   width: 100%;
   height: 54px;
+}
+/* Scrubbable waveform: click/tap anywhere to play from that point. */
+.waveform-seek {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+}
+.wave-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  transform: translateX(-1px);
+  opacity: 0;
+  pointer-events: none;
 }
 .tile-play {
   display: inline-flex;
@@ -1087,6 +1177,36 @@ body {
 .result-banner.is-loss {
   background: var(--bad-bg);
   border: 1px solid var(--bad);
+}
+
+/* ---------- stats ---------- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.stat-cell {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .share-btn {
