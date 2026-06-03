@@ -727,6 +727,33 @@ body {
   font-weight: 800;
   text-transform: uppercase;
 }
+/* Per-channel VU meter: lights left-to-right while that strip's audio plays. */
+.vu-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 10px;
+}
+.vu-seg {
+  width: 4px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--border);
+  opacity: 0.45;
+  transition:
+    opacity 0.06s linear,
+    background 0.06s linear;
+}
+.vu-seg[data-lit='true'] {
+  opacity: 1;
+  background: var(--ok);
+}
+.vu-seg:nth-child(4)[data-lit='true'] {
+  background: #c99700;
+}
+.vu-seg:nth-child(5)[data-lit='true'] {
+  background: var(--bad);
+}
 /* Right column of a lane: the optional reveal banner stacked above the slots. */
 .track-main {
   display: grid;
