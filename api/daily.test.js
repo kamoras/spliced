@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, pickMatch, norm } from './daily.js';
+import { selectDaily, pickMatch, norm, manifestKey } from './daily.js';
 import { SONGS, DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
+import manifest from './_manifest.json';
 
 const DAY = 86400000;
 
@@ -68,5 +69,19 @@ describe('norm', () => {
     expect(norm("Guns N' Roses")).toBe('gunsnroses');
     expect(norm('Earth, Wind & Fire')).toBe('earthwindfire');
     expect(norm(null)).toBe('');
+  });
+});
+
+describe('daily manifest', () => {
+  // If this fails after editing SONGS, regenerate with `npm run resolve:songs`.
+  it('pins every curated song with a preview and track id', () => {
+    for (const song of SONGS) {
+      const entry = manifest[manifestKey(song)];
+      expect(entry, `missing manifest entry for ${song.title}`).toBeTruthy();
+      expect(entry.previewUrl).toMatch(/^https:\/\//);
+      expect(entry.trackId).toBeGreaterThan(0);
+      expect(entry.answer?.title).toBeTruthy();
+      expect(entry.answer?.artist).toBeTruthy();
+    }
   });
 });

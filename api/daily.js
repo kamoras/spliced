@@ -5,6 +5,7 @@
 // is the same trade-off Heardle-style games make: discoverable in the network
 // tab, but the experience is honest.
 
+import { readFileSync } from 'node:fs';
 import {
   SONGS,
   DAILY_TRACKS,
@@ -15,6 +16,20 @@ import {
 } from './_songs.js';
 
 const DAY_MS = 86400000;
+
+// Pinned resolutions written by `npm run resolve:songs`. Serving from this keeps
+// the daily audio byte-identical for every player; if it is missing we fall back
+// to a live iTunes lookup so the game still runs.
+const MANIFEST = loadManifest();
+function loadManifest() {
+  try {
+    return JSON.parse(
+      readFileSync(new URL('./_manifest.json', import.meta.url), 'utf8')
+    );
+  } catch {
+    return {};
+  }
+}
 
 const json = (res, status, body, cache) => {
   res.statusCode = status;
@@ -29,6 +44,10 @@ export const norm = (s) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .trim();
+
+// Manifest entries are keyed by the curated title + artist, so a SONGS reorder
+// can never mismatch a pin. Must match scripts/resolve-songs.mjs.
+export const manifestKey = (song) => `${norm(song.title)}|${norm(song.artist)}`;
 
 // Prefer a result whose artist matches; require a preview; else first preview.
 export function pickMatch(results, song) {
@@ -57,12 +76,21 @@ export function selectDaily(nowMs) {
 }
 
 async function resolveSong(song) {
+  // Pinned audio first: identical for everyone, no network, no drift.
+  const pinned = MANIFEST[manifestKey(song)];
+  if (pinned?.previewUrl) {
+    return { previewUrl: pinned.previewUrl, answer: pinned.answer };
+  }
+
+  // Fallback for an unpinned song: resolve live against a fixed storefront so
+  // the result at least doesn't depend on which region the request runs in.
   const api =
     'https://itunes.apple.com/search?' +
     new URLSearchParams({
       term: `${song.title} ${song.artist}`,
       media: 'music',
       entity: 'song',
+      country: 'US',
       limit: '10',
     }).toString();
 
@@ -94,6 +122,12 @@ export default async function handler(req, res) {
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
 
   const { puzzleNumber, songs } = selectDaily(nowMs);
+  // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the
+  // next midnight flip; the manifest no longer rotates within a day.
+  const secondsLeft = Math.max(
+    60,
+    Math.ceil((DAY_MS - (nowMs % DAY_MS)) / 1000)
+  );
 
   try {
     const resolved = await Promise.all(songs.map(resolveSong));
@@ -114,8 +148,7 @@ export default async function handler(req, res) {
         tracks,
         answers: tracks.map((track) => track.answer),
       },
-      // Short cache: preview URLs rotate, and the puzzle flips at UTC midnight.
-      'public, max-age=300'
+      `public, max-age=300, s-maxage=${secondsLeft}, stale-while-revalidate=86400`
     );
   } catch (err) {
     return json(res, 502, { error: err.message || 'daily_failed' });
