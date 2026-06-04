@@ -96,8 +96,10 @@ function TileShell({
   // `revealed` lights status on locked/finished rows; `gradeVisible` lights it
   // on an active row right after a wrong submit, while keeping the clip playable.
   const showGrade = revealed || gradeVisible;
-  // The waveform is scrubbable exactly when the clip is playable.
-  const seekable = Boolean(onSeek) && !revealed;
+  // Playback no longer hinges on `revealed`: solved/finished rows stay
+  // auditionable so players can replay a clip after locking it. The caller
+  // gates this by passing/withholding onPlay and onSeek.
+  const seekable = Boolean(onSeek);
   const className = [
     'tile',
     locked && 'tile-locked',
@@ -126,7 +128,7 @@ function TileShell({
         />
       </div>
 
-      {onPlay && !revealed && (
+      {onPlay && (
         <button type="button" className="tile-play" onClick={onPlay}>
           <Icon name={isPlaying ? 'stop' : 'play'} />
           {isPlaying ? 'Stop' : 'Play clip'}
