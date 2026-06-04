@@ -497,7 +497,7 @@ export default function Puzzle({
                       getLevel={getLevel}
                       active={meterRow === rowIndex}
                     />
-                    {!locked && (
+                    {!locked ? (
                       <button
                         type="button"
                         className="btn btn--mini track-submit"
@@ -511,6 +511,23 @@ export default function Puzzle({
                           name={playingRow === rowIndex ? 'stop' : 'check'}
                         />
                         {playingRow === rowIndex ? 'Stop' : 'Submit'}
+                      </button>
+                    ) : (
+                      // Solved/finished rows stay replayable: hear the whole
+                      // track again on demand.
+                      <button
+                        type="button"
+                        className="btn btn--mini track-submit"
+                        onClick={() =>
+                          playingRow === rowIndex
+                            ? stopAll()
+                            : playSequence(rowIndex, row)
+                        }
+                      >
+                        <Icon
+                          name={playingRow === rowIndex ? 'stop' : 'play'}
+                        />
+                        {playingRow === rowIndex ? 'Stop' : 'Play track'}
                       </button>
                     )}
                     <span className="track-status">
@@ -566,10 +583,8 @@ export default function Puzzle({
                             gradeVisible={graded}
                             locked={locked}
                             revealed={revealed || locked}
-                            onPlay={locked ? undefined : () => playClip(piece)}
-                            onSeek={
-                              locked ? undefined : (f) => seekClip(piece, f)
-                            }
+                            onPlay={() => playClip(piece)}
+                            onSeek={(f) => seekClip(piece, f)}
                             getClipProgress={getClipProgress}
                           />
                         );
