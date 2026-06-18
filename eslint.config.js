@@ -1,26 +1,33 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 
-export default [
+export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**'] },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
 
   // Shared language options
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // TypeScript resolves identifiers itself; no-undef only adds false
+      // positives for global types/values in .ts files.
+      'no-undef': 'off',
+    },
   },
 
   // React app code (browser). Accessibility rules are enforced here.
   {
-    files: ['src/**/*.{js,jsx}'],
+    files: ['src/**/*.{js,jsx,ts,tsx}'],
     languageOptions: { globals: globals.browser },
     plugins: { react, 'react-hooks': reactHooks, 'jsx-a11y': jsxA11y },
     settings: { react: { version: 'detect' } },
@@ -43,17 +50,17 @@ export default [
   // Node contexts: serverless functions and build/config files.
   {
     files: [
-      'api/**/*.js',
-      'scripts/**/*.{js,mjs}',
-      'vite.config.js',
+      'api/**/*.{js,ts}',
+      'scripts/**/*.{js,mjs,ts}',
+      'vite.config.ts',
       'eslint.config.js',
     ],
     languageOptions: { sourceType: 'module', globals: globals.node },
   },
 
-  // Tests run under Vitest (jsdom): both browser and node globals available.
+  // Tests + Vitest setup run under jsdom: both browser and node globals.
   {
-    files: ['**/*.test.{js,jsx}'],
+    files: ['**/*.test.{js,jsx,ts,tsx}', 'vitest.setup.ts'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
-  },
-];
+  }
+);
