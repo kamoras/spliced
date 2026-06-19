@@ -359,8 +359,9 @@ export default function Puzzle({
     // submit lights this row so its correct/right-track clips stand out.
     setGradedRow(grade.solved ? null : rowIndex);
 
-    // Hear the row you're checking — unless this submit just ended the game.
-    if (allSolved || out) {
+    // Hear the row you're checking — including the final solve, so completing
+    // every track plays its song. Only a losing submit stays silent.
+    if (out) {
       stopAll();
     } else {
       playSequence(rowIndex, row);
