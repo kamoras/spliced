@@ -34,8 +34,8 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
     <Modal title="How to play" onClose={onClose} className="howto">
       <p className="howto-lede">
         Four mystery songs were cut into clips and shuffled across the mixing
-        desk. Each channel belongs to one song — its tape shows the year it came
-        out. Rebuild every song on its channel, in order.
+        desk. Each channel belongs to one song, and its tape shows the year it
+        came out. Rebuild every song on its channel, in order.
       </p>
       <ol className="howto-steps">
         <li>
@@ -48,7 +48,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <strong>Tap a clip to hear it.</strong> Then tap{' '}
-            <Icon name="swap" /> on another clip to swap the two — or just drag
+            <Icon name="swap" /> on another clip to swap the two, or just drag
             one onto the other.
           </div>
         </li>
@@ -74,7 +74,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           <div>
             <strong>LOCK a channel.</strong> <Icon name="check" /> right song,
             right slot · <Icon name="shuffle" /> right song, wrong slot · blank:
-            another song. A wrong lock-in lights one of <b>4 PEAK lamps</b> —
+            another song. A wrong lock-in lights one of <b>4 PEAK lamps</b>;
             light them all and the tape jams.
           </div>
         </li>
@@ -82,7 +82,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
       <p className="howto-bonus">
         Tap two year tapes to swap those channels. Fewer <b>takes</b> (new seams
         and plays you try, plus lock-ins) beats par. 🎵 Name each song you lock
-        for a bonus, then share your mix — friends who open your link race your
+        for a bonus, then share your mix. Friends who open your link race your
         ghost.
       </p>
       <button

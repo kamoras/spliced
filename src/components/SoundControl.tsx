@@ -59,7 +59,7 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
             onClick={() => onChange({ muted: !prefs.muted })}
           >
             <Icon name={prefs.muted ? 'mute' : 'volume'} />
-            {prefs.muted ? 'Muted — tap to unmute' : 'Mute all'}
+            {prefs.muted ? 'Muted (tap to unmute)' : 'Mute all'}
           </button>
           <label className="sound-row">
             <span>Volume</span>

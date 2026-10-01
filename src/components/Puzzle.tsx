@@ -337,7 +337,7 @@ export default function Puzzle({
       } else if (!next && g.won && now > g.elapsedMs && ghostIdx.current >= 0) {
         ghostIdx.current = -1;
         setMessage(
-          `👻 ${ghost.name} finished in ${formatDuration(g.elapsedMs)} — keep going!`
+          `👻 ${ghost.name} finished in ${formatDuration(g.elapsedMs)}. Keep going!`
         );
       }
     }, 400);
@@ -497,8 +497,8 @@ export default function Puzzle({
     if (correct) vibrate(15);
     setMessage(
       correct
-        ? `🎵 Named it! ${answer?.title} — ${answer?.artist}.`
-        : `It was ${answer?.title} — ${answer?.artist}.`
+        ? `🎵 Named it! ${answer?.title} by ${answer?.artist}.`
+        : `It was ${answer?.title} by ${answer?.artist}.`
     );
     setState((s) => nameTrack(s, trackId, correct));
   }
@@ -519,7 +519,7 @@ export default function Puzzle({
 
     if (outcome.kind === 'repeat') {
       setShake({ row, n: Date.now() });
-      setMessage('Already tried that exact mix — no mistake charged.');
+      setMessage('Already tried that exact mix. No mistake charged.');
       return;
     }
 
@@ -571,13 +571,13 @@ export default function Puzzle({
     setLedPop(next.mistakes);
     later(() => setLedPop(null), 700);
     const left = def.maxGuesses - next.mistakes;
-    const careful = left === 1 ? ' Careful — last mistake!' : '';
+    const careful = left === 1 ? ' Careful, last mistake!' : '';
     if (outcome.lost) {
-      setMessage('Out of takes — here’s the mix you were hearing.');
+      setMessage('Out of takes. Here’s the mix you were hearing.');
     } else if (outcome.kind === 'wrongEra') {
       const home = def.tracks.findIndex((t) => t.id === outcome.trackId);
       setMessage(
-        `Right song, wrong year — that’s ${labelFor(home)}. Moved it there.${careful}`
+        `Right song, wrong year: that’s ${labelFor(home)}. Moved it there.${careful}`
       );
       setFreshCard(outcome.trackId);
       playSong(outcome.trackId!, 0.4);
@@ -603,8 +603,8 @@ export default function Puzzle({
 
   const coachLine = [
     'Tap any clip to hear it.',
-    'Then tap ⇄ on another clip to swap them — or drag one onto another.',
-    'Hear a join with ⌇, a whole row with ▶ Play — then Lock it in.',
+    'Then tap ⇄ on another clip to swap them, or drag one onto another.',
+    'Turn a knob to hear a join, press PLAY to hear the channel, then LOCK it.',
   ][coach];
 
   const activeId =
@@ -636,7 +636,7 @@ export default function Puzzle({
     (over
       ? state.status === 'won'
         ? '★ MASTER MIX COMPLETE ★'
-        : 'TAPE JAM — EVERY SONG REVEALED'
+        : 'TAPE JAM: EVERY SONG REVEALED'
       : coachLine);
 
   return (
@@ -708,7 +708,7 @@ export default function Puzzle({
           <ol
             className="board"
             ref={boardRef}
-            aria-label={`Channels — ${songsLeft} ${songsLeft === 1 ? 'song' : 'songs'} to find`}
+            aria-label={`Channels: ${songsLeft} ${songsLeft === 1 ? 'song' : 'songs'} to find`}
             onClick={clearCue}
           >
             {rows.map((ids, r) => {
@@ -861,7 +861,7 @@ export default function Puzzle({
                           style={{ '--k': k + 1 } as CSSProperties}
                           onClick={() => playSeam(r, k)}
                           disabled={busy}
-                          aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}${heard ? ' (heard — free replay)' : ''}`}
+                          aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}${heard ? ' (heard, free replay)' : ''}`}
                         >
                           <span className="knob" aria-hidden="true" />
                         </button>

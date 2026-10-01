@@ -78,7 +78,7 @@ export default function App() {
             type="button"
             className="icon-btn"
             onClick={() => setSheet('stats')}
-            aria-label={`Stats${streak ? ` — ${streak}-day streak` : ''}`}
+            aria-label={`Stats${streak ? `, ${streak}-day streak` : ''}`}
             title="Stats"
           >
             <Icon name="chart" />

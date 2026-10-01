@@ -94,13 +94,13 @@ export default function DailyGame({
       if (ghostParam) {
         if (ghostParam.ghost.puzzle !== d.puzzleNumber) {
           setStaleGhost(
-            `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle} — here’s today’s mix instead.`
+            `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle}. Here’s today’s mix instead.`
           );
         } else if (!start || start.status === 'playing') {
           setGhost(ghostParam);
         } else {
           setStaleGhost(
-            `You’ve already played today — compare with ${ghostParam.name} below.`
+            `You’ve already played today. Compare with ${ghostParam.name} below.`
           );
           setGhost(ghostParam);
         }
@@ -172,7 +172,7 @@ export default function DailyGame({
       {staleGhost && <p className="notice">{staleGhost}</p>}
       {replay > 0 && (
         <p className="notice">
-          Replaying for fun — your official result is saved.
+          Replaying for fun. Your official result is saved.
         </p>
       )}
       <div ref={resultsRef}>

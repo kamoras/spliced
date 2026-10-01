@@ -357,7 +357,7 @@ export function headline(state: GameState): { title: string; sub: string } {
   if (state.status === 'lost') {
     return {
       title: 'Tape jam.',
-      sub: 'Here’s what you were hearing — back tomorrow.',
+      sub: 'Here’s what you were hearing. Back tomorrow!',
     };
   }
   return (
@@ -367,7 +367,7 @@ export function headline(state: GameState): { title: string; sub: string } {
       { title: 'Solid take.', sub: 'Every song found.' },
     ][state.mistakes] ?? {
       title: 'Saved in the final mix!',
-      sub: 'Clutch — every song found.',
+      sub: 'Clutch! Every song found.',
     }
   );
 }
@@ -381,11 +381,11 @@ export function wrongHint(
   const { rightSong, inPlace } = outcome;
   if (rightSong === clipsPerTrack) {
     return inPlace === 0
-      ? `All ${label}! Now find the order — listen for the seams.`
-      : `All ${label}! ${inPlace} in place — fix the order.`;
+      ? `All ${label}! Now find the order. Listen for the seams.`
+      : `All ${label}! ${inPlace} in place. Fix the order.`;
   }
   if (rightSong === clipsPerTrack - 1) {
-    return `So close — one clip isn’t from ${label}.`;
+    return `So close! One clip isn’t from ${label}.`;
   }
   if (rightSong === 0) return `Nothing here is from ${label}.`;
   return `${rightSong} ${rightSong === 1 ? 'clip is' : 'clips are'} from ${label} (${inPlace} in place).`;

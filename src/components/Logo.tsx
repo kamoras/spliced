@@ -29,7 +29,7 @@ export default function Logo({ obs }: { obs: Observance | null }) {
   return (
     <h1
       className={`logo${spliced ? ' is-spliced' : ''}${obs ? ' has-obs' : ''}`}
-      aria-label={obs ? `Spliced — ${obs.label}` : 'Spliced'}
+      aria-label={obs ? `Spliced: ${obs.label}` : 'Spliced'}
       title={obs?.label}
       data-obs={obs?.id}
       style={

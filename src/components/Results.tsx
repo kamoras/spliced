@@ -151,7 +151,7 @@ export default function Results({
           </strong>
           <span>
             You: {won ? formatDuration(state.elapsedMs) : 'lost'} ·{' '}
-            {state.mistakes}✗ · 🎧{takes} — {ghost.name}:{' '}
+            {state.mistakes}✗ · 🎧{takes} vs. {ghost.name}:{' '}
             {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'lost'} ·{' '}
             {ghost.ghost.mistakes}✗ · 🎧{ghost.ghost.takes}
           </span>
@@ -179,7 +179,7 @@ export default function Results({
       >
         <Icon name="share" />{' '}
         {copied
-          ? 'Copied — paste it to a friend!'
+          ? 'Copied! Paste it to a friend.'
           : daily
             ? 'Share & challenge friends'
             : 'Share'}
@@ -251,7 +251,7 @@ export function Countdown() {
         className="btn btn--primary btn--wide"
         onClick={() => location.reload()}
       >
-        A new mix is ready — play it
+        A new mix is ready. Play it!
       </button>
     );
   }

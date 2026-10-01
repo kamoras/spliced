@@ -94,7 +94,7 @@ export default function PieceTile({
         aria-pressed={cued}
         aria-label={`Clip ${letter}, track ${row + 1} slot ${slot + 1}${
           mark ? `, ${MARK_TEXT[mark]}` : ''
-        }. ${playing ? 'Playing — press to restart.' : 'Press to play.'}`}
+        }. ${playing ? 'Playing. Press to restart.' : 'Press to play.'}`}
       >
         <span className="tile-chip" aria-hidden="true">
           {playing ? (
