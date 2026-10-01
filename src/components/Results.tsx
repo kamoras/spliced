@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import Stats from './Stats.jsx';
 import {
+  computeStats,
   formatCountdown,
   formatDuration,
   getPrefs,
@@ -17,7 +18,8 @@ import {
   headline,
   namedCount,
   parFor,
-  triesOf,
+  relToPar,
+  takesOf,
   raceResult,
   shareText,
 } from '../game/engine.js';
@@ -52,6 +54,11 @@ export default function Results({
   const won = state.status === 'won';
   const [name, setName] = useState(() => getPrefs().name ?? '');
   const [copied, setCopied] = useState(false);
+  // Show the name prompt after the first share (unless a name is already set).
+  const [shared, setShared] = useState(false);
+  const playedCount = daily
+    ? computeStats(puzzleNumber, def.maxGuesses).played
+    : 0;
 
   const streak = daily ? liveStreak(puzzleNumber) : 0;
   const tags: string[] = [];
@@ -62,10 +69,12 @@ export default function Results({
     tags.push(`🔥 ${streak}-day streak`);
   }
   const named = namedCount(state);
-  const tries = triesOf(state);
+  const takes = takesOf(state);
   const par = parFor(def);
-  if (won && state.heard && tries <= par) {
-    tags.push(tries <= par - 6 ? '🎯 Golden ear' : '🎯 Under par');
+  if (won) {
+    if (takes <= par - 8) tags.push('🎯 Golden ear');
+    else if (takes <= par - 4) tags.push('👂 Sharp ear');
+    else if (takes <= par) tags.push('⛳ Under par');
   }
   if (named === def.tracks.length) tags.push('🎵 Perfect ear');
 
@@ -94,6 +103,7 @@ export default function Results({
         setCopied(true);
         setTimeout(() => setCopied(false), 1800);
       }
+      if (!getPrefs().name) setShared(true);
     } catch {
       /* dismissed */
     }
@@ -115,11 +125,11 @@ export default function Results({
         <span>
           🎵 {named}/{def.tracks.length} named
         </span>
-        {state.heard ? (
-          <span>
-            🎧 {tries} {tries === 1 ? 'try' : 'tries'} · par {par}
+        {won && (
+          <span title={`Par is ${par} takes`}>
+            🎧 {takes} takes · {relToPar(takes, par)}
           </span>
-        ) : null}
+        )}
       </div>
 
       {tags.length > 0 && (
@@ -141,9 +151,9 @@ export default function Results({
           </strong>
           <span>
             You: {won ? formatDuration(state.elapsedMs) : 'lost'} ·{' '}
-            {state.mistakes}✗ · 🎧{tries} — {ghost.name}:{' '}
+            {state.mistakes}✗ · 🎧{takes} — {ghost.name}:{' '}
             {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'lost'} ·{' '}
-            {ghost.ghost.mistakes}✗ · 🎧{ghost.ghost.tries}
+            {ghost.ghost.mistakes}✗ · 🎧{ghost.ghost.takes}
           </span>
         </div>
       )}
@@ -162,22 +172,6 @@ export default function Results({
         </div>
       )}
 
-      {daily && (
-        <label className="sign">
-          <span>Sign your mix</span>
-          <input
-            type="text"
-            value={name}
-            maxLength={16}
-            placeholder="Your name (for the ghost race)"
-            onChange={(e) => {
-              setName(e.target.value);
-              setPrefs({ name: e.target.value.trim() || undefined });
-            }}
-          />
-        </label>
-      )}
-
       <button
         type="button"
         className="btn btn--primary btn--wide"
@@ -191,15 +185,34 @@ export default function Results({
             : 'Share'}
       </button>
 
+      {/* Asked once, after the first share: who friends will be racing. */}
+      {daily && shared && (
+        <label className="sign">
+          <span>Sign your mix so friends know whose ghost they’re racing</span>
+          <input
+            type="text"
+            value={name}
+            maxLength={16}
+            placeholder="Your name"
+            onChange={(e) => {
+              setName(e.target.value);
+              setPrefs({ name: e.target.value.trim() || undefined });
+            }}
+          />
+        </label>
+      )}
+
+      {daily && <Countdown />}
+
       {daily && (
-        <>
+        <details className="stats-details" open={playedCount >= 3}>
+          <summary>Your stats</summary>
           <Stats
             puzzleNumber={puzzleNumber}
             maxGuesses={def.maxGuesses}
             today={state}
           />
-          <Countdown />
-        </>
+        </details>
       )}
 
       <div className="results-actions">

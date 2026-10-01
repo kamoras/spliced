@@ -33,6 +33,8 @@ export interface TrackDef {
   answer?: Song;
   // Name-that-tune options (the answer plus decoys), when the API offers them.
   choices?: { title: string; artist: string }[];
+  // Timeline clue for this track's row.
+  clue?: { year?: number; genre?: string; showGenre?: boolean };
 }
 
 // A fully prepared track: its decoded buffer cut into ordered pieces.

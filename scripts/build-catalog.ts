@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { SONGS } from '../api/_songs.js';
 import { pickMatch, norm } from '../api/daily.js';
 import type { CatalogEntry, ITunesResult } from '../api/_types.js';
+import { enrich } from './catalog-meta.js';
+import { readFile } from 'node:fs/promises';
 
 const STORE = 'us';
 const UA = { 'User-Agent': 'Spliced/0.1 (music puzzle)' };
@@ -151,7 +153,15 @@ async function main(): Promise<void> {
     if (catalog.length >= TARGET) break;
   }
 
-  await writeFile(OUT, `${JSON.stringify(catalog, null, 2)}\n`);
+  console.log('adding release years + genres…');
+  const overrides = JSON.parse(
+    await readFile(
+      new URL('../api/_year-overrides.json', import.meta.url),
+      'utf8'
+    )
+  );
+  const enriched = await enrich(catalog, overrides);
+  await writeFile(OUT, `${JSON.stringify(enriched, null, 2)}\n`);
   console.log(`\nwrote ${catalog.length} songs → api/_catalog.json`);
 }
 

@@ -177,6 +177,22 @@ export default function DailyGame({
           Replaying for fun — your official result is saved.
         </p>
       )}
+      <div ref={resultsRef}>
+        {live && live.status !== 'playing' && (
+          <Results
+            state={live}
+            def={def}
+            puzzleNumber={replay ? undefined : daily.puzzleNumber}
+            title={`Spliced #${daily.puzzleNumber}`}
+            ghost={replay ? null : ghost}
+            onPractice={onPractice}
+            onReplay={() => {
+              setReplay((n) => n + 1);
+              setLive(null);
+            }}
+          />
+        )}
+      </div>
       <Puzzle
         key={replay ? `replay-${replay}` : `daily-${daily.puzzleNumber}`}
         tracks={tracks}
@@ -228,22 +244,6 @@ export default function DailyGame({
         }}
       />
       {celebrate && <Confetti />}
-      <div ref={resultsRef}>
-        {live && live.status !== 'playing' && (
-          <Results
-            state={live}
-            def={def}
-            puzzleNumber={replay ? undefined : daily.puzzleNumber}
-            title={`Spliced #${daily.puzzleNumber}`}
-            ghost={replay ? null : ghost}
-            onPractice={onPractice}
-            onReplay={() => {
-              setReplay((n) => n + 1);
-              setLive(null);
-            }}
-          />
-        )}
-      </div>
     </div>
   );
 }

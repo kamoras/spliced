@@ -9,6 +9,10 @@ export interface CatalogEntry {
   artist: string;
   artwork: string;
   previewUrl: string;
+  // Original release year and a friendly genre bucket (see api/_genres.ts),
+  // added by scripts/catalog-meta.ts. Used for row clues and decoys.
+  year?: number;
+  genre?: string;
 }
 
 // The (partial) shape of an iTunes Search/Lookup result we read.
@@ -20,4 +24,6 @@ export interface ITunesResult {
   artworkUrl100?: string;
   previewUrl?: string;
   kind?: string;
+  releaseDate?: string;
+  primaryGenreName?: string;
 }

@@ -126,6 +126,14 @@ export default function PracticeGame({
       )}
       {phase === 'play' && game && def && (
         <>
+          {live && live.status !== 'playing' && (
+            <Results
+              state={live}
+              def={def}
+              title={`Spliced Practice (${game.level.label})`}
+              onNewMix={() => start(level)}
+            />
+          )}
           <Puzzle
             key={game.n}
             tracks={game.tracks}
@@ -157,14 +165,6 @@ export default function PracticeGame({
             }}
           />
           {celebrate && <Confetti />}
-          {live && live.status !== 'playing' && (
-            <Results
-              state={live}
-              def={def}
-              title={`Spliced Practice (${game.level.label})`}
-              onNewMix={() => start(level)}
-            />
-          )}
         </>
       )}
 

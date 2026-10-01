@@ -6,7 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json } from './_http.js';
 import { shuffle } from './_prng.js';
-import { choicesFor, practicePool } from './daily.js';
+import { practicePool, timelineTracks } from './daily.js';
 
 export default async function handler(
   req: IncomingMessage,
@@ -34,12 +34,7 @@ export default async function handler(
     if (picks.length === count) break;
   }
 
-  const tracks = picks.map((song, idx) => ({
-    id: `track-${idx}`,
-    previewUrl: song.previewUrl,
-    answer: { title: song.title, artist: song.artist, artwork: song.artwork },
-    choices: choicesFor(song, picks, Math.random),
-  }));
+  const tracks = timelineTracks(picks, () => Math.random);
 
   return json(res, 200, { tracks }, 'no-store');
 }

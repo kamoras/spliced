@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  clueFor,
+  swapRows,
   hasHeard,
   hear,
   parFor,
+  relToPar,
   rowPlayKey,
   seamKey,
-  triesOf,
+  takesOf,
   decodeGhost,
   encodeGhost,
   raceResult,
@@ -93,32 +96,45 @@ describe('moveClip', () => {
 describe('submitRow', () => {
   const def = makeDef();
 
-  it('locks a correct row and floats it to the top', () => {
-    const s = boardState([
-      't1-0', 't0-1', 't2-0',
-      't0-0', 't1-1', 't2-1',
-      't2-2', 't1-2', 't0-2',
-    ]); // prettier-ignore
-    // Make row 2 a complete song: t1 in order.
+  it('locks a row that spells its own song, in place', () => {
     const ready = boardState([
-      't0-1', 't0-0', 't2-0',
-      't2-2', 't0-2', 't2-1',
+      't2-0', 't0-0', 't2-1',
       't1-0', 't1-1', 't1-2',
+      't0-1', 't2-2', 't0-2',
     ]); // prettier-ignore
-    expect(submitRow(s, def, 0).outcome.kind).toBe('wrong');
-
-    const { state, outcome } = submitRow(ready, def, 2);
+    const { state, outcome } = submitRow(ready, def, 1);
     expect(outcome).toMatchObject({
       kind: 'solved',
       trackId: 't1',
       won: false,
     });
     expect(state.solved).toEqual(['t1']);
-    expect(rowsOf(state, def)[0]).toEqual(['t1-0', 't1-1', 't1-2']);
+    expect(rowsOf(state, def)[1]).toEqual(['t1-0', 't1-1', 't1-2']);
     expect(state.mistakes).toBe(0);
     expect(state.attempts).toEqual([
-      { marks: ['correct', 'correct', 'correct'], solved: true, atMs: 0 },
+      {
+        marks: ['correct', 'correct', 'correct'],
+        solved: true,
+        atMs: 0,
+        row: 1,
+      },
     ]);
+  });
+
+  it('grades against the row’s assigned song', () => {
+    const s = boardState([
+      't1-0', 't0-1', 't0-0',
+      't0-2', 't1-1', 't2-1',
+      't2-0', 't1-2', 't2-2',
+    ]); // prettier-ignore
+    const { outcome } = submitRow(s, def, 0);
+    expect(outcome).toMatchObject({
+      kind: 'wrong',
+      trackId: 't0',
+      marks: ['miss', 'correct', 'misplaced'],
+      rightSong: 2,
+      inPlace: 1,
+    });
   });
 
   it('charges a mistake for a wrong row, but not for re-checking it', () => {
@@ -128,16 +144,24 @@ describe('submitRow', () => {
       't2-1', 't2-2', 't0-2',
     ]); // prettier-ignore
     const first = submitRow(s, def, 0);
-    expect(first.outcome).toMatchObject({
-      kind: 'wrong',
-      trackId: 't0',
-      rightSong: 2,
-      inPlace: 0,
-    });
     expect(first.state.mistakes).toBe(1);
     const again = submitRow(first.state, def, 0);
     expect(again.outcome.kind).toBe('repeat');
     expect(again.state).toBe(first.state);
+  });
+
+  it('moves a right-song-wrong-year row home, locks it, and charges a mistake', () => {
+    const s = boardState([
+      't2-0', 't2-1', 't2-2',
+      't1-0', 't0-1', 't1-2',
+      't0-0', 't1-1', 't0-2',
+    ]); // prettier-ignore
+    const { state, outcome } = submitRow(s, def, 0);
+    expect(outcome).toMatchObject({ kind: 'wrongEra', trackId: 't2' });
+    expect(state.mistakes).toBe(1);
+    expect(state.solved).toEqual(['t2']);
+    expect(rowsOf(state, def)[2]).toEqual(['t2-0', 't2-1', 't2-2']);
+    expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't1-1', 't0-2']);
   });
 
   it('reveals every song when the last mistake is spent', () => {
@@ -159,13 +183,13 @@ describe('submitRow', () => {
   it('wins when the final song locks', () => {
     const s: GameState = {
       ...boardState([
-        't2-0', 't2-1', 't2-2',
         't0-0', 't0-1', 't0-2',
         't1-0', 't1-1', 't1-2',
+        't2-0', 't2-1', 't2-2',
       ]), // prettier-ignore
       solved: ['t2', 't0'],
     };
-    const { state, outcome } = submitRow(s, def, 2);
+    const { state, outcome } = submitRow(s, def, 1);
     expect(outcome).toMatchObject({ kind: 'solved', won: true });
     expect(state.status).toBe('won');
   });
@@ -176,14 +200,41 @@ describe('submitRow', () => {
   });
 });
 
+describe('swapRows / clueFor', () => {
+  const def: PuzzleDef = {
+    ...makeDef(),
+    tracks: makeDef().tracks.map((t, i) => ({
+      ...t,
+      clue: { year: 1980 + i, genre: 'Pop', showGenre: i === 2 },
+    })),
+  };
+  const s = boardState(def.tracks.flatMap((t) => t.pieces.map((p) => p.id)));
+
+  it('swaps two unlocked rows, never a locked one', () => {
+    expect(rowsOf(swapRows(s, def, 0, 1), def)[0][0]).toBe('t1-0');
+    const locked = { ...s, solved: ['t0'] };
+    expect(swapRows(locked, def, 0, 1)).toBe(locked);
+  });
+
+  it('shows genre on year collisions or after a miss on that row', () => {
+    expect(clueFor(s, def, 0)).toEqual({ year: 1980, genre: undefined });
+    expect(clueFor(s, def, 2)).toEqual({ year: 1982, genre: 'Pop' });
+    const missed = {
+      ...s,
+      attempts: [{ marks: [], solved: false, row: 0 }],
+    };
+    expect(clueFor(missed, def, 0).genre).toBe('Pop');
+  });
+});
+
 describe('revealAll / finishedFromResult', () => {
   const def = makeDef();
-  it('keeps locked songs on top, then the rest in canonical order', () => {
+  it('puts every song in its own row, in order', () => {
     const s = { ...boardState(newGame(def, 3).order), solved: ['t2'] };
     expect(rowsOf(revealAll(s, def), def).map((r) => r[0])).toEqual([
-      't2-0',
       't0-0',
       't1-0',
+      't2-0',
     ]);
   });
 
@@ -208,9 +259,15 @@ describe('isValidState', () => {
 
 describe('wrongHint', () => {
   it('calls out the "one away" moments', () => {
-    expect(wrongHint({ rightSong: 4, inPlace: 1 }, 4)).toMatch(/all one song/i);
-    expect(wrongHint({ rightSong: 3, inPlace: 1 }, 4)).toMatch(/so close/i);
-    expect(wrongHint({ rightSong: 1, inPlace: 0 }, 4)).toMatch(/mashup/i);
+    expect(wrongHint({ rightSong: 4, inPlace: 1 }, 4, '1984')).toMatch(
+      /all 1984/i
+    );
+    expect(wrongHint({ rightSong: 3, inPlace: 1 }, 4, '1984')).toMatch(
+      /isn’t from 1984/
+    );
+    expect(wrongHint({ rightSong: 0, inPlace: 0 }, 4, '1984')).toBe(
+      'Nothing here is from 1984.'
+    );
   });
 });
 
@@ -245,7 +302,7 @@ describe('shareText', () => {
       ],
     };
     expect(shareText('Spliced #12', s, def, 'https://x.test')).toBe(
-      'Spliced #12 · 1/4 mistakes · ⏱ 1:35\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
+      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 4 takes (−8)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
     );
   });
 
@@ -296,7 +353,7 @@ describe('ghost race', () => {
       won: true,
       elapsedMs: 161_000,
       mistakes: 1,
-      tries: 31,
+      takes: 35,
       attempts: run.attempts,
     });
   });
@@ -323,28 +380,41 @@ describe('ghost race', () => {
   });
 });
 
-describe('tries + par', () => {
+describe('takes + par', () => {
   it('counts each new seam or row order once; replays are free', () => {
     let s = boardState(['a', 'b']);
     s = hear(s, seamKey('a', 'b'));
     s = hear(s, seamKey('a', 'b'));
     s = hear(s, seamKey('b', 'a'));
     s = hear(s, rowPlayKey(['a', 'b']));
-    expect(triesOf(s)).toBe(3);
+    expect(takesOf(s)).toBe(3);
     expect(hasHeard(s, seamKey('b', 'a'))).toBe(true);
+    // Each lock-in is a take, and a wrong one costs two more.
+    const locked = {
+      ...s,
+      mistakes: 1,
+      attempts: [
+        { marks: [], solved: false },
+        { marks: [], solved: true },
+      ],
+    };
+    expect(takesOf(locked)).toBe(3 + 2 + 2);
     expect(hear({ ...s, status: 'won' }, 'x').heard).toHaveLength(3);
   });
 
   it('sets par from the board size and shows it in the share', () => {
     const def = makeDef(4, 4, 4);
-    expect(parFor(def)).toBe(24);
+    expect(parFor(def)).toBe(28);
+    expect(relToPar(22, 28)).toBe('−6');
+    expect(relToPar(28, 28)).toBe('E');
+    expect(relToPar(30, 28)).toBe('+2');
     const s: GameState = {
       ...boardState([]),
       status: 'won',
       heard: ['s:a>b', 'r:a,b'],
     };
     expect(shareText('S', s, def).split('\n')[0]).toBe(
-      'S · Perfect mix 🎚️ · 🎧 2 tries (par 24)'
+      'S · Perfect mix 🎚️ · 🎧 2 takes (−26)'
     );
   });
 });

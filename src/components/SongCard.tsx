@@ -26,6 +26,8 @@ interface SongCardProps {
   onName?: (choice: Choice | null) => void;
   order?: number;
   fresh?: boolean;
+  // The row's Timeline label, printed like a cassette J-card ("1984").
+  label?: string;
 }
 
 export default function SongCard({
@@ -39,6 +41,7 @@ export default function SongCard({
   onName,
   order = 0,
   fresh = false,
+  label,
 }: SongCardProps) {
   const quiz = Boolean(choices?.length && onName && named == null);
   const title = answer?.title ?? 'Mystery song';
@@ -78,6 +81,7 @@ export default function SongCard({
             </span>
           </span>
           <span className="song-meta">
+            {label && <span className="song-label">{label}</span>}
             {quiz ? (
               <>
                 <span className="song-title">Name that tune!</span>

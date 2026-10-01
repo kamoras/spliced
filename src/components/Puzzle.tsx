@@ -3,14 +3,7 @@
 // them into something that feels good — listening tools (clips, seams, whole
 // rows), swaps, marks, and the "splice" when a song locks in.
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import {
   DndContext,
@@ -36,7 +29,10 @@ import {
   hear,
   rowPlayKey,
   seamKey,
+  clueFor,
+  clueLabel,
   isRowLocked,
+  swapRows,
   moveClip,
   nameTrack,
   newGame,
@@ -104,7 +100,7 @@ export function puzzleDef(
   return {
     clipsPerTrack,
     maxGuesses,
-    tracks: tracks.map((t) => ({ id: t.id, pieces: t.pieces })),
+    tracks: tracks.map((t) => ({ id: t.id, pieces: t.pieces, clue: t.clue })),
   };
 }
 
@@ -268,6 +264,10 @@ export default function Puzzle({
   const [shake, setShake] = useState<{ row: number; n: number } | null>(null);
   const [freshCard, setFreshCard] = useState<string | null>(null);
   const [ledPop, setLedPop] = useState<number | null>(null);
+  // The row you're working on (last changed or played): its Lock in lights up.
+  const [activeRow, setActiveRow] = useState<number | null>(null);
+  // A row whose year label was tapped, waiting for a second label to swap.
+  const [rowCue, setRowCue] = useState<number | null>(null);
   const justDragged = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -284,24 +284,7 @@ export default function Puzzle({
     return () => document.removeEventListener('keydown', onKey);
   }, [cued]);
 
-  // FLIP: glide a freshly locked song card up from where its row was.
   const boardRef = useRef<HTMLOListElement | null>(null);
-  const flipFrom = useRef<{ trackId: string; top: number } | null>(null);
-  useLayoutEffect(() => {
-    const from = flipFrom.current;
-    if (!from || !boardRef.current) return;
-    flipFrom.current = null;
-    const el = boardRef.current.querySelector<HTMLElement>(
-      `[data-track="${from.trackId}"]`
-    );
-    if (!el || reducedMotion()) return;
-    const dy = from.top - el.getBoundingClientRect().top;
-    if (Math.abs(dy) < 2) return;
-    el.animate(
-      [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
-      { duration: 460, easing: 'cubic-bezier(.2,.8,.2,1)' }
-    );
-  });
 
   // ---- ghost race ticker -----------------------------------------------------
   const ghostIdx = useRef(0);
@@ -336,11 +319,14 @@ export default function Puzzle({
   const busy = splicing != null;
   const unlockedIds = over
     ? []
-    : rows.flatMap((ids, r) => (isRowLocked(state, r) ? [] : ids));
+    : rows.flatMap((ids, r) => (isRowLocked(state, def, r) ? [] : ids));
   const lastRow =
     !over && state.solved.length === def.tracks.length - 1
-      ? state.solved.length
+      ? def.tracks.findIndex((t) => !state.solved.includes(t.id))
       : null;
+  const rowOfId = (id: string) =>
+    Math.floor(state.order.indexOf(id) / clipsPerTrack);
+  const labelFor = (r: number) => clueLabel(clueFor(state, def, r), r);
 
   // ---- interactions -----------------------------------------------------------
   function tapClip(piece: Piece, fraction: number | null) {
@@ -367,6 +353,7 @@ export default function Puzzle({
     if (coach <= 1) setCoach(2);
     setMessage(null);
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
+    setActiveRow(rowOfId(targetId));
     setFlash([cued, targetId]);
     later(() => setFlash([]), 260);
     setState(next);
@@ -384,6 +371,31 @@ export default function Puzzle({
     if (coach <= 1) setCoach(2);
     setMessage(null);
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
+    setActiveRow(rowOfId(String(target.id)));
+    setState(next);
+  }
+
+  // Tap one year label, then another, to swap those two rows' clips (free).
+  function tapRowLabel(row: number) {
+    if (busy || over) return;
+    if (rowCue == null) {
+      setRowCue(row);
+      setMessage(`Tap another year to swap ${labelFor(row)}’s clips with it.`);
+      return;
+    }
+    if (rowCue === row) {
+      setRowCue(null);
+      setMessage(null);
+      return;
+    }
+    const next = swapRows(state, def, rowCue, row);
+    setRowCue(null);
+    setMessage(null);
+    if (next === state) return;
+    beginTiming();
+    cue('tick');
+    if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
+    setActiveRow(row);
     setState(next);
   }
 
@@ -409,6 +421,7 @@ export default function Puzzle({
   function playRow(row: number) {
     if (playing?.kind === 'row' && playing.row === row) return stopAll();
     listen(rowPlayKey(rows[row]));
+    setActiveRow(row);
     const seq = rows[row].map((id) => pieceById.get(id)!);
     setPlaying({ kind: 'row', row, id: null });
     player.playSequence(seq, {
@@ -498,11 +511,7 @@ export default function Puzzle({
       );
       later(
         () => {
-          // …stage 2: commit, glide the card up, and take a victory lap.
-          const li = boardRef.current?.children[row] as HTMLElement | undefined;
-          if (li) {
-            flipFrom.current = { trackId, top: li.getBoundingClientRect().top };
-          }
+          // …stage 2: commit, open the channel, and take a victory lap.
           setSplicing(null);
           setFreshCard(trackId);
           setState(next);
@@ -517,18 +526,28 @@ export default function Puzzle({
       return;
     }
 
-    // Wrong.
+    // Wrong (possibly a whole song in the wrong year's row).
     cue(outcome.lost ? 'lose' : 'wrong');
     vibrate([30, 40, 30]);
     setShake({ row, n: Date.now() });
     setLedPop(next.mistakes);
     later(() => setLedPop(null), 700);
     const left = def.maxGuesses - next.mistakes;
-    setMessage(
-      outcome.lost
-        ? 'Out of takes — here’s the mix you were hearing.'
-        : `${wrongHint(outcome, def.clipsPerTrack)}${left === 1 ? ' Careful — last mistake!' : ''}`
-    );
+    const careful = left === 1 ? ' Careful — last mistake!' : '';
+    if (outcome.lost) {
+      setMessage('Out of takes — here’s the mix you were hearing.');
+    } else if (outcome.kind === 'wrongEra') {
+      const home = def.tracks.findIndex((t) => t.id === outcome.trackId);
+      setMessage(
+        `Right song, wrong year — that’s ${labelFor(home)}. Moved it there.${careful}`
+      );
+      setFreshCard(outcome.trackId);
+      playSong(outcome.trackId!, 0.4);
+    } else {
+      setMessage(
+        `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${careful}`
+      );
+    }
     setState(next);
     if (outcome.lost) {
       bank();
@@ -570,7 +589,7 @@ export default function Puzzle({
       style={{ '--cols': clipsPerTrack } as CSSProperties}
       aria-label="Puzzle"
     >
-      <div className="gamebar">
+      <div className="gamebar" hidden={over}>
         <span className="gamebar-label">{label}</span>
         {ghost && (
           <span className="ghost-pill" title={`Racing ${ghost.name}`}>
@@ -620,9 +639,8 @@ export default function Puzzle({
             onClick={clearCue}
           >
             {rows.map((ids, r) => {
-              if (isRowLocked(state, r)) {
-                const trackId =
-                  state.solved[r] ?? pieceById.get(ids[0])!.trackId!;
+              if (isRowLocked(state, def, r)) {
+                const trackId = def.tracks[r].id;
                 const ti = trackIndex.get(trackId) ?? 0;
                 const discovered = state.solved.includes(trackId);
                 return (
@@ -642,7 +660,8 @@ export default function Puzzle({
                       choices={discovered ? tracks[ti]?.choices : undefined}
                       named={state.named?.[trackId]}
                       onName={(c) => answerName(trackId, c)}
-                      order={Math.max(0, r - state.solved.length)}
+                      order={r}
+                      label={labelFor(r)}
                       fresh={freshCard === trackId}
                     />
                   </li>
@@ -652,7 +671,6 @@ export default function Puzzle({
               const marks: Mark[] | null =
                 splicing === r ? ids.map(() => 'correct') : tried;
               const rowPlaying = playing?.kind === 'row' && playing.row === r;
-              const summary = marks ? summarize(marks) : null;
               return (
                 <li
                   key={`row-${r}`}
@@ -732,14 +750,24 @@ export default function Puzzle({
                       <Icon name={rowPlaying ? 'stop' : 'play'} />
                       {rowPlaying ? 'Stop' : 'Play'}
                     </button>
-                    {summary && (
-                      <span className="lane-summary" aria-label={summary.label}>
-                        {summary.text}
-                      </span>
-                    )}
                     <button
                       type="button"
-                      className={`pill ${tried ? 'pill--tried' : 'pill--primary'}`}
+                      className={`clue${rowCue === r ? ' is-cued' : ''}${rowCue != null && rowCue !== r ? ' is-target' : ''}`}
+                      onClick={() => tapRowLabel(r)}
+                      disabled={busy}
+                      aria-pressed={rowCue === r}
+                      aria-label={`Clue: ${[clueFor(state, def, r).year, clueFor(state, def, r).genre].filter(Boolean).join(', ') || `track ${r + 1}`}. ${rowCue != null && rowCue !== r ? 'Press to swap rows.' : 'Press, then press another year, to swap rows.'}`}
+                    >
+                      <span className="clue-year">{labelFor(r)}</span>
+                      {clueFor(state, def, r).genre && (
+                        <span className="clue-genre">
+                          {clueFor(state, def, r).genre}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className={`pill ${tried ? 'pill--tried' : activeRow === r || lastRow === r ? 'pill--primary' : 'pill--lock'}`}
                       onClick={() => lockIn(r)}
                       disabled={busy}
                       aria-label={
@@ -764,15 +792,6 @@ export default function Puzzle({
       </p>
     </section>
   );
-}
-
-function summarize(marks: Mark[]): { text: string; label: string } {
-  const c = marks.filter((m) => m === 'correct').length;
-  const m = marks.filter((x) => x === 'misplaced').length;
-  return {
-    text: [`${c} right`, m ? `${m} close` : ''].filter(Boolean).join(' · '),
-    label: `${c} in the right slot, ${m} right song but wrong slot`,
-  };
 }
 
 function Clock({

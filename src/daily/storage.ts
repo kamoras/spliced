@@ -4,7 +4,8 @@ import type { GameResult } from '../types.js';
 import type { GameState } from '../game/engine.js';
 
 const KEY = 'spliced:daily';
-const PROGRESS_KEY = 'spliced:progress';
+// v3: Timeline rows (each row is one fixed song); older saves don't apply.
+const PROGRESS_KEY = 'spliced:progress:v3';
 const PREFS_KEY = 'spliced:prefs';
 
 type ResultMap = Record<number, GameResult>;

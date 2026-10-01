@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   choicesFor,
+  timelineTracks,
   selectDaily,
   practicePool,
   pickMatch,
@@ -113,6 +114,49 @@ describe('choicesFor', () => {
     expect(new Set(a.map((c) => c.artist)).size).toBe(4);
     const todayTitles = today.map((s) => s.title);
     expect(a.some((c) => todayTitles.includes(c.title))).toBe(false);
+  });
+});
+
+describe('timelineTracks', () => {
+  const genres = ['Pop', 'Rock'];
+  const dated = fakeCatalog.map((s, i) => ({
+    ...s,
+    year: 1980 + i,
+    genre: genres[i % 2],
+  }));
+
+  it('orders rows oldest-first with a year clue, adding genre on collisions', () => {
+    const songs = [
+      { ...dated[3], year: 1985 },
+      { ...dated[1], year: 1975 },
+      { ...dated[11], year: 1975 },
+      { ...dated[0], year: 1970 },
+    ];
+    const rows = timelineTracks(songs, (i) => mulberry32(i), dated);
+    expect(rows.map((r) => r.clue.year)).toEqual([1970, 1975, 1975, 1985]);
+    expect(rows.map((r) => r.clue.showGenre)).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
+    expect(rows.map((r) => r.id)).toEqual([
+      'track-0',
+      'track-1',
+      'track-2',
+      'track-3',
+    ]);
+  });
+
+  it('draws decoys from the same genre and era when it can', () => {
+    const answer = dated[10]; // 1990, Pop
+    const choices = choicesFor(answer, [answer], mulberry32(3), dated);
+    const byTitle = new Map(dated.map((d) => [d.title, d]));
+    choices.forEach((c) => {
+      const d = byTitle.get(c.title)!;
+      expect(d.genre).toBe('Pop');
+      expect(Math.abs(d.year - 1990)).toBeLessThanOrEqual(4);
+    });
   });
 });
 

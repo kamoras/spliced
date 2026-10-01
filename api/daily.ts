@@ -97,20 +97,65 @@ export function choicesFor(
 ): Choice[] {
   const banned = new Set(exclude.map((s) => s.trackId));
   const artists = new Set([norm(answer.artist)]);
+  const near = (c: CatalogEntry, span: number) =>
+    answer.year == null ||
+    c.year == null ||
+    Math.abs(c.year - answer.year) <= span;
+  // Decoys should be plausible: same genre and era first, widening as needed,
+  // so the answer can't be spotted by genre or decade alone.
+  const tiers: ((c: CatalogEntry) => boolean)[] = [
+    (c) => c.genre === answer.genre && near(c, 4),
+    (c) => c.genre === answer.genre && near(c, 8),
+    (c) => near(c, 8),
+    () => true,
+  ];
   const decoys: CatalogEntry[] = [];
-  for (let tries = 0; decoys.length < 3 && tries < 200; tries++) {
-    const pick = catalog[Math.floor(rand() * catalog.length)];
-    if (!pick || banned.has(pick.trackId) || artists.has(norm(pick.artist))) {
-      continue;
+  for (const fits of tiers) {
+    // Seeded shuffle of the candidates keeps the daily identical for everyone.
+    const pool = shuffle(
+      catalog.filter(
+        (c) => fits(c) && !banned.has(c.trackId) && !artists.has(norm(c.artist))
+      ),
+      rand
+    );
+    for (const pick of pool) {
+      if (decoys.length === 3) break;
+      if (artists.has(norm(pick.artist))) continue;
+      artists.add(norm(pick.artist));
+      banned.add(pick.trackId);
+      decoys.push(pick);
     }
-    artists.add(norm(pick.artist));
-    banned.add(pick.trackId);
-    decoys.push(pick);
+    if (decoys.length === 3) break;
   }
   return shuffle([answer, ...decoys], rand).map(({ title, artist }) => ({
     title,
     artist,
   }));
+}
+
+// Lay a set of songs out as a Timeline board: rows ordered by release year
+// (oldest first), each with its year clue — plus genre where two rows share a
+// year (or the year is unknown), so every row stays distinguishable.
+export function timelineTracks(
+  songs: CatalogEntry[],
+  randFor: (idx: number) => () => number,
+  catalog: CatalogEntry[] = CATALOG
+) {
+  const sorted = [...songs].sort(
+    (a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.trackId - b.trackId
+  );
+  return sorted.map((song, idx) => {
+    const collides =
+      song.year == null ||
+      sorted.some((o) => o !== song && o.year === song.year);
+    return {
+      id: `track-${idx}`,
+      previewUrl: song.previewUrl,
+      answer: { title: song.title, artist: song.artist, artwork: song.artwork },
+      clue: { year: song.year, genre: song.genre, showGenre: collides },
+      choices: choicesFor(song, songs, randFor(idx), catalog),
+    };
+  });
 }
 
 // Practice songs: ones that already appeared in a past daily this epoch, so
@@ -146,12 +191,9 @@ export default async function handler(
   }
 
   const { puzzleNumber, songs } = selectDaily(nowMs);
-  const tracks = songs.map((song, idx) => ({
-    id: `track-${idx}`,
-    previewUrl: song.previewUrl,
-    answer: { title: song.title, artist: song.artist, artwork: song.artwork },
-    choices: choicesFor(song, songs, mulberry32(puzzleNumber * 977 + idx)),
-  }));
+  const tracks = timelineTracks(songs, (idx) =>
+    mulberry32(puzzleNumber * 977 + idx)
+  );
 
   // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the
   // next midnight flip.
