@@ -270,11 +270,15 @@ export default function DailyGame({
             });
           }
           setTimeout(
-            () =>
+            () => {
               resultsRef.current?.scrollIntoView({
                 behavior: prefersReducedMotion() ? 'auto' : 'smooth',
                 block: 'start',
-              }),
+              });
+              resultsRef.current
+                ?.querySelector<HTMLElement>('.results-head')
+                ?.focus({ preventScroll: true });
+            },
             s.status === 'won' ? 1400 : 900
           );
         }}

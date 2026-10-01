@@ -48,7 +48,7 @@ export default function ListenLinks({
           href={service.href(query)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Find ${title} by ${artist} on ${service.name}`}
+          aria-label={`Find ${title}${artist ? ` by ${artist}` : ''} on ${service.name} (opens in a new tab)`}
         >
           {compact ? service.short : service.name}
           <Icon name="external" />

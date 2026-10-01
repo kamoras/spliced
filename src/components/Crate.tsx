@@ -8,13 +8,23 @@ import ListenLinks from './ListenLinks.jsx';
 import { getCrate } from '../daily/storage.js';
 import type { CrateEntry } from '../daily/storage.js';
 
-export default function Crate({ onClose }: { onClose: () => void }) {
+export default function Crate({
+  onClose,
+  volume = 1,
+}: {
+  onClose: () => void;
+  // 0..1, already 0 when muted.
+  volume?: number;
+}) {
   const [crate] = useState<CrateEntry[]>(() => getCrate());
   const [open, setOpen] = useState<number | null>(null);
   const [playing, setPlaying] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => () => audioRef.current?.pause(), []);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
 
   function toggle(i: number, url?: string) {
     const audio = audioRef.current;
@@ -25,6 +35,7 @@ export default function Crate({ onClose }: { onClose: () => void }) {
       return;
     }
     audio.src = url;
+    audio.volume = volume;
     audio.currentTime = 0;
     audio.play().then(
       () => setPlaying(i),
@@ -49,7 +60,8 @@ export default function Crate({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <p className="crate-count">
-            <strong>{crate.length}</strong> songs · {solved} spliced · {named}{' '}
+            <strong>{crate.length}</strong>{' '}
+            {crate.length === 1 ? 'song' : 'songs'} · {solved} spliced · {named}{' '}
             named 🎵
           </p>
           {entry && (

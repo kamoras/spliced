@@ -115,15 +115,16 @@ export default function App() {
       </header>
 
       {obs && (
-        <p className="obs-banner">
+        <aside className="obs-banner" aria-label="Theme">
           <span className="obs-flag" aria-hidden="true" />
           <span>{obs.label}</span>
           {obs.href && (
             <a href={obs.href} target="_blank" rel="noopener noreferrer">
               Learn more
+              <span className="visually-hidden"> (opens in a new tab)</span>
             </a>
           )}
-        </p>
+        </aside>
       )}
 
       <nav className="modes" aria-label="Game mode">
@@ -175,7 +176,9 @@ export default function App() {
       </footer>
 
       {sheet === 'help' && <HowToPlay onClose={closeSheet} />}
-      {sheet === 'crate' && <Crate onClose={closeSheet} />}
+      {sheet === 'crate' && (
+        <Crate onClose={closeSheet} volume={prefs.muted ? 0 : prefs.volume} />
+      )}
       {sheet === 'stats' && (
         <Modal title="Your stats" onClose={closeSheet}>
           <Stats

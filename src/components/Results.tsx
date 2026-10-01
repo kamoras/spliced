@@ -119,7 +119,9 @@ export default function Results({
         Mixdown
       </span>
       <div className="vfd results-vfd">
-        <h2 className="results-head">{head}</h2>
+        <h2 className="results-head" tabIndex={-1}>
+          {head}
+        </h2>
         <p className="results-sub">{sub}</p>
       </div>
 
@@ -212,6 +214,9 @@ export default function Results({
             ? 'Share & challenge friends'
             : 'Share'}
       </button>
+      <span className="visually-hidden" role="status">
+        {copied ? 'Copied! Paste it to a friend.' : ''}
+      </span>
 
       {won && (
         <button

@@ -13,6 +13,7 @@ interface SoundControlProps {
 export default function SoundControl({ prefs, onChange }: SoundControlProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
   const silent = prefs.muted || prefs.volume === 0;
   const percent = Math.round(prefs.volume * 100);
 
@@ -22,7 +23,9 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      toggleRef.current?.focus();
     };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
@@ -35,6 +38,7 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
   return (
     <div className="sound" ref={rootRef}>
       <button
+        ref={toggleRef}
         type="button"
         className="icon-btn"
         onClick={() => setOpen((o) => !o)}
@@ -56,7 +60,6 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
             type="button"
             className={`btn sound-mute${prefs.muted ? ' is-on' : ''}`}
             aria-pressed={prefs.muted}
-            aria-label="Mute all"
             onClick={() => onChange({ muted: !prefs.muted })}
           >
             <Icon name={prefs.muted ? 'mute' : 'volume'} />

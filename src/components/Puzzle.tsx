@@ -348,6 +348,21 @@ export default function Puzzle({
   }, [cued]);
 
   const boardRef = useRef<HTMLOListElement | null>(null);
+  // When a strip turns into a song card (or a quiz closes), the focused
+  // button disappears: move focus to that song's card instead of <body>.
+  const focusSong = useRef<string | null>(null);
+  useEffect(() => {
+    const trackId = focusSong.current;
+    if (!trackId) return;
+    focusSong.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    const card = boardRef.current?.querySelector(`[data-track="${trackId}"]`);
+    const target =
+      card?.querySelector<HTMLElement>('.quiz-choice') ??
+      card?.querySelector<HTMLElement>('.song-play');
+    target?.focus();
+  });
 
   // ---- ghost race ticker -----------------------------------------------------
   // Start past any ghost events that already happened (e.g. after a reload).
@@ -582,6 +597,7 @@ export default function Puzzle({
         ? `🎵 Named it! ${answer?.title} by ${answer?.artist}.`
         : `It was ${answer?.title} by ${answer?.artist}.`
     );
+    focusSong.current = trackId;
     setState((s) => nameTrack(s, trackId, correct));
   }
 
@@ -639,6 +655,7 @@ export default function Puzzle({
           cue('slide');
           // Keep anything that changed during the splice (a quiz answer,
           // a listen) instead of overwriting it with the pre-splice state.
+          focusSong.current = trackId;
           setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
           if (outcome.won) celebrate(next);
           else playSong(trackId, 0.15);
@@ -666,6 +683,7 @@ export default function Puzzle({
         `Right song, wrong year: that’s ${labelFor(home)}. Moved it there.${careful}`
       );
       setFreshCard(outcome.trackId);
+      focusSong.current = outcome.trackId!;
       playSong(outcome.trackId!, 0.4);
     } else {
       // The very first lock usually comes back mostly blank: teach why.
@@ -890,8 +908,7 @@ export default function Puzzle({
                       className={`cbtn${rowPlaying ? ' is-on' : ''}`}
                       onClick={() => playRow(r)}
                       disabled={busy}
-                      aria-pressed={rowPlaying}
-                      aria-label={`Play channel ${r + 1}`}
+                      aria-label={`${rowPlaying ? 'Stop' : 'Play'} channel ${r + 1}`}
                     >
                       <span className="lamp" aria-hidden="true" />
                       {rowPlaying ? 'Stop' : 'Play'}

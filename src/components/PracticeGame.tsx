@@ -142,6 +142,12 @@ export default function PracticeGame({
             paused={paused}
             onChange={setLive}
             onFinish={(s) => {
+              // Bring keyboard and screen-reader users to the results.
+              setTimeout(
+                () =>
+                  document.querySelector<HTMLElement>('.results-head')?.focus(),
+                s.status === 'won' ? 1400 : 900
+              );
               addToCrate(
                 game.tracks
                   .filter((t) => s.solved.includes(t.id))

@@ -39,7 +39,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
       </p>
       <ol className="howto-steps">
         <li>
-          <div className="howto-art">
+          <div className="howto-art" aria-hidden="true">
             <Mini letter="F" cued />
             <Mini letter="B" />
             <span className="howto-swap" aria-hidden="true">
@@ -48,12 +48,13 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <strong>Tap a clip to hear it.</strong> Then tap{' '}
-            <Icon name="swap" /> on another clip to swap the two, or just drag
-            one onto the other.
+            <Icon name="swap" />
+            <span className="visually-hidden">the swap button</span> on another
+            clip to swap the two, or just drag one onto the other.
           </div>
         </li>
         <li>
-          <div className="howto-art">
+          <div className="howto-art" aria-hidden="true">
             <Mini letter="K" />
             <span className="howto-seam" aria-hidden="true" />
             <Mini letter="C" />
@@ -66,17 +67,19 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           </div>
         </li>
         <li>
-          <div className="howto-art">
+          <div className="howto-art" aria-hidden="true">
             <Mini letter="A" mark="correct" />
             <Mini letter="H" mark="misplaced" />
             <Mini letter="M" />
           </div>
           <div>
-            <strong>LOCK a channel.</strong> <Icon name="check" /> right song,
-            right slot · <Icon name="shuffle" /> right song, wrong slot · blank:
-            another song. A wrong lock-in lights one of <b>4 PEAK lamps</b>;
-            light them all and the tape jams. Lock a whole song on the wrong
-            year and it costs a lamp, but slides home.
+            <strong>LOCK a channel.</strong> <Icon name="check" />
+            <span className="visually-hidden">Check mark:</span> right song,
+            right slot · <Icon name="shuffle" />
+            <span className="visually-hidden">Shuffle mark:</span> right song,
+            wrong slot · blank: another song. A wrong lock-in lights one of{' '}
+            <b>4 PEAK lamps</b>; light them all and the tape jams. Lock a whole
+            song on the wrong year and it costs a lamp, but slides home.
           </div>
         </li>
       </ol>
