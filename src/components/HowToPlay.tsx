@@ -33,7 +33,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="How to play" onClose={onClose} className="howto">
       <p className="howto-lede">
-        Four mystery songs were cut into clips and shuffled across the mixing
+        Three mystery songs were cut into clips and shuffled across the mixing
         desk. Each channel belongs to one song, and its tape shows the year it
         came out. Rebuild every song on its channel, in order.
       </p>

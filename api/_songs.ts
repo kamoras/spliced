@@ -118,8 +118,10 @@ export const SONGS: CuratedSong[] = [
   { title: 'Basket Case', artist: 'Green Day' },
 ];
 
-// Multi-track daily: four mystery songs, four clips per song.
-export const DAILY_TRACKS = 4;
+// Daily size: three mystery songs, four clips each. Sized for a ~3 minute
+// game (like Wordle): fewer songs cuts the slow "which clip is which song"
+// sorting, while four clips per song keep ordering a real ear test.
+export const DAILY_TRACKS = 3;
 export const DAILY_CLIPS_PER_TRACK = 4;
 export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
 

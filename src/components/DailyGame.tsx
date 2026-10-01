@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Puzzle, { puzzleDef } from './Puzzle.jsx';
 import Results from './Results.jsx';
 import Loading from './Loading.jsx';
+import { DAILY_CLIPS_PER_TRACK, DAILY_TRACKS } from '../../api/_songs.js';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
   addToCrate,
@@ -148,7 +149,16 @@ export default function DailyGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished, namedKey, tracks, daily]);
 
-  if (status === 'loading') return <Loading loaded={loaded} total={4} />;
+  if (status === 'loading') {
+    return (
+      <Loading
+        loaded={loaded}
+        total={DAILY_TRACKS}
+        rows={DAILY_TRACKS}
+        cols={DAILY_CLIPS_PER_TRACK}
+      />
+    );
+  }
 
   if (status === 'error') {
     return (

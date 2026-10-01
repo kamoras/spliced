@@ -13,8 +13,8 @@ import type { Track, TrackDef } from '../types.js';
 
 export const LEVELS = [
   { id: 'easy', label: 'Easy', songs: 3, clips: 3 },
-  { id: 'classic', label: 'Classic', songs: 4, clips: 4 },
-  { id: 'hard', label: 'Hard', songs: 5, clips: 4 },
+  { id: 'classic', label: 'Classic', songs: 3, clips: 4 },
+  { id: 'hard', label: 'Hard', songs: 4, clips: 4 },
 ] as const;
 type Level = (typeof LEVELS)[number];
 

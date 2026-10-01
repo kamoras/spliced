@@ -1,6 +1,6 @@
 # Spliced
 
-A **daily music puzzle** played on an 80s analog mixing console. Each day, four
+A **daily music puzzle** played on an 80s analog mixing console. Each day, three
 mystery songs are cut into clips and shuffled across the desk. Every channel
 belongs to one song, and its masking-tape label shows the year it came out.
 Listen, swap, and splice each song back onto its channel before the PEAK lamps
@@ -47,7 +47,7 @@ flips at UTC midnight), so times and scores are shareable.
 Your progress survives a refresh, a stats sheet tracks streaks and a
 mistakes histogram, and every song you uncover lands in your **Record crate**.
 **Practice** serves fresh mixes from past dailies (so it never spoils an
-upcoming day) at Easy (3×3), Classic (4×4), or Hard (5×4).
+upcoming day) at Easy (3×3), Classic (3×4, the daily size), or Hard (4×4).
 
 The console comes in **Studio Day** and **Studio Night** finishes, with
 synthesized switch clicks, knob detents, a channel-open chime, and needle VU
@@ -71,7 +71,7 @@ Native American Heritage Month) by the player's local date — see
   every player hears the **byte-identical audio** — no per-request resolution,
   no regional drift. No API key required.
 - **Deterministic selection.** [`/api/daily`](./api/daily.ts) picks the day's
-  four songs by UTC date via a **per-epoch shuffle** of the whole catalog: each
+  three songs by UTC date via a **per-epoch shuffle** of the whole catalog: each
   full pass is a fresh deterministic shuffle, so no song repeats within an epoch
   and groupings stay varied. The puzzle number also seeds the clip slicing and
   the board scramble, so everyone gets the same board. The day's songs are laid
