@@ -24,7 +24,7 @@
   --border: #b2a98f;
   --border-strong: #857c66;
   --text: #221e18;
-  --muted: #554d40;
+  --muted: #4a4337;
   --accent: #2c5aa0;
   --accent-hover: #234a86;
   --accent-soft: rgba(44, 90, 160, 0.14);
@@ -56,7 +56,7 @@
   --panel-hi: #ebe5d7;
   --groove: #a89f8a;
   --silk: #2a251d;
-  --silk-dim: #5a5248;
+  --silk-dim: #4d463c;
   --screw: #b9bec3;
   --cap: #ece6d8;
   --cap-ink: #1f1c17;
@@ -1279,8 +1279,9 @@ button {
 }
 .tile-swap {
   position: absolute;
-  right: 3px;
+  left: 50%;
   bottom: 3px;
+  margin-left: -12px;
   z-index: 3;
   width: 24px;
   height: 24px;
@@ -2517,4 +2518,224 @@ button {
   justify-self: center;
   height: 36px;
   padding: 0 16px;
+}
+
+/* ---------- review fixes ---------- */
+
+/* Sound menu (popover under the speaker icon). */
+.sound {
+  position: relative;
+}
+.sound-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 45;
+  width: 248px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lift);
+}
+.sound-mute {
+  width: 100%;
+  min-height: 40px;
+}
+.sound-mute[aria-pressed='true'] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: transparent;
+}
+.sound-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sound-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.sound-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 3.5ch;
+  text-align: right;
+}
+.sound-check {
+  grid-template-columns: auto 1fr;
+}
+.sound-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+/* Unheard clips: a blank scope until you listen. */
+.wave--blank {
+  display: grid;
+  place-items: center;
+}
+.wave--blank span {
+  font: 700 9px/1 var(--silk-font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--trace);
+  opacity: 0.45;
+}
+
+/* Footer link + small text contrast. */
+.footer a {
+  color: var(--text);
+  text-decoration: underline;
+}
+.attempt-cell.is-era {
+  background: #2f62c8;
+}
+
+/* Visible focus on the clipped tape label. */
+.tape:focus-visible {
+  outline: none;
+}
+.tape-wrap:has(.tape:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Tried stays a quiet cap in observance themes too. */
+:root[data-obs] .cbtn--rec.is-tried {
+  color: var(--cap-ink);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cap) 85%, white),
+    var(--cap)
+  );
+  box-shadow:
+    0 3px 0 var(--cap-edge),
+    0 4px 6px rgba(0, 0, 0, 0.3);
+}
+.cbtn--rec {
+  min-width: 70px;
+  justify-content: center;
+}
+
+/* Cued outline readable on the gold/light themes. */
+.tile.is-cued .tile-face {
+  outline-color: color-mix(in srgb, var(--accent) 70%, black);
+}
+[data-theme='dark'] .tile.is-cued .tile-face {
+  outline-color: var(--accent);
+}
+
+/* Observance accent with dark text: lighten on hover instead of darkening. */
+:root[data-obs='aanhpi'],
+:root[data-obs='hhm'],
+:root[data-obs='nahm'] {
+  --accent-hover: color-mix(in srgb, var(--obs-accent) 80%, white);
+}
+:root[data-obs] .footer a,
+:root[data-obs] .obs-banner a {
+  color: var(--text);
+}
+
+/* Dark flag stripes (e.g. black) stay visible on the dark console. */
+[data-theme='dark'][data-obs] .strip {
+  box-shadow:
+    inset 4px 0 0 var(--stripe, var(--obs-accent)),
+    inset 5px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px var(--groove);
+}
+
+/* Quiz choices: two lines before truncating. */
+.quiz-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.race-rule {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.modal .countdown {
+  margin-top: 12px;
+}
+
+/* Narrow phones: genre drops under the year instead of truncating; the strip
+   VU makes room; the header tightens. */
+@media (max-width: 420px) {
+  .strip-head .vu {
+    display: none;
+  }
+  .tape-year {
+    flex: none;
+  }
+}
+@media (max-width: 520px) {
+  .strip-head .tape:has(.tape-genre) {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    height: 30px;
+    line-height: 1.05;
+  }
+  .strip-head .tape:has(.tape-genre) .tape-genre {
+    font-size: 10px;
+  }
+}
+@media (max-width: 360px) {
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 17px;
+  }
+  .header-actions {
+    gap: 0;
+  }
+  .logo-plate {
+    font-size: 17px;
+    letter-spacing: 0.14em;
+    padding: 4px 7px;
+  }
+  .cbtn {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+  .cbtn--rec {
+    min-width: 58px;
+  }
+}
+
+/* Forced colours (Windows high contrast): keep every control visible. */
+@media (forced-colors: active) {
+  .knob {
+    border: 2px solid ButtonText;
+    background: ButtonFace;
+  }
+  .cbtn,
+  .modes button,
+  .level,
+  .tile-face,
+  .tape {
+    border: 1px solid ButtonText;
+  }
+  .modes button[aria-pressed='true'],
+  .level[aria-pressed='true'],
+  .cbtn.is-on,
+  .tile.is-cued .tile-face {
+    border: 3px solid Highlight;
+  }
+  .peak .lamp {
+    border: 1px solid CanvasText;
+  }
+  .peak .lamp.is-on {
+    background: Highlight;
+  }
 }

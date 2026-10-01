@@ -83,13 +83,12 @@ export default function PracticeGame({
 
   return (
     <div className="game">
-      <div className="levels" role="radiogroup" aria-label="Difficulty">
+      <div className="levels" role="group" aria-label="Difficulty">
         {LEVELS.map((l) => (
           <button
             key={l.id}
             type="button"
-            role="radio"
-            aria-checked={level.id === l.id}
+            aria-pressed={level.id === l.id}
             className={`level${level.id === l.id ? ' is-on' : ''}`}
             onClick={() => pick(l)}
             disabled={phase === 'loading'}

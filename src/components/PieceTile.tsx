@@ -23,6 +23,9 @@ export interface PieceTileProps {
   swapWith: string | null;
   flash?: boolean;
   disabled?: boolean;
+  // Has this clip been heard yet? Unheard clips show a blank scope, so the
+  // waveforms can't give away grouping or order at a glance.
+  heard?: boolean;
   onTap: (fraction: number | null) => void;
   onSwap: () => void;
   getProgress: () => number | null;
@@ -45,6 +48,7 @@ export default function PieceTile({
   swapWith,
   flash = false,
   disabled = false,
+  heard = true,
   onTap,
   onSwap,
   getProgress,
@@ -92,7 +96,7 @@ export default function PieceTile({
         className="tile-face"
         onClick={handleClick}
         aria-pressed={cued}
-        aria-label={`Clip ${letter}, track ${row + 1} slot ${slot + 1}${
+        aria-label={`Clip ${letter}, channel ${row + 1} slot ${slot + 1}${
           mark ? `, ${MARK_TEXT[mark]}` : ''
         }. ${playing ? 'Playing. Press to restart.' : 'Press to play.'}`}
       >
@@ -107,11 +111,17 @@ export default function PieceTile({
             letter
           )}
         </span>
-        <Waveform
-          peaks={piece.peaks}
-          active={playing}
-          getProgress={getProgress}
-        />
+        {heard || playing ? (
+          <Waveform
+            peaks={piece.peaks}
+            active={playing}
+            getProgress={getProgress}
+          />
+        ) : (
+          <span className="wave wave--blank" aria-hidden="true">
+            <span>No signal</span>
+          </span>
+        )}
         {mark && mark !== 'miss' && (
           <span className={`tile-badge tile-badge--${mark}`} aria-hidden="true">
             <Icon name={mark === 'correct' ? 'check' : 'shuffle'} />

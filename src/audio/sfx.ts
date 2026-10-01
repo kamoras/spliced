@@ -33,7 +33,11 @@ export class Sfx {
 
   // Master volume 0..1 (0 = muted).
   setVolume(volume: number): void {
-    this.bus.gain.setValueAtTime(SFX_LEVEL * volume, this.ctx.currentTime);
+    this.bus.gain.setTargetAtTime(
+      SFX_LEVEL * volume,
+      this.ctx.currentTime,
+      0.015
+    );
   }
 
   private noiseBuffer(): AudioBuffer {
@@ -119,7 +123,7 @@ export class Sfx {
   }
 
   async play(kind: SfxKind): Promise<void> {
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx.state !== 'running') {
       try {
         await this.ctx.resume();
       } catch {

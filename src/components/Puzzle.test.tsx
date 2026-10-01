@@ -22,6 +22,9 @@ vi.mock('../audio/player.js', () => ({
     getLevel() {
       return 0;
     }
+    isBusy() {
+      return false;
+    }
   },
 }));
 
@@ -69,7 +72,7 @@ describe('Puzzle', () => {
     expect(before).toHaveLength(9);
     await userEvent.click(
       screen.getByRole('button', {
-        name: new RegExp(`^Clip \\w, track 1 slot 1`),
+        name: new RegExp(`^Clip \\w, channel 1 slot 1`),
       })
     );
     const swaps = screen.getAllByRole('button', { name: /^Swap clip/ });

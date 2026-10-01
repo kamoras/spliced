@@ -189,6 +189,18 @@ describe('submitRow', () => {
     expect(shareText('S', won, def).split('\n')).toContain('🟦🟦🟦');
   });
 
+  it('locks both rows when moving a song home completes this row too', () => {
+    const s = boardState([
+      't1-0', 't1-1', 't1-2',
+      't0-0', 't0-1', 't0-2',
+      't2-1', 't2-0', 't2-2',
+    ]); // prettier-ignore
+    const { state, outcome } = submitRow(s, def, 0);
+    expect(outcome.kind).toBe('wrongEra');
+    expect(state.solved).toEqual(['t1', 't0']);
+    expect(state.mistakes).toBe(1);
+  });
+
   it('reveals every song when the last mistake is spent', () => {
     let s = boardState([
       't0-1', 't0-0', 't1-0',
@@ -327,7 +339,7 @@ describe('shareText', () => {
       ],
     };
     expect(shareText('Spliced #12', s, def, 'https://x.test')).toBe(
-      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 4 takes (8 under par)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
+      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 2 takes (14 under par)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
     );
   });
 
@@ -378,7 +390,7 @@ describe('ghost race', () => {
       won: true,
       elapsedMs: 161_000,
       mistakes: 1,
-      takes: 35,
+      takes: 33,
       attempts: run.attempts,
     });
   });
@@ -425,13 +437,13 @@ describe('takes + par', () => {
         { marks: [], solved: true },
       ],
     };
-    expect(takesOf(locked)).toBe(3 + 2 + 2);
+    expect(takesOf(locked)).toBe(3 + 2);
     expect(hear({ ...s, status: 'won' }, 'x').heard).toHaveLength(3);
   });
 
   it('sets par from the board size and shows it in the share', () => {
     const def = makeDef(4, 4, 4);
-    expect(parFor(def)).toBe(28);
+    expect(parFor(def)).toBe(40);
     expect(relToPar(22, 28)).toBe('6 under par');
     expect(relToPar(28, 28)).toBe('even par');
     expect(relToPar(30, 28)).toBe('2 over par');
@@ -439,9 +451,10 @@ describe('takes + par', () => {
       ...boardState([]),
       status: 'won',
       heard: ['s:a>b', 'r:a,b'],
+      attempts: [{ marks: ['correct'], solved: true }],
     };
     expect(shareText('S', s, def).split('\n')[0]).toBe(
-      'S · Perfect mix 🎚️ · 🎧 2 takes (26 under par)'
+      'S · Perfect mix 🎚️ · 🎧 3 takes (37 under par)'
     );
   });
 });

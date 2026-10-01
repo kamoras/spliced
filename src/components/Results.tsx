@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
+import { LAUNCH_UTC } from '../../api/_songs.js';
 import Stats from './Stats.jsx';
 import {
   computeStats,
@@ -16,6 +17,7 @@ import {
 import {
   encodeGhost,
   headline,
+  hasTakes,
   namedCount,
   parFor,
   relToPar,
@@ -37,7 +39,8 @@ interface ResultsProps {
   onNewMix?: () => void;
 }
 
-const GLYPH: Record<Mark, string> = { correct: '✓', misplaced: '~', miss: '' };
+// Same glyphs as the board: ✓ right slot, ⤨ right song (wrong slot).
+const GLYPH: Record<Mark, string> = { correct: '✓', misplaced: '⤨', miss: '' };
 
 export default function Results({
   state,
@@ -61,28 +64,26 @@ export default function Results({
     : 0;
 
   const streak = daily ? liveStreak(puzzleNumber) : 0;
-  const tags: string[] = [];
-  if (won && state.elapsedMs > 0 && state.elapsedMs < 60_000) {
-    tags.push('⚡ Speed splicer');
-  }
-  if (won && [3, 7, 14, 30, 50, 100].includes(streak)) {
-    tags.push(`🔥 ${streak}-day streak`);
-  }
   const named = namedCount(state);
   const takes = takesOf(state);
   const par = parFor(def);
-  if (won) {
-    if (takes <= par - 8) tags.push('🎯 Golden ear');
-    else if (takes <= par - 4) tags.push('👂 Sharp ear');
-    else if (takes <= par) tags.push('⛳ Under par');
-  }
-  if (named === def.tracks.length) tags.push('🎵 Perfect ear');
+  const showTakes = won && hasTakes(state);
+  // One featured badge, most impressive first.
+  const tags: string[] = [];
+  if (showTakes && takes <= par - 8) tags.push('🎯 Golden ear');
+  else if (named === def.tracks.length) tags.push('🎵 Perfect ear');
+  else if (showTakes && takes <= par - 4) tags.push('👂 Sharp ear');
+  else if (won && [3, 7, 14, 30, 50, 100].includes(streak)) {
+    tags.push(`🔥 ${streak}-day streak`);
+  } else if (showTakes && takes <= par) tags.push('⛳ Under par');
 
   const race = ghost ? raceResult(state, ghost.ghost) : 0;
   const raceLine = ghost
     ? race > 0
       ? `⚔️ Beat ${ghost.name}'s ghost`
-      : `👻 ${ghost.name}'s ghost won this one`
+      : race === 0
+        ? `🤝 Tied ${ghost.name}'s ghost`
+        : `👻 ${ghost.name}'s ghost won this one`
     : undefined;
 
   function shareUrl(): string {
@@ -130,8 +131,10 @@ export default function Results({
         <span>
           🎵 {named}/{def.tracks.length} named
         </span>
-        {won && (
-          <span title={`Par is ${par} takes`}>
+        {showTakes && (
+          <span
+            title={`Takes: every clip, join and channel order you heard for the first time, plus each LOCK. Par is ${par}.`}
+          >
             🎧 {takes} takes · {relToPar(takes, par)}
           </span>
         )}
@@ -152,8 +155,13 @@ export default function Results({
           <strong>
             {race > 0
               ? `You beat ${ghost.name}!`
-              : `${ghost.name} wins this round`}
+              : race === 0
+                ? `Dead heat with ${ghost.name}!`
+                : `${ghost.name} wins this round`}
           </strong>
+          <span className="race-rule">
+            Ranked by win, then fewest mistakes, then takes, then time.
+          </span>
           <span>
             You: {won ? formatDuration(state.elapsedMs) : 'lost'} ·{' '}
             {state.mistakes}✗ · 🎧{takes} vs. {ghost.name}:{' '}
@@ -164,7 +172,19 @@ export default function Results({
       )}
 
       {state.attempts.length > 0 && (
-        <div className="attempt-grid" aria-label="Your lock-ins">
+        <div
+          className="attempt-grid"
+          role="img"
+          aria-label={`Your lock-ins: ${state.attempts
+            .map((a) =>
+              a.era
+                ? 'right song, wrong year'
+                : a.solved
+                  ? 'locked'
+                  : `${a.marks.filter((m) => m === 'correct').length} in place, ${a.marks.filter((m) => m === 'misplaced').length} close`
+            )
+            .join('; ')}`}
+        >
           {state.attempts.map((a, i) => (
             <div className="attempt-row" key={i}>
               {a.marks.map((m, j) => (
@@ -193,6 +213,17 @@ export default function Results({
             : 'Share'}
       </button>
 
+      {won && (
+        <button
+          type="button"
+          className="cbtn results-mixtape"
+          onClick={() => window.dispatchEvent(new Event('spliced:mixtape'))}
+        >
+          <span className="lamp" aria-hidden="true" />
+          Play mixtape
+        </button>
+      )}
+
       {/* Asked once, after the first share: who friends will be racing. */}
       {daily && shared && (
         <label className="sign">
@@ -210,7 +241,7 @@ export default function Results({
         </label>
       )}
 
-      {daily && <Countdown />}
+      {daily && <Countdown puzzleNumber={puzzleNumber} />}
 
       {daily && (
         <details className="stats-details" open={playedCount >= 3}>
@@ -221,17 +252,6 @@ export default function Results({
             today={state}
           />
         </details>
-      )}
-
-      {won && (
-        <button
-          type="button"
-          className="cbtn results-mixtape"
-          onClick={() => window.dispatchEvent(new Event('spliced:mixtape'))}
-        >
-          <span className="lamp" aria-hidden="true" />
-          Play mixtape
-        </button>
       )}
 
       <div className="results-actions">
@@ -255,15 +275,22 @@ export default function Results({
   );
 }
 
-export function Countdown() {
-  const [ms, setMs] = useState(msUntilNextPuzzle());
+// Time until the next puzzle after `puzzleNumber` (or after today's, when
+// omitted). Once that puzzle is out, offer it.
+export function Countdown({ puzzleNumber }: { puzzleNumber?: number }) {
+  const nextAt =
+    typeof puzzleNumber === 'number'
+      ? LAUNCH_UTC + (puzzleNumber + 1) * 86400000
+      : null;
+  const left = () =>
+    nextAt != null ? nextAt - Date.now() : msUntilNextPuzzle();
+  const [ms, setMs] = useState(left);
   useEffect(() => {
-    const id = setInterval(() => setMs(msUntilNextPuzzle()), 1000);
+    const id = setInterval(() => setMs(left()), 1000);
     return () => clearInterval(id);
-  }, []);
-  // Crossed midnight while the page was open: offer the new puzzle.
-  const [startDay] = useState(() => Math.floor(Date.now() / 86400000));
-  if (Math.floor(Date.now() / 86400000) !== startDay) {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextAt]);
+  if (ms <= 0) {
     return (
       <button
         type="button"

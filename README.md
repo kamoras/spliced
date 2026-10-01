@@ -39,10 +39,11 @@ flips at UTC midnight), so times and scores are shareable.
 4. A correct channel **opens**: the clips splice together, the title is
    written onto the tape, and the song plays in full. Pick its title from four
    same-genre, same-era choices to **name that tune** (🎵 bonus, no penalty).
-5. Finish to get your score — mistakes, time, songs named, and **takes vs
-   par** (every new seam or row order you try, plus lock-ins; knowing the
-   music means fewer takes) — and a Wordle-style share grid. The share link
-   carries a spoiler-free **ghost** of your run that friends race live.
+5. Finish to get your score: mistakes first, then time, songs named, and
+   **takes vs par** (every clip, join and channel order you hear for the first
+   time, plus each LOCK; knowing the music means fewer takes), and a
+   Wordle-style share grid. The share link carries a spoiler-free **ghost** of
+   your run that friends race live (ranked by win, mistakes, takes, then time).
 
 Your progress survives a refresh, a stats sheet tracks streaks and a
 mistakes histogram, and every song you uncover lands in your **Record crate**.

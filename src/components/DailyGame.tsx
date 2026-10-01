@@ -15,7 +15,9 @@ import {
   saveProgress,
   saveResult,
 } from '../daily/storage.js';
+import { prefersReducedMotion } from '../audio/meter.js';
 import {
+  revealAll,
   decodeGhost,
   finishedFromResult,
   isValidState,
@@ -91,8 +93,13 @@ export default function DailyGame({
       const saved = getProgress(d.puzzleNumber);
       const result = getResult(d.puzzleNumber);
       let start: GameState | null = null;
-      if (saved && isValidState(saved, def)) start = saved;
-      else if (result) start = finishedFromResult(def, result);
+      if (saved && isValidState(saved, def)) {
+        // A finished result is final, even if another tab kept playing.
+        start =
+          result && saved.status === 'playing'
+            ? revealAll(saved, def, result.solved ? 'won' : 'lost')
+            : saved;
+      } else if (result) start = finishedFromResult(def, result);
 
       if (ghostParam) {
         if (ghostParam.ghost.puzzle !== d.puzzleNumber) {
@@ -193,7 +200,11 @@ export default function DailyGame({
             state={live}
             def={def}
             puzzleNumber={replay ? undefined : daily.puzzleNumber}
-            title={`Spliced #${daily.puzzleNumber}`}
+            title={
+              replay
+                ? `Spliced #${daily.puzzleNumber} (replay)`
+                : `Spliced #${daily.puzzleNumber}`
+            }
             ghost={replay ? null : ghost}
             onPractice={onPractice}
             onReplay={() => {
@@ -242,7 +253,7 @@ export default function DailyGame({
           setTimeout(
             () =>
               resultsRef.current?.scrollIntoView({
-                behavior: 'smooth',
+                behavior: prefersReducedMotion() ? 'auto' : 'smooth',
                 block: 'start',
               }),
             s.status === 'won' ? 1400 : 900

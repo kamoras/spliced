@@ -6,12 +6,19 @@
 type Listener = (level: number) => void;
 
 let source: (() => number) | null = null;
+let busy: (() => boolean) | null = null;
 const listeners = new Set<Listener>();
 let raf = 0;
 let level = 0;
 
-export function setLevelSource(fn: (() => number) | null): void {
+// `isBusy` says whether audio is scheduled or sounding, so the loop doesn't
+// idle in the silent moment before a delayed start.
+export function setLevelSource(
+  fn: (() => number) | null,
+  isBusy: (() => boolean) | null = null
+): void {
   source = fn;
+  busy = isBusy;
 }
 
 function tick() {
@@ -20,7 +27,7 @@ function tick() {
   if (level < 0.002) level = 0;
   listeners.forEach((fn) => fn(level));
   // Idle when silent (saves battery); kickMeter() restarts on playback.
-  if (target === 0 && level === 0) {
+  if (target === 0 && level === 0 && !busy?.()) {
     raf = 0;
     return;
   }

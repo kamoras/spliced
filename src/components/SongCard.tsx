@@ -107,7 +107,12 @@ export default function SongCard({
               named ? 'Named it!' : named === false ? 'Not named' : undefined
             }
           >
-            {named && <span aria-label="Named">🎵</span>}
+            {named && (
+              <>
+                <span aria-hidden="true">🎵</span>
+                <span className="visually-hidden">Named, </span>
+              </>
+            )}
             <Icon name={discovered ? 'check' : 'eye'} />
             <span className="song-tag-text">
               {discovered ? 'Spliced' : 'Answer'}

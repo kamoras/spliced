@@ -3,7 +3,14 @@
 // them into something that feels good — listening tools (clips, seams, whole
 // rows), swaps, marks, and the "splice" when a song locks in.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import {
   DndContext,
@@ -29,6 +36,7 @@ import { prefersReducedMotion, setLevelSource } from '../audio/meter.js';
 import { shufflePieces } from '../audio/puzzle.js';
 import { formatDuration } from '../daily/storage.js';
 import {
+  clipKey,
   hasHeard,
   hear,
   rowPlayKey,
@@ -245,7 +253,10 @@ export default function Puzzle({
   }, [player, fx, volume]);
   // This board's output drives every meter on screen.
   useEffect(() => {
-    setLevelSource(() => player.getLevel());
+    setLevelSource(
+      () => player.getLevel(),
+      () => player.isBusy()
+    );
     return () => setLevelSource(null);
   }, [player]);
 
@@ -328,7 +339,17 @@ export default function Puzzle({
   const boardRef = useRef<HTMLOListElement | null>(null);
 
   // ---- ghost race ticker -----------------------------------------------------
-  const ghostIdx = useRef(0);
+  // Start past any ghost events that already happened (e.g. after a reload).
+  const ghostIdx = useRef(
+    (() => {
+      if (!ghost) return 0;
+      const atts = ghost.ghost.attempts;
+      const i = atts.findIndex(
+        (a) => (a.atMs ?? 0) > (initialState?.elapsedMs ?? 0)
+      );
+      return i < 0 ? atts.length : i;
+    })()
+  );
   useEffect(() => {
     if (!ghost || over) return undefined;
     const g = ghost.ghost;
@@ -374,7 +395,8 @@ export default function Puzzle({
     if (Date.now() - justDragged.current < 250) return;
     if (coach === 0) setCoach(1);
     setCued(over ? null : piece.id);
-    beginTiming();
+    if (fraction == null) listen(clipKey(piece.id));
+    else beginTiming();
     setPlaying({ kind: 'clip', id: piece.id });
     player.playPiece(
       piece,
@@ -397,7 +419,15 @@ export default function Puzzle({
     setActiveRow(rowOfId(targetId));
     setFlash([cued, targetId]);
     later(() => setFlash([]), 260);
+    setMessage(`Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`);
     setState(next);
+    // Keep keyboard focus on the board: the ⇄ button that was pressed is gone.
+    const focusId = targetId;
+    requestAnimationFrame(() =>
+      boardRef.current
+        ?.querySelector<HTMLElement>(`[data-piece="${focusId}"] .tile-face`)
+        ?.focus()
+    );
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -569,6 +599,11 @@ export default function Puzzle({
       );
       cue(outcome.won ? 'win' : 'open');
       vibrate(20);
+      if (outcome.won) {
+        // Stop the clock at the winning lock, not after the animation.
+        bank();
+        blockers.current.over = true;
+      }
       // Stage 1: light the marks and splice the tiles together in place…
       setSplicing(row);
       const left = def.tracks.length - next.solved.length;
@@ -588,15 +623,10 @@ export default function Puzzle({
           setSplicing(null);
           setFreshCard(trackId);
           cue('slide');
-          setState(next);
-          if (outcome.won) {
-            bank();
-            setChase(true);
-            later(() => setChase(false), 2400);
-            window.dispatchEvent(new Event('spliced:win'));
-            onFinish?.({ ...next, elapsedMs: elapsedNow() });
-          }
-          if (outcome.won) later(playMixtape, 900);
+          // Keep anything that changed during the splice (a quiz answer,
+          // a listen) instead of overwriting it with the pre-splice state.
+          setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
+          if (outcome.won) celebrate(next);
           else playSong(trackId, 0.15);
         },
         reducedMotion() ? 150 : 720
@@ -613,7 +643,9 @@ export default function Puzzle({
     const left = def.maxGuesses - next.mistakes;
     const careful = left === 1 ? ' Careful, last mistake!' : '';
     if (outcome.lost) {
-      setMessage('Out of takes. Here’s the mix you were hearing.');
+      setMessage('Tape jam: out of mistakes. Here’s the mix you were hearing.');
+    } else if (outcome.won) {
+      setMessage('Right song, wrong year, and that finishes the mix!');
     } else if (outcome.kind === 'wrongEra') {
       const home = def.tracks.findIndex((t) => t.id === outcome.trackId);
       setMessage(
@@ -622,15 +654,32 @@ export default function Puzzle({
       setFreshCard(outcome.trackId);
       playSong(outcome.trackId!, 0.4);
     } else {
+      // The very first lock usually comes back mostly blank: teach why.
+      const firstMiss =
+        state.attempts.length === 0 && outcome.rightSong < def.clipsPerTrack;
       setMessage(
-        `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${careful}`
+        `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${
+          firstMiss ? ' Blanks belong on other channels: swap them across.' : ''
+        }${careful}`
       );
     }
     setState(next);
-    if (outcome.lost) {
+    if (outcome.won) {
+      bank();
+      blockers.current.over = true;
+      celebrate(next);
+    } else if (outcome.lost) {
       bank();
       onFinish?.({ ...next, elapsedMs: elapsedNow() });
     }
+  }
+
+  function celebrate(next: GameState) {
+    setChase(true);
+    later(() => setChase(false), 2400);
+    window.dispatchEvent(new Event('spliced:win'));
+    onFinish?.({ ...next, elapsedMs: elapsedNow() });
+    later(playMixtape, 900);
   }
 
   // ---- render -----------------------------------------------------------------
@@ -775,7 +824,7 @@ export default function Puzzle({
                       onPlay={() => toggleSong(trackId)}
                       choices={discovered ? tracks[ti]?.choices : undefined}
                       named={state.named?.[trackId]}
-                      onName={(c) => answerName(trackId, c)}
+                      onName={busy ? undefined : (c) => answerName(trackId, c)}
                       order={r}
                       label={labelFor(r)}
                       fresh={freshCard === trackId}
@@ -827,7 +876,7 @@ export default function Puzzle({
                       onClick={() => playRow(r)}
                       disabled={busy}
                       aria-pressed={rowPlaying}
-                      aria-label={`${rowPlaying ? 'Stop' : 'Play'} channel ${r + 1}`}
+                      aria-label={`Play channel ${r + 1}`}
                     >
                       <span className="lamp" aria-hidden="true" />
                       {rowPlaying ? 'Stop' : 'Play'}
@@ -860,51 +909,54 @@ export default function Puzzle({
                   >
                     {ids.map((id, slot) => {
                       const piece = pieceById.get(id)!;
-                      return (
-                        <PieceTile
-                          key={id}
-                          piece={piece}
-                          slot={slot}
-                          row={r}
-                          letter={letterOf(id)}
-                          mark={marks?.[slot] ?? null}
-                          playing={activeId === id}
-                          cued={cued === id}
-                          swapWith={
-                            cued && cued !== id && !busy ? cuedLetter : null
-                          }
-                          flash={flash.includes(id)}
-                          disabled={busy}
-                          onTap={(f) => tapClip(piece, f)}
-                          onSwap={() => swapWith(id)}
-                          getProgress={progressGetters.get(id)!}
-                        />
-                      );
-                    })}
-                    {ids.slice(1).map((id, k) => {
-                      const active =
+                      const next = ids[slot + 1];
+                      const seamPlaying =
                         playing?.kind === 'seam' &&
                         playing.row === r &&
-                        playing.seam === k;
-                      const heard = hasHeard(state, seamKey(ids[k], id));
+                        playing.seam === slot;
+                      const heard =
+                        next != null && hasHeard(state, seamKey(id, next));
                       return (
-                        <button
-                          type="button"
-                          key={`seam-${k}`}
-                          className={[
-                            'seam',
-                            active && 'is-playing',
-                            heard && 'is-heard',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          style={{ '--k': k + 1 } as CSSProperties}
-                          onClick={() => playSeam(r, k)}
-                          disabled={busy}
-                          aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}${heard ? ' (heard, free replay)' : ''}`}
-                        >
-                          <span className="knob" aria-hidden="true" />
-                        </button>
+                        <Fragment key={id}>
+                          <PieceTile
+                            piece={piece}
+                            slot={slot}
+                            row={r}
+                            letter={letterOf(id)}
+                            mark={marks?.[slot] ?? null}
+                            playing={activeId === id}
+                            cued={cued === id}
+                            swapWith={
+                              cued && cued !== id && !busy ? cuedLetter : null
+                            }
+                            flash={flash.includes(id)}
+                            disabled={busy}
+                            heard={over || hasHeard(state, clipKey(id))}
+                            onTap={(f) => tapClip(piece, f)}
+                            onSwap={() => swapWith(id)}
+                            getProgress={progressGetters.get(id)!}
+                          />
+                          {/* The join to the next clip sits between them in
+                              focus order too. */}
+                          {next != null && (
+                            <button
+                              type="button"
+                              className={[
+                                'seam',
+                                seamPlaying && 'is-playing',
+                                heard && 'is-heard',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              style={{ '--k': slot + 1 } as CSSProperties}
+                              onClick={() => playSeam(r, slot)}
+                              disabled={busy}
+                              aria-label={`Hear the join between clips ${letterOf(id)} and ${letterOf(next)}${heard ? ' (heard, free replay)' : ''}`}
+                            >
+                              <span className="knob" aria-hidden="true" />
+                            </button>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </div>

@@ -75,15 +75,19 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
             <strong>LOCK a channel.</strong> <Icon name="check" /> right song,
             right slot · <Icon name="shuffle" /> right song, wrong slot · blank:
             another song. A wrong lock-in lights one of <b>4 PEAK lamps</b>;
-            light them all and the tape jams.
+            light them all and the tape jams. Lock a whole song on the wrong
+            year and it costs a lamp, but slides home.
           </div>
         </li>
       </ol>
       <p className="howto-bonus">
-        Tap two year tapes to swap those channels. Fewer <b>takes</b> (new seams
-        and plays you try, plus lock-ins) beats par. 🎵 Name each song you lock
-        for a bonus, then share your mix. Friends who open your link race your
-        ghost.
+        <b>Score:</b> fewest mistakes wins. Then <b>takes</b>: every clip, join
+        and channel order you hear for the first time, plus each LOCK. Beat par
+        with a good ear. Tap two year tapes to swap those channels.
+      </p>
+      <p className="howto-bonus">
+        <b>Bonus:</b> 🎵 name each song you lock. Share your mix and friends who
+        open your link race your ghost.
       </p>
       <button
         type="button"

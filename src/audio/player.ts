@@ -4,7 +4,10 @@ import type { Piece } from '../types.js';
 import { kickMeter } from './meter.js';
 
 const DEFAULT_VOLUME = 0.85;
-const EDGE_FADE = 0.003;
+// Crossfade at every join (and fade at outer edges), in seconds. Joins
+// overlap by exactly this much with complementary linear ramps, so a correct
+// join reproduces the original samples exactly and a wrong one can't click.
+const XF = 0.003;
 
 function clampVolume(value: number): number {
   const numeric = Number(value);
@@ -30,17 +33,20 @@ export class Player {
   private _timeData: Uint8Array<ArrayBuffer>;
   private sources: AudioBufferSourceNode[] = [];
   private timers: ReturnType<typeof setTimeout>[] = [];
-  // Bumped on every stop/new playback so stale highlight callbacks no-op.
+  // Bumped on every stop/new playback so stale callbacks (and plays still
+  // waiting on the context to resume) no-op.
   private token = 0;
-  // Tracks the single clip currently playing so the UI can draw a playhead.
+  // Tracks the clip currently sounding so the UI can draw a playhead.
   private _clip: ActiveClip | null = null;
+  // Context time when the scheduled audio ends (keeps the meters awake).
+  private busyUntil = 0;
 
   constructor(ctx: AudioContext, buffer: AudioBuffer | null = null) {
     this.ctx = ctx;
     this.buffer = buffer;
     this.output = ctx.createGain();
     // Tap the master bus with an analyser so the UI can render live VU meters.
-    // Graph: sources -> output(gain) -> analyser -> destination.
+    // Graph: sources -> clip gains -> deck -> output -> analyser -> out.
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 256;
     this.analyser.smoothingTimeConstant = 0.5;
@@ -49,7 +55,7 @@ export class Player {
     this.deck = ctx.createGain();
     this.deck.connect(this.output);
     this.analyser.connect(ctx.destination);
-    this.setVolume(DEFAULT_VOLUME);
+    this.output.gain.value = DEFAULT_VOLUME;
   }
 
   // Fraction (0..1) through the currently playing clip, or null when that clip
@@ -58,6 +64,7 @@ export class Player {
     const clip = this._clip;
     if (!clip || clip.pieceId !== pieceId) return null;
     const elapsed = this.ctx.currentTime - clip.startedAt;
+    if (elapsed < 0) return clip.fromFraction;
     return Math.min(
       1,
       Math.max(0, clip.fromFraction + elapsed / clip.duration)
@@ -78,9 +85,18 @@ export class Player {
     return Math.min(1, rms * 2.6);
   }
 
+  // Is scheduled audio still to come (or sounding)?
+  isBusy(): boolean {
+    return this.ctx.currentTime < this.busyUntil;
+  }
+
   setVolume(value: number): void {
-    const volume = clampVolume(value);
-    this.output.gain.setValueAtTime(volume, this.ctx.currentTime);
+    // Glide rather than step, so moving the slider never zippers.
+    this.output.gain.setTargetAtTime(
+      clampVolume(value),
+      this.ctx.currentTime,
+      0.015
+    );
   }
 
   // Stop everything. With `tapeStop`, the take winds down like a tape
@@ -101,6 +117,7 @@ export class Player {
       });
       old.gain.setValueAtTime(old.gain.value, now);
       old.gain.linearRampToValueAtTime(0, now + 0.25);
+      setTimeout(() => old.disconnect(), 400);
       this.deck = this.ctx.createGain();
       this.deck.connect(this.output);
       this.sources = [];
@@ -118,26 +135,82 @@ export class Player {
     this.sources = [];
     this.timers = [];
     this._clip = null;
+    this.busyUntil = 0;
   }
 
-  private async _resume(): Promise<void> {
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
-    // Something is about to play: make sure the meters are running.
-    setTimeout(kickMeter, 80);
+  // Stop what's playing, then make sure the context is running. Returns the
+  // token for the new take, or null if another stop/play happened while we
+  // waited (or the context couldn't start).
+  private async _begin(): Promise<number | null> {
+    this.stop();
+    const myToken = this.token;
+    try {
+      // 'suspended' before a gesture; iOS also uses 'interrupted' after a
+      // call, Siri or backgrounding.
+      if (this.ctx.state !== 'running') await this.ctx.resume();
+    } catch {
+      return null;
+    }
+    return myToken === this.token ? myToken : null;
   }
 
-  // A per-clip gain with 3ms fades at both edges, so no cut point can click.
-  // Applied to every clip the same way, so a join sounds the same whether
-  // it's right or wrong: only the music itself can tell them apart.
-  private _edges(at: number, len: number, dest: AudioNode): GainNode {
+  // Schedule `len` seconds of a piece's audio from buffer time `offset`,
+  // starting at context time `at`, with linear fades in/out.
+  private _play(
+    piece: Piece,
+    at: number,
+    offset: number,
+    len: number,
+    dest: AudioNode,
+    fadeIn = XF,
+    fadeOut = XF
+  ): AudioBufferSourceNode {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._bufferFor(piece);
     const g = this.ctx.createGain();
-    const f = Math.min(EDGE_FADE, len / 4);
+    const fi = Math.min(fadeIn, len / 4);
+    const fo = Math.min(fadeOut, len / 4);
     g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(1, at + f);
-    g.gain.setValueAtTime(1, at + len - f);
+    g.gain.linearRampToValueAtTime(1, at + fi);
+    g.gain.setValueAtTime(1, at + len - fo);
     g.gain.linearRampToValueAtTime(0, at + len);
-    g.connect(dest);
-    return g;
+    src.connect(g).connect(dest);
+    src.addEventListener('ended', () => g.disconnect());
+    src.start(at, offset, len);
+    this.sources.push(src);
+    return src;
+  }
+
+  // Schedule pieces back to back from `t`, with matched crossfades at every
+  // join. Returns each piece's nominal start time and the end time.
+  private _run(
+    pieces: Piece[],
+    t: number,
+    dest: AudioNode
+  ): { starts: number[]; end: number } {
+    const starts: number[] = [];
+    pieces.forEach((p, i) => {
+      starts.push(t);
+      // Every clip after the first starts XF early, reading XF earlier in the
+      // buffer, and ramps in while the previous one ramps out.
+      const lead = i > 0 ? Math.min(XF, p.offset) : 0;
+      this._play(
+        p,
+        t - lead,
+        p.offset - lead,
+        p.duration + lead,
+        dest,
+        lead || XF,
+        XF
+      );
+      t += p.duration;
+    });
+    return { starts, end: t };
+  }
+
+  private _busy(until: number): void {
+    this.busyUntil = until;
+    kickMeter();
   }
 
   private _bufferFor(piece: Piece): AudioBuffer | null {
@@ -151,32 +224,27 @@ export class Player {
     onEnd?: () => void,
     fromFraction = 0
   ): Promise<void> {
-    await this._resume();
-    this.stop();
-    const myToken = this.token;
+    const myToken = await this._begin();
+    if (myToken == null) return;
 
     const from = Math.min(0.999, Math.max(0, fromFraction));
     const startOffset = piece.offset + from * piece.duration;
     const playLength = piece.duration * (1 - from);
-
-    const src = this.ctx.createBufferSource();
-    src.buffer = this._bufferFor(piece);
-    const at = this.ctx.currentTime;
-    src.connect(this._edges(at, playLength, this.deck));
+    const at = this.ctx.currentTime + 0.01;
+    const src = this._play(piece, at, startOffset, playLength, this.deck);
     src.onended = () => {
       if (myToken === this.token) {
         this._clip = null;
         onEnd?.();
       }
     };
-    src.start(at, startOffset, playLength);
-    this.sources.push(src);
     this._clip = {
       pieceId: piece.id,
-      startedAt: this.ctx.currentTime,
+      startedAt: at,
       duration: piece.duration,
       fromFraction: from,
     };
+    this._busy(at + playLength);
   }
 
   /**
@@ -189,69 +257,57 @@ export class Player {
       onPiece,
       onEnd,
       delay = 0,
-      tapeStart = false,
     }: {
       onPiece?: (idx: number) => void;
       onEnd?: () => void;
       // Seconds to wait before the first clip (e.g. to let a chime ring).
       delay?: number;
-      // Spin the first clip up from slightly slow, like a tape machine.
-      tapeStart?: boolean;
     } = {}
   ): Promise<void> {
-    await this._resume();
-    this.stop();
-    const myToken = this.token;
+    const myToken = await this._begin();
+    if (myToken == null) return;
 
-    const startAt = this.ctx.currentTime + 0.06 + delay;
-    let t = startAt;
-
-    pieces.forEach((p, idx) => {
-      const src = this.ctx.createBufferSource();
-      src.buffer = this._bufferFor(p);
-      src.connect(this._edges(t, p.duration, this.deck));
-      if (tapeStart && idx === 0) {
-        src.playbackRate.setValueAtTime(0.85, t);
-        src.playbackRate.linearRampToValueAtTime(1, t + 0.12);
-      }
-      src.start(t, p.offset, p.duration);
-      this.sources.push(src);
-
-      const delayMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
-      this.timers.push(
-        setTimeout(() => {
-          if (myToken === this.token) onPiece?.(idx);
-        }, delayMs)
-      );
-
-      // Remember which clip is sounding so its waveform can draw a playhead.
-      this.timers.push(
-        setTimeout(() => {
-          if (myToken !== this.token) return;
-          this._clip = {
-            pieceId: p.id,
-            startedAt: this.ctx.currentTime,
-            duration: p.duration,
-            fromFraction: 0,
-          };
-        }, delayMs)
-      );
-
-      t += p.duration;
-    });
-
-    const totalMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
-    this.timers.push(
-      setTimeout(() => {
-        if (myToken === this.token) onEnd?.();
-      }, totalMs)
+    const { starts, end } = this._run(
+      pieces,
+      this.ctx.currentTime + 0.06 + delay,
+      this.deck
     );
+    starts.forEach((t, idx) => {
+      const p = pieces[idx];
+      this.timers.push(
+        setTimeout(
+          () => {
+            if (myToken !== this.token) return;
+            // Playhead timing comes from the schedule, not the timer.
+            this._clip = {
+              pieceId: p.id,
+              startedAt: t,
+              duration: p.duration,
+              fromFraction: 0,
+            };
+            onPiece?.(idx);
+          },
+          Math.max(0, (t - this.ctx.currentTime) * 1000)
+        )
+      );
+    });
+    this.timers.push(
+      setTimeout(
+        () => {
+          if (myToken !== this.token) return;
+          this._clip = null;
+          onEnd?.();
+        },
+        Math.max(0, (end - this.ctx.currentTime) * 1000)
+      )
+    );
+    this._busy(end);
   }
 
   /**
    * Play the join between two clips: the tail of `a` straight into the head of
-   * `b`. Clips are cut back-to-back, so a true neighbour sounds seamless and a
-   * wrong one jolts. `onEnd` fires when the seam finishes.
+   * `b`, with the same matched crossfade as every other join. A true
+   * neighbour sounds seamless. `onEnd` fires when the seam finishes.
    */
   async playSeam(
     a: Piece,
@@ -259,22 +315,22 @@ export class Player {
     onEnd?: () => void,
     span = 0.7
   ): Promise<void> {
-    await this._resume();
-    this.stop();
-    const myToken = this.token;
+    const myToken = await this._begin();
+    if (myToken == null) return;
     const len = Math.min(span, a.duration, b.duration);
     const t0 = this.ctx.currentTime + 0.04;
-    const parts: [Piece, number, number][] = [
-      [a, a.offset + a.duration - len, t0],
-      [b, b.offset, t0 + len],
-    ];
-    parts.forEach(([piece, offset, at]) => {
-      const src = this.ctx.createBufferSource();
-      src.buffer = this._bufferFor(piece);
-      src.connect(this._edges(at, len, this.deck));
-      src.start(at, offset, len);
-      this.sources.push(src);
-    });
+    this._play(a, t0, a.offset + a.duration - len, len, this.deck, 0.03);
+    const lead = Math.min(XF, b.offset);
+    this._play(
+      b,
+      t0 + len - lead,
+      b.offset - lead,
+      len + lead,
+      this.deck,
+      lead || XF,
+      0.04
+    );
+    const end = t0 + 2 * len;
     this.timers.push(
       setTimeout(
         () => {
@@ -283,9 +339,10 @@ export class Player {
             onEnd?.();
           }
         },
-        (t0 + 2 * len - this.ctx.currentTime) * 1000
+        Math.max(0, (end - this.ctx.currentTime) * 1000)
       )
     );
+    this._busy(end);
   }
 
   /**
@@ -305,9 +362,8 @@ export class Player {
       fade?: number;
     } = {}
   ): Promise<void> {
-    await this._resume();
-    this.stop();
-    const myToken = this.token;
+    const myToken = await this._begin();
+    if (myToken == null) return;
     const steps = 32;
     const fadeIn = new Float32Array(steps);
     const fadeOut = new Float32Array(steps);
@@ -327,16 +383,7 @@ export class Player {
       gain.gain.setValueAtTime(first ? 1 : 0, t);
       if (!first) gain.gain.setValueCurveAtTime(fadeIn, t, fade);
       if (!last) gain.gain.setValueCurveAtTime(fadeOut, t + len - fade, fade);
-
-      let at = t;
-      pieces.forEach((p) => {
-        const src = this.ctx.createBufferSource();
-        src.buffer = this._bufferFor(p);
-        src.connect(this._edges(at, p.duration, gain));
-        src.start(at, p.offset, p.duration);
-        this.sources.push(src);
-        at += p.duration;
-      });
+      this._run(pieces, t, gain);
 
       const startMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
       this.timers.push(
@@ -359,5 +406,6 @@ export class Player {
         Math.max(0, (t - this.ctx.currentTime) * 1000)
       )
     );
+    this._busy(t);
   }
 }

@@ -130,7 +130,7 @@ export default function App() {
         <button
           type="button"
           className={mode === 'daily' ? 'is-on' : ''}
-          aria-current={mode === 'daily' ? 'page' : undefined}
+          aria-pressed={mode === 'daily'}
           onClick={() => setMode('daily')}
         >
           Daily
@@ -138,7 +138,7 @@ export default function App() {
         <button
           type="button"
           className={mode === 'practice' ? 'is-on' : ''}
-          aria-current={mode === 'practice' ? 'page' : undefined}
+          aria-pressed={mode === 'practice'}
           onClick={() => setMode('practice')}
         >
           Practice
@@ -183,7 +183,7 @@ export default function App() {
             maxGuesses={DAILY_GUESSES}
             today={getProgress(todayNumber())}
           />
-          <Countdown />
+          <Countdown puzzleNumber={todayNumber()} />
         </Modal>
       )}
     </div>

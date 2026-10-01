@@ -56,6 +56,7 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
             type="button"
             className={`btn sound-mute${prefs.muted ? ' is-on' : ''}`}
             aria-pressed={prefs.muted}
+            aria-label="Mute all"
             onClick={() => onChange({ muted: !prefs.muted })}
           >
             <Icon name={prefs.muted ? 'mute' : 'volume'} />

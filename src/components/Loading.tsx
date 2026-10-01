@@ -28,7 +28,7 @@ export default function Loading({
     return () => clearInterval(id);
   }, []);
   return (
-    <section className="loading" aria-busy="true" aria-live="polite">
+    <section className="loading" aria-busy="true">
       <div
         className="skeleton"
         style={{ '--cols': cols } as CSSProperties}

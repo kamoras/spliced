@@ -23,8 +23,7 @@ export interface Attempt {
 export interface GameState {
   // Piece ids, row-major (row = floor(index / clipsPerTrack)).
   order: string[];
-  // Track ids in the order they were locked. Locked songs float to the top,
-  // so row i < solved.length is always the song solved[i].
+  // Track ids in the order they were locked (row r is always tracks[r]).
   solved: string[];
   mistakes: number;
   attempts: Attempt[];
@@ -274,25 +273,38 @@ export function submitRow(
   if (other && otherRow >= 0 && !state.solved.includes(other)) {
     // Right song, wrong year: move it home and lock it.
     next = swapRows(next, def, rowIndex, otherRow);
+    // If the song that came back from its row completes this one, it locks
+    // too: no need to spend another lock-in on an already-correct row.
+    const back = completeSong(
+      next.order.slice(rowIndex * cpt, rowIndex * cpt + cpt),
+      pieces
+    );
+    const alsoHere =
+      back === trackId && !next.solved.includes(trackId) ? [trackId] : [];
     next = {
       ...next,
-      solved: [...next.solved, other],
+      solved: [...next.solved, other, ...alsoHere],
       attempts: next.attempts.map((a, i) =>
         i === next.attempts.length - 1 ? { ...a, era: true } : a
       ),
     };
     kind = 'wrongEra';
     outcomeTrack = other;
+    if (next.solved.length === def.tracks.length) {
+      next = { ...next, status: 'won' };
+    }
   }
 
+  // Completing every song wins, even on the last mistake.
+  const lostNow = lost && next.status !== 'won';
   return {
-    state: lost ? revealAll(next, def, 'lost') : next,
+    state: lostNow ? revealAll(next, def, 'lost') : next,
     outcome: {
       kind,
       ...grade,
       trackId: outcomeTrack,
-      won: false,
-      lost,
+      won: next.status === 'won',
+      lost: lostNow,
     },
   };
 }
@@ -429,15 +441,24 @@ export function hasHeard(state: GameState, key: string): boolean {
   return Boolean(state.heard?.includes(key));
 }
 
+// Takes: everything you hear for the first time (each clip, each join, each
+// channel order) plus each LOCK. Mistakes are scored separately.
 export function takesOf(state: GameState): number {
-  return (
-    (state.heard?.length ?? 0) + state.attempts.length + 2 * state.mistakes
-  );
+  return (state.heard?.length ?? 0) + state.attempts.length;
 }
 
-// About one seam per join, a couple of row plays, and one lock per song.
+// Every clip once, about one join per clip, a couple of channel plays and a
+// lock per song.
 export function parFor(def: PuzzleDef): number {
-  return def.tracks.length * (def.clipsPerTrack + 3);
+  return def.tracks.length * (2 * def.clipsPerTrack + 2);
+}
+
+export const clipKey = (id: string) => `c:${id}`;
+
+// Was the takes count actually recorded? (A board rebuilt from a bare saved
+// result has no history, so its takes would be meaningless.)
+export function hasTakes(state: GameState): boolean {
+  return state.attempts.length > 0;
 }
 
 // Golf-style, in words: "6 under par", "even par", "3 over par".
@@ -536,7 +557,9 @@ export function raceResult(state: GameState, ghost: Ghost): number {
   const won = state.status === 'won';
   if (won !== ghost.won) return won ? 1 : -1;
   if (state.mistakes !== ghost.mistakes) return ghost.mistakes - state.mistakes;
-  if (takesOf(state) !== ghost.takes) return ghost.takes - takesOf(state);
+  if (hasTakes(state) && ghost.takes > 0 && takesOf(state) !== ghost.takes) {
+    return ghost.takes - takesOf(state);
+  }
   return ghost.elapsedMs - state.elapsedMs;
 }
 
@@ -569,7 +592,7 @@ export function shareText(
     tunes && `Named ${namedCount(state)}/${def.tracks.length} ${tunes}`;
   const takes = takesOf(state);
   const ears =
-    won && takes
+    won && takes && hasTakes(state)
       ? ` · 🎧 ${takes} takes (${relToPar(takes, parFor(def))})`
       : '';
   return [`${title} · ${score}${time}${ears}`, named, ...grid, extra, url]

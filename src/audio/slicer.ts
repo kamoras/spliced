@@ -171,7 +171,11 @@ export function samplePieces({
     const clipDuration = beatsPerClip(beat.bpm) * period;
     const span = clipDuration * clipsPerTrack;
     const first = beat.offset % period;
-    const lastStartBeat = Math.floor((duration - 0.05 - span - first) / period);
+    // Use a nominal length (half-second steps, at most 29s) so a few ms of
+    // decoder difference between browsers can't change the window, and so
+    // the seeded start beat — everyone's puzzle.
+    const nominal = Math.min(29, Math.floor(duration * 2) / 2);
+    const lastStartBeat = Math.floor((nominal - span - first) / period);
     if (lastStartBeat >= 0) {
       const k = Math.floor(mulberry32(seed)() * (lastStartBeat + 1));
       const start = first + k * period;
@@ -191,7 +195,12 @@ export function samplePieces({
     }
   }
 
-  const clipDuration = Math.min(clipSeconds, duration / clipsPerTrack);
+  // Snap the clip length too, so snapped offsets stay exactly back-to-back.
+  const clipDuration = Math.max(
+    OFFSET_STEP,
+    Math.floor(Math.min(clipSeconds, duration / clipsPerTrack) / OFFSET_STEP) *
+      OFFSET_STEP
+  );
   const span = clipDuration * clipsPerTrack;
   const slack = Math.max(0, duration - span);
   const start = snap(slack * mulberry32(seed)());

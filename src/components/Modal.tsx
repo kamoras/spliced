@@ -25,21 +25,50 @@ export default function Modal({
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const id = `modal-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
+    // Everything else on the page is inert while the dialog is open.
+    const layer = layerRef.current;
+    const others = layer?.parentElement
+      ? [...layer.parentElement.children].filter((el) => el !== layer)
+      : [];
+    others.forEach((el) => el.setAttribute('inert', ''));
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      // Keep Tab inside the dialog.
+      const focusable = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+        ),
+      ];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
+      others.forEach((el) => el.removeAttribute('inert'));
       opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="modal-layer">
+    <div className="modal-layer" ref={layerRef}>
       <button
         type="button"
         className="modal-backdrop"
@@ -47,6 +76,7 @@ export default function Modal({
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className={`modal${className ? ` ${className}` : ''}`}
         role="dialog"
         aria-modal="true"

@@ -38,7 +38,8 @@ export function saveResult(
 ): GameResult {
   const all = readAll();
   const prev = all[puzzleNumber];
-  if (prev?.solved && !result.solved) return prev;
+  // The first finished result for a puzzle is final.
+  if (prev && typeof prev.solved === 'boolean') return prev;
   all[puzzleNumber] = { ...result, ts: Date.now() };
   try {
     localStorage.setItem(KEY, JSON.stringify(all));
@@ -63,6 +64,9 @@ export function getProgress(puzzleNumber: number): GameState | null {
 
 export function saveProgress(puzzleNumber: number, state: GameState): void {
   const all = readProgress();
+  // Never reopen a finished game (e.g. from a second tab still playing).
+  const prev = all[puzzleNumber];
+  if (prev && prev.status !== 'playing' && state.status === 'playing') return;
   all[puzzleNumber] = state;
   const keep = Object.keys(all)
     .map(Number)

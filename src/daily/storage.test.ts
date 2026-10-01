@@ -29,6 +29,26 @@ describe('saveResult / getResult', () => {
     expect(getResult(2)).toMatchObject({ solved: true, mistakes: 2 });
   });
 
+  it('keeps the first result: a later solve cannot erase a loss', () => {
+    saveResult(3, { solved: false, mistakes: 4 });
+    saveResult(3, { solved: true, mistakes: 0 });
+    expect(getResult(3)).toMatchObject({ solved: false });
+  });
+
+  it('never reopens a finished game from a stale tab', () => {
+    const base = {
+      order: ['a'],
+      solved: [],
+      mistakes: 4,
+      attempts: [],
+      tried: {},
+      elapsedMs: 0,
+    };
+    saveProgress(4, { ...base, status: 'lost' });
+    saveProgress(4, { ...base, status: 'playing' });
+    expect(getProgress(4)?.status).toBe('lost');
+  });
+
   it('returns null for unknown puzzles', () => {
     expect(getResult(999)).toBeNull();
   });
