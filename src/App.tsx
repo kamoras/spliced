@@ -9,6 +9,7 @@ import Crate from './components/Crate.jsx';
 import { Countdown } from './components/Results.jsx';
 import Icon from './components/Icon.jsx';
 import Logo from './components/Logo.jsx';
+import { useObservance } from './theme/useObservance.js';
 import { getSfx } from './audio/sfx.js';
 import { getAudioContext } from './audio/slicer.js';
 import SoundControl from './components/SoundControl.jsx';
@@ -33,6 +34,7 @@ export default function App() {
     getPrefs().seenHelp ? null : 'help'
   );
   const streak = liveStreak(todayNumber());
+  const obs = useObservance();
 
   // The console's power-on thunk: on the first "Let's play" (a user gesture,
   // so audio is allowed) and whenever sound is switched back on.
@@ -59,7 +61,7 @@ export default function App() {
       </a>
 
       <header className="site-header">
-        <Logo />
+        <Logo obs={obs} />
         <div className="header-actions">
           <button
             type="button"
@@ -111,6 +113,18 @@ export default function App() {
           <ThemeToggle />
         </div>
       </header>
+
+      {obs && (
+        <p className="obs-banner">
+          <span className="obs-flag" aria-hidden="true" />
+          <span>{obs.label}</span>
+          {obs.href && (
+            <a href={obs.href} target="_blank" rel="noopener noreferrer">
+              Learn more
+            </a>
+          )}
+        </p>
+      )}
 
       <nav className="modes" aria-label="Game mode">
         <button

@@ -1,4 +1,6 @@
-// Inclusive observances that re-theme the logo's LED bar and fader-cap line.
+// Inclusive observances that theme the whole game: logo LED bar + fader cap,
+// a flag stripe and wash across the page, the console's band, channel-strip
+// edges and lamps, the accent colour, and a "Celebrating …" banner.
 // Pure and data-driven: date (player's LOCAL calendar) -> observance. Colours
 // only where a widely recognised flag/palette exists; others get a neutral
 // treatment (label + tooltip + a cream lamp chase) rather than an invented
@@ -13,6 +15,11 @@ export interface Observance {
   to: [number, number];
   colors?: string[];
   cap?: string;
+  // Accent for buttons/keys (and the text colour that sits on it, AA).
+  accent?: string;
+  onAccent?: string;
+  // Short name for the banner ("Pride Month").
+  name?: string;
   href?: string;
   // Only / never in these regions (navigator.language region, e.g. 'GB').
   regions?: string[];
@@ -27,6 +34,9 @@ const UK = ['GB', 'IE'];
 export const OBSERVANCES: Observance[] = [
   {
     id: 'bhm',
+    name: 'Black History Month',
+    accent: '#00853f',
+    onAccent: '#ffffff',
     label: 'Celebrating Black History Month',
     from: [2, 1],
     to: [2, 29],
@@ -38,6 +48,9 @@ export const OBSERVANCES: Observance[] = [
   {
     // The UK and Ireland mark Black History Month in October.
     id: 'bhm-uk',
+    name: 'Black History Month',
+    accent: '#00853f',
+    onAccent: '#ffffff',
     label: 'Celebrating Black History Month',
     from: [10, 1],
     to: [10, 31],
@@ -47,6 +60,9 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'whm',
+    name: 'Women’s History Month',
+    accent: '#5b2a86',
+    onAccent: '#ffffff',
     label: 'Celebrating Women’s History Month',
     from: [3, 1],
     to: [3, 31],
@@ -56,6 +72,9 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'aanhpi',
+    name: 'Asian American, Native Hawaiian & Pacific Islander Heritage Month',
+    accent: '#a87d22',
+    onAccent: '#1b1200',
     colors: GOLD,
     cap: '#d4a33a',
     label:
@@ -66,7 +85,11 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'pride',
+    name: 'Pride Month',
+    accent: '#732982',
+    onAccent: '#ffffff',
     label: 'Celebrating Pride Month',
+    href: 'https://www.loc.gov/lgbt-pride-month/',
     from: [6, 1],
     to: [6, 30],
     colors: ['#e40303', '#ff8c00', '#ffed00', '#008026', '#24408e', '#732982'],
@@ -74,7 +97,11 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'juneteenth',
+    name: 'Juneteenth',
+    accent: '#002868',
+    onAccent: '#ffffff',
     label: 'Celebrating Juneteenth',
+    href: 'https://nmaahc.si.edu/juneteenth',
     from: [6, 19],
     to: [6, 19],
     colors: ['#bf0a30', '#f2f2f2', '#002868', '#f2f2f2', '#bf0a30'],
@@ -82,6 +109,9 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'disability',
+    name: 'Disability Pride Month',
+    accent: '#1f6f8b',
+    onAccent: '#ffffff',
     label: 'Celebrating Disability Pride Month',
     from: [7, 1],
     to: [7, 31],
@@ -90,15 +120,21 @@ export const OBSERVANCES: Observance[] = [
   },
   {
     id: 'hhm',
+    name: 'Hispanic Heritage Month',
+    accent: '#a87d22',
+    onAccent: '#1b1200',
     colors: GOLD,
     cap: '#d4a33a',
-    label: 'Celebrating Hispanic & Latine Heritage Month',
+    label: 'Celebrating Hispanic Heritage Month',
     from: [9, 15],
     to: [10, 15],
     href: 'https://www.hispanicheritagemonth.gov',
   },
   {
     id: 'nahm',
+    name: 'Native American Heritage Month',
+    accent: '#a87d22',
+    onAccent: '#1b1200',
     colors: GOLD,
     cap: '#d4a33a',
     label: 'Celebrating Native American Heritage Month',

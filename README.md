@@ -53,7 +53,7 @@ The console comes in **Studio Day** and **Studio Night** finishes, with
 synthesized switch clicks, knob detents, a channel-open chime, and needle VU
 meters that follow the music. The nameplate logo celebrates inclusive
 observances (Black History Month, Women's History Month, AANHPI Heritage Month,
-Pride, Juneteenth, Disability Pride Month, Hispanic & Latine Heritage Month,
+Pride, Juneteenth, Disability Pride Month, Hispanic Heritage Month,
 Native American Heritage Month) by the player's local date — see
 [`src/theme/observances.ts`](./src/theme/observances.ts); preview any with
 `?theme=<id>`.

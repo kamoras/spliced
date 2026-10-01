@@ -6,30 +6,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { subscribeLevel, prefersReducedMotion } from '../audio/meter.js';
-import { observanceFor, userRegion } from '../theme/observances.js';
+import type { Observance } from '../theme/observances.js';
 
-const themeOverride = () => {
-  try {
-    return new URLSearchParams(location.search).get('theme');
-  } catch {
-    return null;
-  }
-};
-
-export default function Logo() {
-  const [obs, setObs] = useState(() =>
-    observanceFor(new Date(), themeOverride(), userRegion())
-  );
+export default function Logo({ obs }: { obs: Observance | null }) {
   const [spliced, setSpliced] = useState(false);
   const ledsRef = useRef<HTMLSpanElement | null>(null);
-
-  // Local date can roll over while the tab is open; re-check on focus.
-  useEffect(() => {
-    const check = () =>
-      setObs(observanceFor(new Date(), themeOverride(), userRegion()));
-    window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
-  }, []);
 
   // A win snaps the fader cap to the top.
   useEffect(() => {
