@@ -30,19 +30,31 @@ import { track as trackEvent } from '../analytics.js';
 
 type Status = 'loading' | 'ready' | 'error';
 
-// Read (once) a ghost from ?g=…&n=… and clean the URL. Without one, fall back
-// to the ghost saved from an earlier visit today (a reload mid-race).
-function readGhostParam(): {
+interface GhostParam {
   ghost: Ghost;
   name: string;
+  code: string;
   saved?: boolean;
-} | null {
+}
+
+// Read (once per page load, even under React's dev double render) a ghost
+// from ?g=…&n=… and clean the URL. Without one, fall back to the ghost saved
+// from an earlier visit (a reload mid-race).
+let ghostParamCache: GhostParam | null | undefined;
+function readGhostParam(): GhostParam | null {
+  if (ghostParamCache === undefined) ghostParamCache = parseGhostParam();
+  return ghostParamCache;
+}
+
+function parseGhostParam(): GhostParam | null {
   if (typeof location === 'undefined') return null;
   const params = new URLSearchParams(location.search);
   if (!params.has('g')) {
     const saved = getGhost();
     const ghost = decodeGhost(saved?.code);
-    return saved && ghost ? { ghost, name: saved.name, saved: true } : null;
+    return saved && ghost
+      ? { ghost, name: saved.name, code: saved.code, saved: true }
+      : null;
   }
   const code = params.get('g');
   const ghost = decodeGhost(code);
@@ -52,8 +64,7 @@ function readGhostParam(): {
     (params.get('n') || 'A friend')
       .replace(/[^\p{L}\p{N} '._-]/gu, '')
       .slice(0, 16) || 'A friend';
-  saveGhost({ code, name });
-  return { ghost, name };
+  return { ghost, name, code };
 }
 
 export default function DailyGame({
@@ -124,6 +135,8 @@ export default function DailyGame({
               `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle}. Here’s today’s mix instead.`
             );
         } else if (!start || start.status === 'playing') {
+          // Only today's ghost is kept, so a stale link can't replace it.
+          saveGhost({ code: ghostParam.code, name: ghostParam.name });
           setGhost(ghostParam);
         } else {
           if (!ghostParam.saved) {

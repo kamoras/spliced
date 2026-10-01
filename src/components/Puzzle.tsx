@@ -384,14 +384,11 @@ export default function Puzzle({
       const next = g.attempts[ghostIdx.current];
       if (next && (next.atMs ?? 0) <= now) {
         ghostIdx.current++;
-        const locks = g.attempts
-          .slice(0, ghostIdx.current)
-          .filter((a) => a.solved || a.era).length;
         setMessage(
           next.solved
-            ? `👻 ${ghost.name} locked a song (${locks}/${def.tracks.length}).`
+            ? `👻 ${ghost.name} locked a song.`
             : next.era
-              ? `👻 ${ghost.name} locked a song in the wrong year (${locks}/${def.tracks.length}).`
+              ? `👻 ${ghost.name} locked a song in the wrong year.`
               : `👻 ${ghost.name} slipped up!`
         );
       } else if (!next && g.won && now > g.elapsedMs && ghostIdx.current >= 0) {
@@ -655,7 +652,8 @@ export default function Puzzle({
           cue('slide');
           // Keep anything that changed during the splice (a quiz answer,
           // a listen) instead of overwriting it with the pre-splice state.
-          focusSong.current = trackId;
+          // A win hands focus to the results instead.
+          if (!outcome.won) focusSong.current = trackId;
           setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
           if (outcome.won) celebrate(next);
           else playSong(trackId, 0.15);
