@@ -92,7 +92,8 @@ export function onsetEnvelope(x: Float32Array): Float32Array {
   const N = 1024;
   const n = Math.max(0, Math.floor((x.length - N) / HOP));
   const win = new Float64Array(N);
-  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+  for (let i = 0; i < N; i++)
+    win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
   const bins = N / 2;
   // Up to ~8 kHz; most rhythmic energy lives below.
   const maxBin = Math.floor((8000 / SR) * N);
@@ -175,7 +176,8 @@ export function analyse(x: Float32Array): BeatInfo {
   const ac = new Float64Array(4 * maxLag + 4);
   for (let lag = 1; lag < ac.length && lag < n; lag++) {
     let s = 0;
-    for (let i = 0; i + lag < n; i++) s += (env[i] - mean) * (env[i + lag] - mean);
+    for (let i = 0; i + lag < n; i++)
+      s += (env[i] - mean) * (env[i + lag] - mean);
     ac[lag] = s / (n - lag);
   }
   let bestLag = minLag;
