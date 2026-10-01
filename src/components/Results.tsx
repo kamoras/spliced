@@ -53,7 +53,14 @@ export default function Results({
   onNewMix,
 }: ResultsProps) {
   const daily = typeof puzzleNumber === 'number';
-  const { title: head, sub } = headline(state);
+  const { title: head, sub: dailySub } = headline(state);
+  // "Back tomorrow" only fits the official daily.
+  const sub =
+    state.status === 'lost' && !daily
+      ? onNewMix
+        ? 'Here’s what you were hearing. Spin up a new mix!'
+        : 'Here’s what you were hearing.'
+      : dailySub;
   const won = state.status === 'won';
   const [name, setName] = useState(() => getPrefs().name ?? '');
   const [copied, setCopied] = useState(false);

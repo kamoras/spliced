@@ -63,7 +63,15 @@ export default function Modal({
     return () => {
       document.removeEventListener('keydown', onKey);
       others.forEach((el) => el.removeAttribute('inert'));
-      opener?.focus?.();
+      // Opened on page load (first-visit help), there's no opener to return
+      // to: hand focus to the board instead of <body>.
+      if (opener && opener !== document.body && opener.isConnected) {
+        opener.focus?.();
+      } else {
+        document
+          .querySelector<HTMLElement>('#main .tile-face')
+          ?.focus({ preventScroll: true });
+      }
     };
   }, []);
 

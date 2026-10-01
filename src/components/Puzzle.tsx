@@ -116,6 +116,13 @@ export function puzzleDef(
   };
 }
 
+// Set by a control that removes itself (Replay, New mix, a mode switch) so
+// the next board takes keyboard focus instead of leaving it on <body>.
+let focusNextBoard = false;
+export function requestBoardFocus(): void {
+  focusNextBoard = true;
+}
+
 export default function Puzzle({
   tracks,
   clipsPerTrack,
@@ -348,6 +355,15 @@ export default function Puzzle({
   }, [cued]);
 
   const boardRef = useRef<HTMLOListElement | null>(null);
+  useEffect(() => {
+    if (!focusNextBoard) return;
+    focusNextBoard = false;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    boardRef.current
+      ?.querySelector<HTMLElement>('.tile-face')
+      ?.focus({ preventScroll: true });
+  }, []);
   // When a strip turns into a song card (or a quiz closes), the focused
   // button disappears: move focus to that song's card instead of <body>.
   const focusSong = useRef<string | null>(null);

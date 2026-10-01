@@ -3,7 +3,7 @@
 // the result, stats, and crate when you finish.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Puzzle, { puzzleDef } from './Puzzle.jsx';
+import Puzzle, { puzzleDef, requestBoardFocus } from './Puzzle.jsx';
 import Results from './Results.jsx';
 import Loading from './Loading.jsx';
 import { DAILY_CLIPS_PER_TRACK, DAILY_TRACKS } from '../../api/_songs.js';
@@ -240,6 +240,7 @@ export default function DailyGame({
             ghost={replay ? null : ghost}
             onPractice={onPractice}
             onReplay={() => {
+              requestBoardFocus();
               setReplay((n) => n + 1);
               setLive(null);
             }}

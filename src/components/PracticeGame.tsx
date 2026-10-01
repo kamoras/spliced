@@ -2,7 +2,7 @@
 // No stats, no streak — just more mixes.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Puzzle, { puzzleDef } from './Puzzle.jsx';
+import Puzzle, { puzzleDef, requestBoardFocus } from './Puzzle.jsx';
 import Results from './Results.jsx';
 import Loading from './Loading.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
@@ -43,7 +43,7 @@ export default function PracticeGame({
   const [live, setLive] = useState<GameState | null>(null);
   const requestRef = useRef(0);
 
-  const start = useCallback(async (lvl: Level) => {
+  const start = useCallback(async (lvl: Level, focusBoard = false) => {
     const requestId = ++requestRef.current;
     setError(null);
     setLive(null);
@@ -58,6 +58,7 @@ export default function PracticeGame({
         onProgress: (n) => requestId === requestRef.current && setLoaded(n),
       });
       if (requestId !== requestRef.current) return;
+      if (focusBoard) requestBoardFocus();
       setGame({ tracks, level: lvl, n: requestId });
       setPhase('play');
     } catch (err) {
@@ -90,8 +91,9 @@ export default function PracticeGame({
             type="button"
             aria-pressed={level.id === l.id}
             className={`level${level.id === l.id ? ' is-on' : ''}`}
-            onClick={() => pick(l)}
-            disabled={phase === 'loading'}
+            // aria-disabled (not disabled) so the pressed button keeps focus.
+            onClick={() => phase !== 'loading' && pick(l)}
+            aria-disabled={phase === 'loading'}
           >
             <strong>{l.label}</strong>
             <span>
@@ -128,7 +130,7 @@ export default function PracticeGame({
               state={live}
               def={def}
               title={`Spliced Practice (${game.level.label})`}
-              onNewMix={() => start(level)}
+              onNewMix={() => start(level, true)}
             />
           )}
           <Puzzle

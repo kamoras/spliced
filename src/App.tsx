@@ -7,6 +7,7 @@ import Modal from './components/Modal.jsx';
 import Stats from './components/Stats.jsx';
 import Crate from './components/Crate.jsx';
 import { Countdown } from './components/Results.jsx';
+import { requestBoardFocus } from './components/Puzzle.jsx';
 import Icon from './components/Icon.jsx';
 import Logo from './components/Logo.jsx';
 import { useObservance } from './theme/useObservance.js';
@@ -149,14 +150,20 @@ export default function App() {
       <main id="main">
         {mode === 'daily' ? (
           <DailyGame
-            onPractice={() => setMode('practice')}
+            onPractice={() => {
+              requestBoardFocus();
+              setMode('practice');
+            }}
             sfx={prefs.sfx}
             volume={prefs.muted ? 0 : prefs.volume}
             paused={sheet != null}
           />
         ) : (
           <PracticeGame
-            onDaily={() => setMode('daily')}
+            onDaily={() => {
+              requestBoardFocus();
+              setMode('daily');
+            }}
             sfx={prefs.sfx}
             volume={prefs.muted ? 0 : prefs.volume}
             paused={sheet != null}
