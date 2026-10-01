@@ -26,7 +26,7 @@ npm run build       # production build
 npm run format      # Prettier (auto-format)
 ```
 
-CI runs `lint`, `test`, and `build` on Node 18 and 20 for every pull request.
+CI runs `format:check`, `typecheck`, `lint`, `test`, and `build` on Node 22 and 24 for every pull request.
 
 ## Guidelines
 

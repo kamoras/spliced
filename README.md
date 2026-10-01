@@ -15,7 +15,7 @@ flips at UTC midnight), so times and scores are shareable.
     <img alt="CI" src="https://github.com/kamoras/spliced/actions/workflows/ci.yml/badge.svg" />
   </a>
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
-  <img alt="Node >= 20.19" src="https://img.shields.io/badge/node-%3E%3D20.19-339933.svg" />
+  <img alt="Node 22.22+ or 24.15+" src="https://img.shields.io/badge/node-22.22%2B%20%7C%2024.15%2B-339933.svg" />
 </p>
 
 <p align="center">
