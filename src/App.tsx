@@ -9,6 +9,8 @@ import Crate from './components/Crate.jsx';
 import { Countdown } from './components/Results.jsx';
 import Icon from './components/Icon.jsx';
 import Logo from './components/Logo.jsx';
+import { getSfx } from './audio/sfx.js';
+import { getAudioContext } from './audio/slicer.js';
 import SoundControl from './components/SoundControl.jsx';
 import {
   getPrefs,
@@ -32,9 +34,20 @@ export default function App() {
   );
   const streak = liveStreak(todayNumber());
 
+  // The console's power-on thunk: on the first "Let's play" (a user gesture,
+  // so audio is allowed) and whenever sound is switched back on.
+  function powerOn(p = prefs) {
+    if (p.sfx && !p.muted) {
+      const fx = getSfx(getAudioContext());
+      fx.setVolume(p.volume);
+      fx.play('thunk');
+    }
+  }
+
   function closeSheet() {
     if (sheet === 'help' && !prefs.seenHelp) {
       setPrefsState(setPrefs({ seenHelp: true }));
+      powerOn();
     }
     setSheet(null);
   }
@@ -75,7 +88,16 @@ export default function App() {
           </button>
           <SoundControl
             prefs={prefs}
-            onChange={(patch) => setPrefsState(setPrefs(patch))}
+            onChange={(patch) => {
+              const next = setPrefs(patch);
+              if (
+                (patch.muted === false && prefs.muted) ||
+                (patch.sfx === true && !prefs.sfx)
+              ) {
+                powerOn(next);
+              }
+              setPrefsState(next);
+            }}
           />
           <button
             type="button"

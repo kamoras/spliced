@@ -33,8 +33,9 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="How to play" onClose={onClose} className="howto">
       <p className="howto-lede">
-        Four mystery songs were cut into clips and shuffled together. Rebuild
-        every song — one per track, in order.
+        Four mystery songs were cut into clips and shuffled across the mixing
+        desk. Each channel belongs to one song — its tape shows the year it came
+        out. Rebuild every song on its channel, in order.
       </p>
       <ol className="howto-steps">
         <li>
@@ -59,8 +60,9 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <strong>Listen for the seams.</strong> Clips were cut back-to-back,
-            so the right neighbours flow seamlessly. Tap the ⌇ between two clips
-            to hear their join, or ▶ Play to hear the whole track — free.
+            so the right neighbours flow seamlessly. Turn the knob between two
+            clips to hear their join, or press PLAY to hear the whole channel.
+            Replays are always free.
           </div>
         </li>
         <li>
@@ -70,15 +72,18 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
             <Mini letter="M" />
           </div>
           <div>
-            <strong>Lock in a track.</strong> <Icon name="check" /> right song,
+            <strong>LOCK a channel.</strong> <Icon name="check" /> right song,
             right slot · <Icon name="shuffle" /> right song, wrong slot · blank:
-            another song. A wrong lock-in costs one of <b>4 mistakes</b>.
+            another song. A wrong lock-in lights one of <b>4 PEAK lamps</b> —
+            light them all and the tape jams.
           </div>
         </li>
       </ol>
       <p className="howto-bonus">
-        🎵 Name each song you lock for a bonus, then share your mix — friends
-        who open your link race your ghost.
+        Tap two year tapes to swap those channels. Fewer <b>takes</b> (new seams
+        and plays you try, plus lock-ins) beats par. 🎵 Name each song you lock
+        for a bonus, then share your mix — friends who open your link race your
+        ghost.
       </p>
       <button
         type="button"
