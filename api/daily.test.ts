@@ -173,6 +173,17 @@ describe('catalog', () => {
   });
 });
 
+describe('catalog metadata', () => {
+  it('gives nearly every song a plausible release year and a genre', () => {
+    const withYear = catalog.filter(
+      (c) =>
+        c.year && c.year >= 1900 && c.year <= new Date().getUTCFullYear() + 1
+    );
+    expect(withYear.length / catalog.length).toBeGreaterThan(0.95);
+    expect(catalog.every((c) => typeof c.genre === 'string')).toBe(true);
+  });
+});
+
 describe('pickMatch', () => {
   const song = { title: 'Africa', artist: 'Toto' };
 

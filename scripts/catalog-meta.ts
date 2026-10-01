@@ -74,7 +74,8 @@ async function earliestYear(entry: CatalogEntry): Promise<number> {
 
 export async function enrich(
   catalog: CatalogEntry[],
-  overrides: Record<string, number> = {}
+  overrides: Record<string, number> = {},
+  { search = true }: { search?: boolean } = {}
 ): Promise<CatalogEntry[]> {
   const byId = new Map<number, MetaResult>();
   for (let i = 0; i < catalog.length; i += 150) {
@@ -95,10 +96,11 @@ export async function enrich(
       !meta ||
       COMPILATION.test(meta.collectionName ?? '') ||
       COMPILATION.test(meta.trackName ?? '');
-    if (suspicious) {
+    if (suspicious && search) {
       try {
         const found = await earliestYear(entry);
         searched++;
+        if (searched % 25 === 0) console.log(`searched ${searched}…`);
         if (Number.isFinite(found)) {
           year = Number.isFinite(year) ? Math.min(year, found) : found;
         }
@@ -127,13 +129,19 @@ async function main() {
   );
   const catalog = JSON.parse(await readFile(file, 'utf8')) as CatalogEntry[];
   const overrides = JSON.parse(await readFile(overridesFile, 'utf8'));
-  const enriched = await enrich(catalog, overrides);
+  // --fast: lookup data only (seconds); default also searches for original
+  // release years of remasters/compilations (rate-limited, can take an hour).
+  const enriched = await enrich(catalog, overrides, {
+    search: !process.argv.includes('--fast'),
+  });
   const missing = enriched.filter((e) => !e.year).length;
   if (missing) console.warn(`${missing} songs still have no year`);
   await writeFile(file, `${JSON.stringify(enriched, null, 2)}\n`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Run main() only when executed directly (tsx scripts/catalog-meta.ts), not
+// when imported by build-catalog.ts.
+if (/catalog-meta\.ts$/.test(process.argv[1] ?? '')) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);
