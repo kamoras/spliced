@@ -16,6 +16,8 @@ export interface Attempt {
   atMs?: number;
   // Which row was locked in (drives the consolation genre clue).
   row?: number;
+  // A whole song locked on the wrong year's row (it moved home).
+  era?: boolean;
 }
 
 export interface GameState {
@@ -77,7 +79,10 @@ export interface GradedOutcome {
 export type SubmitOutcome =
   { kind: 'ignored' } | { kind: 'repeat'; marks: Mark[] } | GradedOutcome;
 
-export const rowKey = (ids: string[]): string => ids.join('|');
+// Tried arrangements are per row: the same clips grade differently on a
+// different channel (each row has its own song).
+export const rowKey = (row: number, ids: string[]): string =>
+  `${row}:${ids.join('|')}`;
 
 function pieceMap(def: PuzzleDef): Map<string, EnginePiece> {
   const map = new Map<string, EnginePiece>();
@@ -223,7 +228,7 @@ export function submitRow(
   const rowIds = state.order.slice(rowIndex * cpt, rowIndex * cpt + cpt);
   if (rowIds.length !== cpt) return { state, outcome: { kind: 'ignored' } };
 
-  const key = rowKey(rowIds);
+  const key = rowKey(rowIndex, rowIds);
   if (state.tried[key]) {
     return { state, outcome: { kind: 'repeat', marks: state.tried[key] } };
   }
@@ -269,7 +274,13 @@ export function submitRow(
   if (other && otherRow >= 0 && !state.solved.includes(other)) {
     // Right song, wrong year: move it home and lock it.
     next = swapRows(next, def, rowIndex, otherRow);
-    next = { ...next, solved: [...next.solved, other] };
+    next = {
+      ...next,
+      solved: [...next.solved, other],
+      attempts: next.attempts.map((a, i) =>
+        i === next.attempts.length - 1 ? { ...a, era: true } : a
+      ),
+    };
     kind = 'wrongEra';
     outcomeTrack = other;
   }
@@ -325,6 +336,8 @@ export function isValidState(state: unknown, def: PuzzleDef): boolean {
   if (!Array.isArray(s.attempts) || typeof s.mistakes !== 'number')
     return false;
   if (!s.tried || typeof s.tried !== 'object') return false;
+  if (s.heard != null && !Array.isArray(s.heard)) return false;
+  if (s.named != null && typeof s.named !== 'object') return false;
   if (s.status !== 'playing' && s.status !== 'won' && s.status !== 'lost') {
     return false;
   }
@@ -427,10 +440,10 @@ export function parFor(def: PuzzleDef): number {
   return def.tracks.length * (def.clipsPerTrack + 3);
 }
 
-// Golf-style: "−6", "E" (even), "+3".
+// Golf-style, in words: "6 under par", "even par", "3 over par".
 export function relToPar(takes: number, par: number): string {
   const d = takes - par;
-  return d === 0 ? 'E' : d < 0 ? `−${-d}` : `+${d}`;
+  return d === 0 ? 'even par' : d < 0 ? `${-d} under par` : `${d} over par`;
 }
 
 // ---- Ghost race -------------------------------------------------------------
@@ -540,7 +553,12 @@ export function shareText(
     : `X/${def.maxGuesses}`;
   const time =
     won && state.elapsedMs ? ` · ⏱ ${formatDuration(state.elapsedMs)}` : '';
-  const grid = state.attempts.map((a) => a.marks.map((m) => EMOJI[m]).join(''));
+  // A right-song-wrong-year lock shows as 🟦 (the song still locked).
+  const grid = state.attempts.map((a) =>
+    a.era
+      ? a.marks.map(() => '🟦').join('')
+      : a.marks.map((m) => EMOJI[m]).join('')
+  );
   // Name-that-tune line: one note per song you locked, 🎵 if you named it.
   const tunes = state.solved
     .map((id) => (state.named?.[id] ? '🎵' : '🔇'))
@@ -558,6 +576,10 @@ export function shareText(
 }
 
 // Re-grade an arbitrary row (for lighting marks on the board).
-export function triedMarks(state: GameState, rowIds: string[]): Mark[] | null {
-  return state.tried[rowKey(rowIds)] ?? null;
+export function triedMarks(
+  state: GameState,
+  row: number,
+  rowIds: string[]
+): Mark[] | null {
+  return state.tried[rowKey(row, rowIds)] ?? null;
 }

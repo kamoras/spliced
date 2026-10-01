@@ -164,6 +164,31 @@ describe('submitRow', () => {
     expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't1-1', 't0-2']);
   });
 
+  it('re-grades the same clips on a different row (tried is per row)', () => {
+    const s = boardState([
+      't1-0', 't0-1', 't0-0',
+      't0-2', 't1-1', 't2-1',
+      't2-0', 't1-2', 't2-2',
+    ]); // prettier-ignore
+    const first = submitRow(s, def, 0).state;
+    const swapped = swapRows(first, def, 0, 1);
+    expect(submitRow(swapped, def, 1).outcome.kind).toBe('wrong');
+    // …but re-checking the very same row is still free.
+    expect(submitRow(first, def, 0).outcome.kind).toBe('repeat');
+  });
+
+  it('marks a wrong-year lock so the share grid can show it', () => {
+    const s = boardState([
+      't2-0', 't2-1', 't2-2',
+      't1-0', 't0-1', 't1-2',
+      't0-0', 't1-1', 't0-2',
+    ]); // prettier-ignore
+    const { state } = submitRow(s, def, 0);
+    expect(state.attempts.at(-1)).toMatchObject({ era: true, row: 0 });
+    const won = { ...state, status: 'won' as const };
+    expect(shareText('S', won, def).split('\n')).toContain('🟦🟦🟦');
+  });
+
   it('reveals every song when the last mistake is spent', () => {
     let s = boardState([
       't0-1', 't0-0', 't1-0',
@@ -302,7 +327,7 @@ describe('shareText', () => {
       ],
     };
     expect(shareText('Spliced #12', s, def, 'https://x.test')).toBe(
-      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 4 takes (−8)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
+      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 4 takes (8 under par)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
     );
   });
 
@@ -405,16 +430,16 @@ describe('takes + par', () => {
   it('sets par from the board size and shows it in the share', () => {
     const def = makeDef(4, 4, 4);
     expect(parFor(def)).toBe(28);
-    expect(relToPar(22, 28)).toBe('−6');
-    expect(relToPar(28, 28)).toBe('E');
-    expect(relToPar(30, 28)).toBe('+2');
+    expect(relToPar(22, 28)).toBe('6 under par');
+    expect(relToPar(28, 28)).toBe('even par');
+    expect(relToPar(30, 28)).toBe('2 over par');
     const s: GameState = {
       ...boardState([]),
       status: 'won',
       heard: ['s:a>b', 'r:a,b'],
     };
     expect(shareText('S', s, def).split('\n')[0]).toBe(
-      'S · Perfect mix 🎚️ · 🎧 2 takes (−26)'
+      'S · Perfect mix 🎚️ · 🎧 2 takes (26 under par)'
     );
   });
 });

@@ -91,9 +91,9 @@ export default function SongCard({
           </span>
           <span className="tape-wrap song-tape-wrap">
             <span className="tape song-tape">
-              {label && <span className="tape-year">{label}</span>}
+              {label && <span className="tape-year">{label} ·</span>}
               <span className="song-title">
-                {quiz ? 'Name that tune?' : title}
+                {quiz ? 'Name that tune' : title}
               </span>
             </span>
             {!quiz && artist && <span className="song-artist">{artist}</span>}

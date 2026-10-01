@@ -19,11 +19,27 @@ const current = () => observanceFor(new Date(), override(), userRegion());
 export function useObservance(): Observance | null {
   const [obs, setObs] = useState(current);
 
-  // The local date can roll over while the tab is open; re-check on focus.
+  // The local date can roll over while the tab is open: re-check on focus,
+  // when the tab becomes visible, and at the next local midnight.
   useEffect(() => {
     const check = () => setObs(current());
+    const now = new Date();
+    const midnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0,
+      0,
+      5
+    );
+    const timer = setTimeout(check, midnight.getTime() - now.getTime());
     window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
   }, []);
 
   useEffect(() => {
@@ -34,6 +50,10 @@ export function useObservance(): Observance | null {
       root.removeAttribute('data-obs');
     } else {
       root.setAttribute('data-obs', obs.id);
+      // Pride's rainbow letters hold all June, even when a shorter
+      // observance (Juneteenth) takes over the other colours.
+      if (obs.alsoPride) root.setAttribute('data-pride', '');
+      else root.removeAttribute('data-pride');
       const stops = colors
         .map((c, i) => {
           const a = (i / colors.length) * 100;
@@ -51,6 +71,7 @@ export function useObservance(): Observance | null {
     }
     return () => {
       root.removeAttribute('data-obs');
+      root.removeAttribute('data-pride');
       [...vars, ...colors.map((_, i) => `--obs-${i + 1}`)].forEach((v) =>
         root.style.removeProperty(v)
       );

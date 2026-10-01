@@ -253,7 +253,6 @@ export default function Puzzle({
   const [booting, setBooting] = useState(() => {
     try {
       if (sessionStorage.getItem('spliced:booted')) return false;
-      sessionStorage.setItem('spliced:booted', '1');
     } catch {
       /* storage unavailable */
     }
@@ -261,9 +260,21 @@ export default function Puzzle({
   });
   useEffect(() => {
     if (!booting) return undefined;
+    try {
+      sessionStorage.setItem('spliced:booted', '1');
+    } catch {
+      /* storage unavailable */
+    }
     const id = setTimeout(() => setBooting(false), 1300);
     return () => clearTimeout(id);
   }, [booting]);
+  // A fresh board: let the logo's fader cap drop back down.
+  useEffect(() => {
+    if (!initialState || initialState.status === 'playing') {
+      window.dispatchEvent(new Event('spliced:new'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [chase, setChase] = useState(false);
 
   const [playing, setPlaying] = useState<Playing>(null);
@@ -743,7 +754,7 @@ export default function Puzzle({
                   </li>
                 );
               }
-              const tried = triedMarks(state, ids);
+              const tried = triedMarks(state, r, ids);
               const marks: Mark[] | null =
                 splicing === r ? ids.map(() => 'correct') : tried;
               const rowPlaying = playing?.kind === 'row' && playing.row === r;

@@ -12,11 +12,16 @@ export default function Logo({ obs }: { obs: Observance | null }) {
   const [spliced, setSpliced] = useState(false);
   const ledsRef = useRef<HTMLSpanElement | null>(null);
 
-  // A win snaps the fader cap to the top.
+  // A win snaps the fader cap to the top; a new game pulls it back down.
   useEffect(() => {
     const onWin = () => setSpliced(true);
+    const onNew = () => setSpliced(false);
     window.addEventListener('spliced:win', onWin);
-    return () => window.removeEventListener('spliced:win', onWin);
+    window.addEventListener('spliced:new', onNew);
+    return () => {
+      window.removeEventListener('spliced:win', onWin);
+      window.removeEventListener('spliced:new', onNew);
+    };
   }, []);
 
   useEffect(() => {
@@ -25,7 +30,10 @@ export default function Logo({ obs }: { obs: Observance | null }) {
     return subscribeLevel((v) => el.style.setProperty('--vu', v.toFixed(3)));
   }, []);
 
-  const colors = obs?.colors ?? Array.from({ length: 7 }, () => null);
+  // Always 7 LEDs (so the header never shifts); themes cycle their colours.
+  const colors = Array.from({ length: 7 }, (_, i) =>
+    obs?.colors?.length ? obs.colors[i % obs.colors.length] : null
+  );
   return (
     <h1
       className={`logo${spliced ? ' is-spliced' : ''}${obs ? ' has-obs' : ''}`}

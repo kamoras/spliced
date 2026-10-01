@@ -19,7 +19,19 @@ function tick() {
   level += (target - level) * (target > level ? 0.3 : 0.06);
   if (level < 0.002) level = 0;
   listeners.forEach((fn) => fn(level));
+  // Idle when silent (saves battery); kickMeter() restarts on playback.
+  if (target === 0 && level === 0) {
+    raf = 0;
+    return;
+  }
   raf = requestAnimationFrame(tick);
+}
+
+// Wake the loop (call when audio starts).
+export function kickMeter(): void {
+  if (!raf && listeners.size && typeof requestAnimationFrame !== 'undefined') {
+    raf = requestAnimationFrame(tick);
+  }
 }
 
 export function subscribeLevel(fn: Listener): () => void {

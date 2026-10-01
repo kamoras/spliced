@@ -24,6 +24,8 @@ export interface Observance {
   // Only / never in these regions (navigator.language region, e.g. 'GB').
   regions?: string[];
   notRegions?: string[];
+  // Set on the result when Pride is also active (keeps the rainbow letters).
+  alsoPride?: boolean;
 }
 
 // A neutral "commemorative" gold for observances without one widely
@@ -171,18 +173,30 @@ export function observanceFor(
   table: Observance[] = OBSERVANCES
 ): Observance | null {
   if (override === 'none') return null;
-  if (override) return table.find((o) => o.id === override) ?? null;
+  if (override) {
+    const o = table.find((x) => x.id === override);
+    return o ? { ...o, alsoPride: o.id === 'pride' } : null;
+  }
   const k = key(date.getMonth() + 1, date.getDate());
-  return (
-    table
-      .filter(
-        (o) =>
-          inRange(o, k) &&
-          (!o.regions || o.regions.includes(region)) &&
-          !o.notRegions?.includes(region)
-      )
-      .sort((x, y) => span(x) - span(y))[0] ?? null
-  );
+  const active = table
+    .filter(
+      (o) =>
+        inRange(o, k) &&
+        (!o.regions || o.regions.includes(region)) &&
+        !o.notRegions?.includes(region)
+    )
+    .sort((x, y) => span(x) - span(y));
+  const top = active[0];
+  if (!top) return null;
+  if (top.id === 'pride') return { ...top, alsoPride: true };
+  const pride = active.find((o) => o.id === 'pride');
+  return pride
+    ? {
+        ...top,
+        alsoPride: true,
+        label: `${top.label} and ${pride.label.replace(/^Celebrating /, '')}`,
+      }
+    : top;
 }
 
 // The player's region from their language setting ("en-GB" -> "GB").

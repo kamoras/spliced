@@ -73,7 +73,7 @@
   --vu-ink: #3a2f1a;
   --disp-bg: #a9b89a;
   --disp-on: #1d2a22;
-  --disp-ghost: rgba(29, 42, 34, 0.09);
+  --disp-ghost: rgba(29, 42, 34, 0.05);
   --disp-glow: none;
   --silk-font:
     'Eurostile', 'Microgramma D Extended', 'Bank Gothic', 'DIN Alternate',
@@ -460,9 +460,11 @@ button {
 }
 .logo-slot {
   position: relative;
-  width: 6px;
-  height: 1.05em;
-  margin: 0 0.42em 0 0.3em;
+  display: inline-block;
+  width: 0.2em;
+  height: 1.1em;
+  margin: 0 0.2em 0 0.05em;
+  vertical-align: -0.1em;
   border-radius: 3px;
   background: #0a0b0c;
   box-shadow:
@@ -472,10 +474,10 @@ button {
 .logo-cap {
   position: absolute;
   left: 50%;
-  top: var(--cap-y, 58%);
-  width: 13px;
-  height: 8px;
-  border-radius: 2px;
+  top: var(--cap-y, 78%);
+  width: 0.62em;
+  height: 0.2em;
+  border-radius: 0.04em;
   transform: translate(-50%, -50%);
   transition: top 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
   background: linear-gradient(
@@ -498,10 +500,10 @@ button {
   background: var(--cap-line, #d8432f);
 }
 .logo:hover .logo-cap {
-  --cap-y: 30%;
+  --cap-y: 50%;
 }
 .logo.is-spliced .logo-cap {
-  --cap-y: 16%;
+  --cap-y: 34%;
 }
 .logo-leds {
   display: flex;
@@ -1034,8 +1036,18 @@ button {
     box-shadow: none;
   }
 }
-.cbtn--rec:not(.is-armed):not(.is-tried) {
-  filter: saturate(0.55) brightness(0.95);
+.cbtn--rec:not(.is-armed):not(.is-tried),
+:root[data-obs] .cbtn--rec:not(.is-armed):not(.is-tried) {
+  color: var(--cap-ink);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cap) 85%, white),
+    var(--cap)
+  );
+  box-shadow:
+    0 3px 0 var(--cap-edge),
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .cbtn--rec.is-tried {
   color: var(--cap-ink);
@@ -1132,7 +1144,7 @@ button {
 /* The little scope window the waveform lives in. */
 .wave {
   position: absolute;
-  inset: 19px 5px 5px;
+  inset: 19px 9px 5px;
   border-radius: 3px;
   color: var(--trace);
   background: var(--window);
@@ -1521,6 +1533,7 @@ button {
   align-self: flex-start;
 }
 .song-tape {
+  max-width: 100%;
   height: 24px;
   font-size: 14px;
   animation: tape-write 0.5s ease-out both;
@@ -2372,7 +2385,7 @@ button {
 }
 
 /* Pride: the nameplate letters themselves go rainbow, as the original mark did. */
-:root[data-obs='pride'] .logo-plate > span:not(.logo-slot) {
+:root[data-pride] .logo-plate > span:not(.logo-slot) {
   background: linear-gradient(
     180deg,
     #ff5a5a 0 18%,
@@ -2400,10 +2413,103 @@ button {
   :root[data-obs] .console {
     border-image: none;
   }
-  :root[data-obs='pride'] .logo-plate > span:not(.logo-slot) {
+  :root[data-pride] .logo-plate > span:not(.logo-slot) {
     background: none;
     color: CanvasText;
     -webkit-text-fill-color: CanvasText;
     filter: none;
+  }
+}
+
+/* Results grid: misses stay visible in both themes; wrong-year locks get their own cell. */
+.attempt-cell.is-miss {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent);
+}
+.attempt-cell.is-era {
+  background: #3f7bff;
+  color: #fff;
+}
+
+/* ---------- results: the Mixdown panel ---------- */
+.results.console {
+  text-align: center;
+  color: var(--silk);
+  border: 0;
+}
+.results-label {
+  justify-self: start;
+  margin: -4px 0 -6px 6px;
+  font: 800 11px/1 var(--silk-font);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--silk);
+}
+.results-vfd {
+  margin: 0;
+  padding: 12px;
+}
+.results-vfd .results-head {
+  position: relative;
+  z-index: 1;
+  font: 800 22px/1.2 var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--disp-on);
+  filter: var(--disp-glow);
+}
+.results-vfd .results-sub {
+  position: relative;
+  z-index: 1;
+  margin: 4px 0 0;
+  font: 600 13px/1.3 var(--mono);
+  color: var(--disp-on);
+  opacity: 0.85;
+}
+.results.is-win .results-head {
+  color: var(--disp-on);
+}
+.results.console .results-score,
+.results.console .countdown,
+.results.console .stats-details summary,
+.results.console .sign {
+  color: var(--silk);
+}
+.results.console .tag {
+  color: var(--silk);
+  background: color-mix(in srgb, var(--silk) 10%, transparent);
+}
+.results-share {
+  justify-content: center;
+  width: 100%;
+  height: 46px;
+  font-size: 13px;
+}
+.results.console .race {
+  background: color-mix(in srgb, var(--silk) 8%, transparent);
+}
+.results.console .stat-cell {
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--groove);
+}
+.results.console .stat-value {
+  font-family: var(--mono);
+}
+
+/* Phones: give locked channels' tapes room for the title. */
+@media (max-width: 520px) {
+  .strip--song .vu {
+    display: none;
+  }
+  .song-tag {
+    padding: 3px 5px;
+  }
+  .song-tag-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }

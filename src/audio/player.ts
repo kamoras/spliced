@@ -1,6 +1,7 @@
 // Plays individual pieces or a full arrangement from a single decoded buffer.
 
 import type { Piece } from '../types.js';
+import { kickMeter } from './meter.js';
 
 const DEFAULT_VOLUME = 0.85;
 
@@ -120,6 +121,8 @@ export class Player {
 
   private async _resume(): Promise<void> {
     if (this.ctx.state === 'suspended') await this.ctx.resume();
+    // Something is about to play: make sure the meters are running.
+    setTimeout(kickMeter, 80);
   }
 
   private _bufferFor(piece: Piece): AudioBuffer | null {

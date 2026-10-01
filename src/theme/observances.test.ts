@@ -26,6 +26,12 @@ describe('observanceFor', () => {
   it('lets the shorter observance win an overlap', () => {
     expect(id(6, 18)).toBe('pride');
     expect(id(6, 19)).toBe('juneteenth');
+    // …but Pride's rainbow letters and name stay on June 19.
+    expect(observanceFor(on(6, 19))).toMatchObject({
+      alsoPride: true,
+      label: 'Celebrating Juneteenth and Pride Month',
+    });
+    expect(observanceFor(on(6, 1))?.alsoPride).toBe(true);
     expect(id(6, 20)).toBe('pride');
   });
 

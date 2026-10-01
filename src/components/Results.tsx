@@ -111,11 +111,16 @@ export default function Results({
 
   return (
     <section
-      className={`results ${won ? 'is-win' : 'is-loss'}`}
+      className={`results console ${won ? 'is-win' : 'is-loss'}`}
       aria-label="Results"
     >
-      <h2 className="results-head">{head}</h2>
-      <p className="results-sub">{sub}</p>
+      <span className="results-label" aria-hidden="true">
+        Mixdown
+      </span>
+      <div className="vfd results-vfd">
+        <h2 className="results-head">{head}</h2>
+        <p className="results-sub">{sub}</p>
+      </div>
 
       <div className="results-score">
         {won && <span>⏱ {formatDuration(state.elapsedMs)}</span>}
@@ -163,8 +168,11 @@ export default function Results({
           {state.attempts.map((a, i) => (
             <div className="attempt-row" key={i}>
               {a.marks.map((m, j) => (
-                <span key={j} className={`attempt-cell is-${m}`}>
-                  {GLYPH[m]}
+                <span
+                  key={j}
+                  className={`attempt-cell is-${a.era ? 'era' : m}`}
+                >
+                  {a.era ? '↪' : GLYPH[m]}
                 </span>
               ))}
             </div>
@@ -174,10 +182,10 @@ export default function Results({
 
       <button
         type="button"
-        className="btn btn--primary btn--wide"
+        className="cbtn cbtn--rec is-armed results-share"
         onClick={share}
       >
-        <Icon name="share" />{' '}
+        <span className="lamp" aria-hidden="true" />
         {copied
           ? 'Copied! Paste it to a friend.'
           : daily
