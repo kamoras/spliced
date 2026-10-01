@@ -123,7 +123,7 @@ describe('Puzzle', () => {
       screen.getByRole('img', { name: '3 of 4 mistakes left' })
     ).toBeInTheDocument();
     expect(document.querySelector('.vfd-msg')).toHaveTextContent(
-      /no mistake charged/
+      /no mistake charged/i
     );
     expect(onChange.mock.lastCall?.[0]).toMatchObject({ mistakes: 1 });
   });

@@ -28,8 +28,66 @@ function devApi(): PluginOption {
   };
 }
 
+// The public site URL, for absolute links (canonical, og:image, sitemap).
+// On Vercel the production domain is provided automatically; set SITE_URL to
+// override (e.g. a custom domain). Without either, links stay root-relative.
+function siteUrl(): string {
+  const explicit = process.env.SITE_URL;
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const url = explicit || (vercel ? `https://${vercel}` : '');
+  return url.replace(/\/+$/, '');
+}
+
+// Fills %SITE_URL% in index.html and emits robots.txt + sitemap.xml.
+function seo(): PluginOption {
+  const url = siteUrl();
+  return {
+    name: 'spliced-seo',
+    transformIndexHtml(html) {
+      return html.replaceAll('%SITE_URL%', url);
+    },
+    generateBundle() {
+      const robots = [
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /api/',
+        url ? `Sitemap: ${url}/sitemap.xml` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      this.emitFile({
+        type: 'asset',
+        fileName: 'robots.txt',
+        source: `${robots}\n`,
+      });
+      if (!url) {
+        this.warn(
+          'SITE_URL not set: skipping sitemap.xml (needs absolute URLs).'
+        );
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${url}/</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+`;
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sitemap.xml',
+        source: sitemap,
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), devApi()],
+  plugins: [react(), devApi(), seo()],
   test: {
     environment: 'jsdom',
     globals: true,
