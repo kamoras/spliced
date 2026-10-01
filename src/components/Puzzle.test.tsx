@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Track } from '../types.js';
+import { newGame, submitRow } from '../game/engine.js';
 
 // No Web Audio in jsdom: stub the player and context.
 vi.mock('../audio/slicer.js', () => ({ getAudioContext: () => ({}) }));
@@ -30,7 +31,7 @@ vi.mock('../audio/player.js', () => ({
   },
 }));
 
-const { default: Puzzle } = await import('./Puzzle.jsx');
+const { default: Puzzle, puzzleDef } = await import('./Puzzle.jsx');
 
 function makeTracks(n = 3, clips = 3): Track[] {
   return Array.from({ length: n }, (_, t) => ({
@@ -131,5 +132,55 @@ describe('Puzzle', () => {
       /no mistake charged/i
     );
     expect(onChange.mock.lastCall?.[0]).toMatchObject({ mistakes: 1 });
+  });
+
+  it('fetches a solved song’s choices, and its title only after a pick', async () => {
+    const tracks = makeTracks().map((t, i) => ({
+      ...t,
+      answer: undefined,
+      choices: undefined,
+      ref: `d0.${i}`,
+    }));
+    const def = puzzleDef(tracks, 3, 4);
+    const fresh = newGame(def, 3);
+    const order = [
+      ...def.tracks[0].pieces.map((p) => p.id),
+      ...fresh.order.filter((id) => !id.startsWith('t0-')),
+    ];
+    const solved = submitRow({ ...fresh, order }, def, 0).state;
+    const fetchMock = vi.fn(async (url: string) => {
+      const part = new URL(url, 'http://x').searchParams.get('part');
+      const body =
+        part === 'choices'
+          ? {
+              choices: [
+                { title: 'Song 0', artist: 'Artist 0' },
+                { title: 'Decoy', artist: 'Someone' },
+              ],
+            }
+          : { title: 'Song 0', artist: 'Artist 0' };
+      return new Response(JSON.stringify(body));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <Puzzle
+        tracks={tracks}
+        clipsPerTrack={3}
+        maxGuesses={4}
+        seed={3}
+        label="Test"
+        initialState={solved}
+      />
+    );
+    const pick = await screen.findByRole('button', { name: /Song 0/ });
+    const parts = () =>
+      fetchMock.mock.calls.map(([u]) =>
+        new URL(u, 'http://x').searchParams.get('part')
+      );
+    expect(parts()).not.toContain('answer');
+    await userEvent.click(pick);
+    expect(await screen.findByText(/Named it!/)).toBeInTheDocument();
+    expect(parts()).toContain('answer');
+    vi.unstubAllGlobals();
   });
 });

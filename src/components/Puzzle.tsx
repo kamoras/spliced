@@ -26,6 +26,7 @@ import { SortableContext, rectSwappingStrategy } from '@dnd-kit/sortable';
 import PieceTile from './PieceTile.jsx';
 import SongCard from './SongCard.jsx';
 import type { Choice } from './SongCard.jsx';
+import { fetchAnswer, fetchChoices } from '../game/reveal.js';
 import VuNeedle from './VuNeedle.jsx';
 import SevenSeg from './SevenSeg.jsx';
 import { Player } from '../audio/player.js';
@@ -54,7 +55,7 @@ import {
   wrongHint,
 } from '../game/engine.js';
 import type { GameState, Ghost, Mark, PuzzleDef } from '../game/engine.js';
-import type { Piece, Track } from '../types.js';
+import type { Piece, Song, Track } from '../types.js';
 
 // Song-card label stripes.
 export const SONG_HUES = [
@@ -65,6 +66,14 @@ export const SONG_HUES = [
   '#3f7bff',
   '#b24dff',
 ];
+
+// What /api/reveal has handed over for a row so far.
+interface Reveal {
+  choices?: Choice[];
+  answer?: Song;
+  // No quiz for this row (none offered, or the choices couldn't load).
+  noQuiz?: boolean;
+}
 
 type Playing =
   | { kind: 'clip'; id: string }
@@ -102,6 +111,8 @@ export interface PuzzleProps {
   onChange?: (state: GameState) => void;
   // Fires once, when a live game ends (not when restoring a finished one).
   onFinish?: (state: GameState) => void;
+  // Answers revealed so far (track id -> song), for the crate.
+  onAnswers?: (answers: Record<string, Song>) => void;
 }
 
 export function puzzleDef(
@@ -136,6 +147,7 @@ export default function Puzzle({
   ghost,
   onChange,
   onFinish,
+  onAnswers,
 }: PuzzleProps) {
   const def = useMemo(
     () => puzzleDef(tracks, clipsPerTrack, maxGuesses),
@@ -154,6 +166,7 @@ export default function Puzzle({
     () => new Map(tracks.map((t, i) => [t.id, i])),
     [tracks]
   );
+  const trackOf = (trackId: string) => tracks[trackIndex.get(trackId) ?? -1];
 
   // Letters, shuffled by seed so a clip's letter says nothing about its song
   // or slot. The letter is the clip's identity as it moves around.
@@ -242,6 +255,60 @@ export default function Puzzle({
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [bank, resume, persist]);
+
+  // ---- reveals: quiz choices and answers arrive only when earned ----------
+  // A row's choices are fetched once it's spliced; its title once the quiz is
+  // answered (or skipped), or when the game ends.
+  const [reveals, setReveals] = useState<Record<string, Reveal>>(() =>
+    Object.fromEntries(
+      tracks
+        .filter((t) => t.answer || t.choices)
+        .map((t) => [
+          t.id,
+          {
+            answer: t.answer,
+            choices: t.choices,
+            noQuiz: !t.choices?.length,
+          },
+        ])
+    )
+  );
+  useEffect(() => {
+    const merge = (id: string, patch: Reveal) =>
+      setReveals((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
+    tracks.forEach((t) => {
+      if (!t.ref) return;
+      const r = reveals[t.id] ?? {};
+      const solved = state.solved.includes(t.id);
+      const answered = state.named?.[t.id] != null;
+      if (solved && !answered && !r.choices && !r.noQuiz) {
+        fetchChoices(t.ref).then(
+          (choices) =>
+            merge(t.id, choices.length ? { choices } : { noQuiz: true }),
+          () => merge(t.id, { noQuiz: true })
+        );
+      }
+      if (!r.answer && (over || (solved && (answered || r.noQuiz)))) {
+        fetchAnswer(t.ref).then(
+          (answer) => merge(t.id, { answer }),
+          () => {}
+        );
+      }
+    });
+  }, [tracks, reveals, state.solved, state.named, over]);
+  const onAnswersRef = useRef(onAnswers);
+  onAnswersRef.current = onAnswers;
+  useEffect(() => {
+    const answers: Record<string, Song> = {};
+    Object.entries(reveals).forEach(([id, r]) => {
+      if (r.answer) answers[id] = r.answer;
+    });
+    onAnswersRef.current?.(answers);
+  }, [reveals]);
+  const hasQuiz = (trackId: string) => {
+    const t = trackOf(trackId);
+    return t?.ref ? !reveals[trackId]?.noQuiz : Boolean(t?.choices?.length);
+  };
 
   // ---- audio ---------------------------------------------------------------
   const playerRef = useRef<Player | null>(null);
@@ -597,19 +664,41 @@ export default function Puzzle({
     else playSong(trackId);
   }
 
-  function answerName(trackId: string, choice: Choice | null) {
-    const answer = tracks[trackIndex.get(trackId)!]?.answer;
+  const naming = useRef(false);
+  async function answerName(trackId: string, choice: Choice | null) {
+    if (naming.current) return;
+    const ref = trackOf(trackId)?.ref;
+    let answer = reveals[trackId]?.answer;
+    if (!answer && ref) {
+      // The answer is only fetched now, once you've committed to a pick.
+      naming.current = true;
+      try {
+        answer = await fetchAnswer(ref);
+      } catch {
+        setMessage('Couldn’t reach the studio to check that. Try again.');
+        return;
+      } finally {
+        naming.current = false;
+      }
+      const revealed = answer;
+      setReveals((r) => ({
+        ...r,
+        [trackId]: { ...r[trackId], answer: revealed },
+      }));
+    }
     const correct =
       choice != null &&
       choice.title === answer?.title &&
       choice.artist === answer?.artist;
     if (choice) cue(correct ? 'star' : 'buzzer');
     if (correct) vibrate(15);
-    setMessage(
-      correct
-        ? `🎵 Named it! ${answer?.title} by ${answer?.artist}.`
-        : `It was ${answer?.title} by ${answer?.artist}.`
-    );
+    if (answer) {
+      setMessage(
+        correct
+          ? `🎵 Named it! ${answer.title} by ${answer.artist}.`
+          : `It was ${answer.title} by ${answer.artist}.`
+      );
+    }
     focusSong.current = trackId;
     setState((s) => nameTrack(s, trackId, correct));
   }
@@ -636,9 +725,6 @@ export default function Puzzle({
 
     if (outcome.kind === 'solved') {
       const trackId = outcome.trackId!;
-      const hasQuiz = Boolean(
-        tracks[trackIndex.get(trackId)!]?.choices?.length
-      );
       cue(outcome.won ? 'win' : 'open');
       vibrate(20);
       if (outcome.won) {
@@ -656,7 +742,7 @@ export default function Puzzle({
           ? ' Last one!'
           : ` ${left} to go.`;
       setMessage(
-        hasQuiz
+        hasQuiz(trackId)
           ? `Spliced! Name that tune for a bonus 🎵.${togo}`
           : `Spliced!${togo}`
       );
@@ -861,7 +947,7 @@ export default function Puzzle({
                   >
                     <SongCard
                       ch={r + 1}
-                      answer={tracks[ti]?.answer}
+                      answer={reveals[trackId]?.answer}
                       hue={SONG_HUES[ti % SONG_HUES.length]}
                       discovered={discovered}
                       playing={
@@ -869,7 +955,9 @@ export default function Puzzle({
                       }
                       meter={meterRow === r}
                       onPlay={() => toggleSong(trackId)}
-                      choices={discovered ? tracks[ti]?.choices : undefined}
+                      choices={
+                        discovered ? reveals[trackId]?.choices : undefined
+                      }
                       named={state.named?.[trackId]}
                       onName={busy ? undefined : (c) => answerName(trackId, c)}
                       order={r}

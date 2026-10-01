@@ -143,7 +143,9 @@ export default function SongCard({
           </button>
         </div>
       ) : (
-        <ListenLinks title={answer?.title} artist={answer?.artist} compact />
+        answer?.title && (
+          <ListenLinks title={answer.title} artist={answer.artist} compact />
+        )
       )}
     </div>
   );

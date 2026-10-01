@@ -96,8 +96,13 @@ Native American Heritage Month) by the player's local date — see
 - **Ghost race without a backend.** A finished run is encoded into a ~60-char
   URL-safe code (marks, timings, mistakes, takes — never clip or song
   identities) that rides in the share link.
-- **Honest reveal.** Titles stay hidden in the UI until you finish (they're
-  discoverable in the network tab — the same trade-off Heardle-style games make).
+- **Answers on demand.** `/api/daily` and `/api/practice` send only an opaque
+  `ref` per row: no titles, artists, artwork or quiz choices. A row's
+  name-that-tune choices come from [`/api/reveal`](./api/reveal.ts) once it's
+  spliced, and its title once you've answered (or the game ends). Clip ids are
+  a seeded shuffle, so the page doesn't spell out the correct order either.
+  The catalog and schedule are open source, so this stops casual peeking, not
+  determined cheating.
 
 Three small serverless functions live in [`api/`](./api): `daily` (serves the
 day's puzzle and its seeded name-that-tune choices from the pinned catalog),

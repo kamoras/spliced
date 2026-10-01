@@ -6,7 +6,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json } from './_http.js';
 import { shuffle } from './_prng.js';
-import { practicePool, timelineTracks } from './daily.js';
+import {
+  practicePool,
+  practiceRef,
+  sortTimeline,
+  timelineTracks,
+} from './daily.js';
 
 export default async function handler(
   req: IncomingMessage,
@@ -34,7 +39,11 @@ export default async function handler(
     if (picks.length === count) break;
   }
 
-  const tracks = timelineTracks(picks, () => Math.random);
+  // Refs carry the mix (in timeline order) and a decoy seed, so /api/reveal
+  // can rebuild each row's choices without any server-side state.
+  const ids = sortTimeline(picks).map((s) => s.trackId);
+  const seed = Math.floor(Math.random() * 1e9);
+  const tracks = timelineTracks(picks, (idx) => practiceRef(ids, seed, idx));
 
   return json(res, 200, { tracks }, 'no-store');
 }

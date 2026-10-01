@@ -30,6 +30,9 @@ export interface Piece {
 export interface TrackDef {
   id?: string;
   previewUrl: string;
+  // Opaque handle for /api/reveal, which hands out the choices and answer
+  // only once they're earned. (Tests may pass `answer`/`choices` inline.)
+  ref?: string;
   answer?: Song;
   // Name-that-tune options (the answer plus decoys), when the API offers them.
   choices?: { title: string; artist: string }[];

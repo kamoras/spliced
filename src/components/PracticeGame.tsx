@@ -9,7 +9,7 @@ import { loadAndSliceTracks } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
 import { addToCrate } from '../daily/storage.js';
 import type { GameState } from '../game/engine.js';
-import type { Track, TrackDef } from '../types.js';
+import type { Song, Track, TrackDef } from '../types.js';
 
 export const LEVELS = [
   { id: 'easy', label: 'Easy', songs: 3, clips: 3 },
@@ -41,12 +41,38 @@ export default function PracticeGame({
     n: number;
   } | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
+  const [answers, setAnswers] = useState<Record<string, Song>>({});
+
+  // Finished mixes add their spliced songs to the crate as titles arrive
+  // (answers are only revealed at the end). Idempotent.
+  const finished = live != null && live.status !== 'playing';
+  const namedKey = JSON.stringify(live?.named ?? {});
+  useEffect(() => {
+    if (!finished || !game || !live) return;
+    const known = game.tracks.filter(
+      (t) => live.solved.includes(t.id) && answers[t.id]
+    );
+    if (!known.length) return;
+    addToCrate(
+      known.map((t) => ({
+        title: answers[t.id].title,
+        artist: answers[t.id].artist,
+        artwork: answers[t.id].artwork,
+        previewUrl: t.previewUrl,
+        solved: true,
+        named: Boolean(live.named?.[t.id]),
+        practice: true,
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, namedKey, game, answers]);
   const requestRef = useRef(0);
 
   const start = useCallback(async (lvl: Level, focusBoard = false) => {
     const requestId = ++requestRef.current;
     setError(null);
     setLive(null);
+    setAnswers({});
     setLoaded(0);
     setPhase('loading');
     try {
@@ -143,25 +169,13 @@ export default function PracticeGame({
             volume={volume}
             paused={paused}
             onChange={setLive}
+            onAnswers={setAnswers}
             onFinish={(s) => {
               // Bring keyboard and screen-reader users to the results.
               setTimeout(
                 () =>
                   document.querySelector<HTMLElement>('.results-head')?.focus(),
                 s.status === 'won' ? 1400 : 900
-              );
-              addToCrate(
-                game.tracks
-                  .filter((t) => s.solved.includes(t.id))
-                  .map((t) => ({
-                    title: t.answer?.title ?? '',
-                    artist: t.answer?.artist ?? '',
-                    artwork: t.answer?.artwork,
-                    previewUrl: t.previewUrl,
-                    solved: true,
-                    named: Boolean(s.named?.[t.id]),
-                    practice: true,
-                  }))
               );
             }}
           />

@@ -138,7 +138,7 @@ describe('timelineTracks', () => {
       { ...dated[11], year: 1975 },
       { ...dated[0], year: 1970 },
     ];
-    const rows = timelineTracks(songs, (i) => mulberry32(i), dated);
+    const rows = timelineTracks(songs, (i) => `r${i}`);
     expect(rows.map((r) => r.clue.year)).toEqual([1970, 1975, 1975, 1985]);
     expect(rows.map((r) => r.clue.showGenre)).toEqual([
       false,
@@ -152,6 +152,16 @@ describe('timelineTracks', () => {
       'track-2',
       'track-3',
     ]);
+    expect(rows.map((r) => r.ref)).toEqual(['r0', 'r1', 'r2', 'r3']);
+  });
+
+  it('never includes titles, artists or choices', () => {
+    const text = JSON.stringify(timelineTracks(dated.slice(0, 3), String));
+    dated.slice(0, 3).forEach((s) => {
+      expect(text).not.toContain(s.title);
+      expect(text).not.toContain(s.artist);
+    });
+    expect(text).not.toContain('choices');
   });
 
   it('draws decoys from the same genre and era when it can', () => {

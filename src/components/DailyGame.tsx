@@ -25,7 +25,7 @@ import {
   isValidState,
 } from '../game/engine.js';
 import type { GameState, Ghost } from '../game/engine.js';
-import type { DailyResponse, Track } from '../types.js';
+import type { DailyResponse, Song, Track } from '../types.js';
 import { track as trackEvent } from '../analytics.js';
 
 type Status = 'loading' | 'ready' | 'error';
@@ -85,6 +85,7 @@ export default function DailyGame({
   const [tracks, setTracks] = useState<Track[] | null>(null);
   const [initial, setInitial] = useState<GameState | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
+  const [answers, setAnswers] = useState<Record<string, Song>>({});
   const [replay, setReplay] = useState(0);
   const [ghostParam] = useState(readGhostParam);
   const [ghost, setGhost] = useState<{ ghost: Ghost; name: string } | null>(
@@ -176,11 +177,13 @@ export default function DailyGame({
   const namedKey = JSON.stringify(live?.named ?? {});
   useEffect(() => {
     if (!finished || !tracks || !daily || !live) return;
+    const known = tracks.filter((t) => answers[t.id]);
+    if (!known.length) return;
     addToCrate(
-      tracks.map((t) => ({
-        title: t.answer?.title ?? '',
-        artist: t.answer?.artist ?? '',
-        artwork: t.answer?.artwork,
+      known.map((t) => ({
+        title: answers[t.id].title,
+        artist: answers[t.id].artist,
+        artwork: answers[t.id].artwork,
         previewUrl: t.previewUrl,
         puzzle: daily.puzzleNumber,
         solved: live.solved.includes(t.id),
@@ -188,7 +191,7 @@ export default function DailyGame({
       }))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finished, namedKey, tracks, daily]);
+  }, [finished, namedKey, tracks, daily, answers]);
 
   if (status === 'loading') {
     return (
@@ -265,6 +268,7 @@ export default function DailyGame({
               ? ghost
               : null
         }
+        onAnswers={replay ? undefined : setAnswers}
         onChange={(s) => {
           setLive(s);
           if (!replay) saveProgress(daily.puzzleNumber, s);

@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 import practiceHandler from './api/practice.js';
 import audioHandler from './api/audio.js';
 import dailyHandler from './api/daily.js';
+import revealHandler from './api/reveal.js';
 
 // In production these live as Vercel serverless functions under /api.
 // Vite's dev server doesn't know about them, so we mount the same handlers
@@ -20,6 +21,7 @@ function devApi(): PluginOption {
           const url = req.url ?? '';
           if (url.startsWith('/api/daily')) return dailyHandler(req, res);
           if (url.startsWith('/api/practice')) return practiceHandler(req, res);
+          if (url.startsWith('/api/reveal')) return revealHandler(req, res);
           if (url.startsWith('/api/audio')) return audioHandler(req, res);
           next();
         }

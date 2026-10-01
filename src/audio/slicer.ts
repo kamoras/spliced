@@ -90,7 +90,7 @@ export async function loadAndSampleTracks(
   } = {}
 ): Promise<Track[]> {
   let loaded = 0;
-  return Promise.all(
+  const tracks = await Promise.all(
     trackDefs.map(async (track, trackIndex) => {
       const trackId = track.id || `track-${trackIndex}`;
       const { buffer, duration } = await decodePreview(track.previewUrl);
@@ -115,6 +115,17 @@ export async function loadAndSampleTracks(
       };
     })
   );
+  // Opaque clip ids: a seeded shuffle, so nothing in the page (ids, saved
+  // progress) spells out which song or slot a clip belongs to.
+  const all = tracks.flatMap((t) => t.pieces);
+  const rand = mulberry32(seed * 7919 + 17);
+  const order = all.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  all.forEach((p, i) => (p.id = `clip-${order[i].toString(36)}`));
+  return tracks;
 }
 
 // Offsets snap to this grid (seconds) so a tiny difference in a preview's

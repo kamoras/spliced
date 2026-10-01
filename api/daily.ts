@@ -2,9 +2,8 @@
 //
 // Songs come from api/_catalog.json — a large catalog of iTunes tracks (charts
 // + curated classics) pinned by scripts/build-catalog.ts. Each entry already
-// carries its preview URL and answer, so serving is just selection: no live
-// resolution, no drift. The response includes the answer (title/artist/artwork)
-// because the client needs it to celebrate on a solve; the UI keeps it hidden.
+// carries its preview URL, so serving is just selection: no live resolution, no
+// drift. Answers are not included: see api/reveal.ts.
 
 import { readFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -22,7 +21,7 @@ import {
 const DAY_MS = 86400000;
 
 // The pinned catalog (source of truth). Empty only if the build wasn't run.
-const CATALOG = loadCatalog();
+export const CATALOG = loadCatalog();
 function loadCatalog(): CatalogEntry[] {
   try {
     return JSON.parse(
@@ -146,31 +145,49 @@ export function beatGrid(
   return { bpm: song.bpm, offset: song.beat };
 }
 
-// Lay a set of songs out as a Timeline board: rows ordered by release year
-// (oldest first), each with its year clue — plus genre where two rows share a
-// year (or the year is unknown), so every row stays distinguishable.
-export function timelineTracks(
-  songs: CatalogEntry[],
-  randFor: (idx: number) => () => number,
-  catalog: CatalogEntry[] = CATALOG
-) {
-  const sorted = [...songs].sort(
+// Timeline order: oldest first, ties broken by id so it's stable.
+export function sortTimeline(songs: CatalogEntry[]): CatalogEntry[] {
+  return [...songs].sort(
     (a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.trackId - b.trackId
   );
+}
+
+// Lay a set of songs out as a Timeline board: rows ordered by release year
+// (oldest first), each with its year clue, plus genre where two rows share a
+// year (or the year is unknown), so every row stays distinguishable.
+//
+// No titles, artists, artwork or quiz choices: each row carries an opaque
+// `ref`, and /api/reveal hands those out only once the song is spliced (see
+// api/reveal.ts), so the answers aren't sitting in the network panel.
+export function timelineTracks(
+  songs: CatalogEntry[],
+  refFor: (idx: number) => string
+) {
+  const sorted = sortTimeline(songs);
   return sorted.map((song, idx) => {
     const collides =
       song.year == null ||
       sorted.some((o) => o !== song && o.year === song.year);
     return {
       id: `track-${idx}`,
+      ref: refFor(idx),
       previewUrl: song.previewUrl,
-      answer: { title: song.title, artist: song.artist, artwork: song.artwork },
       clue: { year: song.year, genre: song.genre, showGenre: collides },
       beat: beatGrid(song),
-      choices: choicesFor(song, songs, randFor(idx), catalog),
     };
   });
 }
+
+// Opaque row references for /api/reveal. Daily: the puzzle number and row.
+// Practice: the mix's song ids, a decoy seed, and the row (all base 36).
+export const dailyRef = (puzzle: number, idx: number) =>
+  `d${puzzle.toString(36)}.${idx}`;
+export const practiceRef = (ids: number[], seed: number, idx: number) =>
+  `p${ids.map((n) => n.toString(36)).join('-')}.${seed.toString(36)}.${idx}`;
+
+// Seed for a row's name-that-tune decoys (shared by the daily and practice).
+export const choiceRand = (seed: number, idx: number) =>
+  mulberry32(seed * 977 + idx);
 
 // Practice songs: ones that already appeared in a past daily this epoch, so
 // practising never spoils an upcoming puzzle. Early in an epoch (a small pool)
@@ -219,9 +236,7 @@ export default async function handler(
   }
 
   const { puzzleNumber, songs } = selectDaily(nowMs);
-  const tracks = timelineTracks(songs, (idx) =>
-    mulberry32(puzzleNumber * 977 + idx)
-  );
+  const tracks = timelineTracks(songs, (idx) => dailyRef(puzzleNumber, idx));
 
   // A dated request never changes, so it can be cached for a long time. An
   // undated one is "today": cache only until the midnight flip, never stale.

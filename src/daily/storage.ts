@@ -4,9 +4,8 @@ import type { GameResult } from '../types.js';
 import type { GameState } from '../game/engine.js';
 
 const KEY = 'spliced:daily';
-// v5: three-song daily (Timeline rows, per-row tried keys); older saves
-// describe a different board and don't apply.
-const PROGRESS_KEY = 'spliced:progress:v5';
+// v6: opaque clip ids; older saves describe a different board and don't apply.
+const PROGRESS_KEY = 'spliced:progress:v6';
 const PREFS_KEY = 'spliced:prefs';
 const GHOST_KEY = 'spliced:ghost';
 
