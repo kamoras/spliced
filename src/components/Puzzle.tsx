@@ -273,29 +273,47 @@ export default function Puzzle({
         ])
     )
   );
+  // Failed lookups retry a couple of times (a few seconds apart) before a
+  // row gives up its quiz or stays a "Mystery song" until the next visit.
+  const failures = useRef<Record<string, number>>({});
+  const [retryTick, setRetryTick] = useState(0);
+  const pending = useRef(new Set<string>());
   useEffect(() => {
     const merge = (id: string, patch: Reveal) =>
       setReveals((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
+    const failed = (key: string, giveUp?: () => void) => {
+      const n = (failures.current[key] = (failures.current[key] ?? 0) + 1);
+      if (n < 3) setTimeout(() => setRetryTick((t) => t + 1), 3000);
+      else giveUp?.();
+    };
     tracks.forEach((t) => {
       if (!t.ref) return;
       const r = reveals[t.id] ?? {};
       const solved = state.solved.includes(t.id);
       const answered = state.named?.[t.id] != null;
+      const once = <T,>(key: string, get: () => Promise<T>) => {
+        if (pending.current.has(key)) return null;
+        pending.current.add(key);
+        return get().finally(() => pending.current.delete(key));
+      };
       if (solved && !answered && !r.choices && !r.noQuiz) {
-        fetchChoices(t.ref).then(
+        once(`c:${t.id}`, () => fetchChoices(t.ref!))?.then(
           (choices) =>
             merge(t.id, choices.length ? { choices } : { noQuiz: true }),
-          () => merge(t.id, { noQuiz: true })
+          () => failed(`c:${t.id}`, () => merge(t.id, { noQuiz: true }))
         );
       }
-      if (!r.answer && (over || (solved && (answered || r.noQuiz)))) {
-        fetchAnswer(t.ref).then(
+      // A solved row's title waits for its quiz (even after the game ends),
+      // so it can't be read in the crate or network panel before a pick.
+      const due = solved ? answered || r.noQuiz : over;
+      if (!r.answer && due && (failures.current[`a:${t.id}`] ?? 0) < 3) {
+        once(`a:${t.id}`, () => fetchAnswer(t.ref!))?.then(
           (answer) => merge(t.id, { answer }),
-          () => {}
+          () => failed(`a:${t.id}`)
         );
       }
     });
-  }, [tracks, reveals, state.solved, state.named, over]);
+  }, [tracks, reveals, state.solved, state.named, over, retryTick]);
   const onAnswersRef = useRef(onAnswers);
   onAnswersRef.current = onAnswers;
   useEffect(() => {

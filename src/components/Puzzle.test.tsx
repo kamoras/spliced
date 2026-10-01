@@ -149,7 +149,9 @@ describe('Puzzle', () => {
     ];
     const solved = submitRow({ ...fresh, order }, def, 0).state;
     const fetchMock = vi.fn(async (url: string) => {
-      const part = new URL(url, 'http://x').searchParams.get('part');
+      const q = new URL(url, 'http://x').searchParams;
+      const part = q.get('part');
+      const n = q.get('ref')!.slice(-1);
       const body =
         part === 'choices'
           ? {
@@ -158,10 +160,11 @@ describe('Puzzle', () => {
                 { title: 'Decoy', artist: 'Someone' },
               ],
             }
-          : { title: 'Song 0', artist: 'Artist 0' };
+          : { title: `Song ${n}`, artist: `Artist ${n}` };
       return new Response(JSON.stringify(body));
     });
     vi.stubGlobal('fetch', fetchMock);
+    // Even once the game is over, an open quiz keeps its title back.
     render(
       <Puzzle
         tracks={tracks}
@@ -169,18 +172,19 @@ describe('Puzzle', () => {
         maxGuesses={4}
         seed={3}
         label="Test"
-        initialState={solved}
+        initialState={{ ...solved, status: 'lost' }}
       />
     );
-    const pick = await screen.findByRole('button', { name: /Song 0/ });
-    const parts = () =>
-      fetchMock.mock.calls.map(([u]) =>
-        new URL(u, 'http://x').searchParams.get('part')
-      );
-    expect(parts()).not.toContain('answer');
+    const pick = await screen.findByRole('button', { name: /^Song 0/ });
+    const asked = () =>
+      fetchMock.mock.calls.map(([u]) => {
+        const q = new URL(u, 'http://x').searchParams;
+        return `${q.get('part')}:${q.get('ref')}`;
+      });
+    expect(asked()).not.toContain('answer:d0.0');
     await userEvent.click(pick);
     expect(await screen.findByText(/Named it!/)).toBeInTheDocument();
-    expect(parts()).toContain('answer');
+    expect(asked()).toContain('answer:d0.0');
     vi.unstubAllGlobals();
   });
 });
