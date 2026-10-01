@@ -1,75 +1,159 @@
-// Today's shared puzzle. The songs stay hidden until you solve, run out of
-// mistakes, or reveal them.
+// Today's shared puzzle: load + slice the day's songs, restore any game in
+// progress, race a friend's ghost if you arrived via their link, and record
+// the result, stats, and crate when you finish.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Puzzle from './Puzzle.jsx';
-import Icon from './Icon.jsx';
-import ListenLinks from './ListenLinks.jsx';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Puzzle, { puzzleDef } from './Puzzle.jsx';
+import Results from './Results.jsx';
+import Confetti from './Confetti.jsx';
+import Loading from './Loading.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
+  addToCrate,
+  getProgress,
   getResult,
+  saveProgress,
   saveResult,
-  computeStats,
-  msUntilNextPuzzle,
-  formatCountdown,
-  formatDuration,
 } from '../daily/storage.js';
-import type { DailyResponse, GameResult, Song, Track } from '../types.js';
+import {
+  decodeGhost,
+  finishedFromResult,
+  isValidState,
+} from '../game/engine.js';
+import type { GameState, Ghost } from '../game/engine.js';
+import type { DailyResponse, Track } from '../types.js';
+import { track as trackEvent } from '../analytics.js';
 
 type Status = 'loading' | 'ready' | 'error';
 
-export default function DailyGame({ onPractice }: { onPractice: () => void }) {
+// Read (once) a ghost from ?g=…&n=… and clean the URL.
+function readGhostParam(): { ghost: Ghost; name: string } | null {
+  if (typeof location === 'undefined') return null;
+  const params = new URLSearchParams(location.search);
+  const ghost = decodeGhost(params.get('g'));
+  if (params.has('g')) {
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+  if (!ghost) return null;
+  const name =
+    (params.get('n') || 'A friend')
+      .replace(/[^\p{L}\p{N} '._-]/gu, '')
+      .slice(0, 16) || 'A friend';
+  return { ghost, name };
+}
+
+export default function DailyGame({
+  onPractice,
+  sfx,
+  paused,
+}: {
+  onPractice: () => void;
+  sfx: boolean;
+  paused: boolean;
+}) {
   const [status, setStatus] = useState<Status>('loading');
+  const [loaded, setLoaded] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [daily, setDaily] = useState<DailyResponse | null>(null);
-  const [game, setGame] = useState<{ tracks: Track[] } | null>(null);
-  const [result, setResult] = useState<GameResult | null>(null);
-  const [playedBefore, setPlayedBefore] = useState(false);
-  const [replay, setReplay] = useState(false);
+  const [tracks, setTracks] = useState<Track[] | null>(null);
+  const [initial, setInitial] = useState<GameState | null>(null);
+  const [live, setLive] = useState<GameState | null>(null);
+  const [replay, setReplay] = useState(0);
+  const [celebrate, setCelebrate] = useState(false);
+  const [ghostParam] = useState(readGhostParam);
+  const [ghost, setGhost] = useState<{ ghost: Ghost; name: string } | null>(
+    null
+  );
+  const [staleGhost, setStaleGhost] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
     setError(null);
+    setLoaded(0);
     try {
       const r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = (await r.json()) as DailyResponse;
       if (!Array.isArray(d.tracks)) {
         throw new Error(
-          'The puzzle API responded in an old format (no tracks). The deployed /api is likely a version behind this app — redeploy them together.'
+          'The puzzle API responded in an old format. Redeploy the app and API together.'
         );
       }
-      const tracks = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
+      const sliced = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
         seed: d.puzzleNumber,
+        onProgress: setLoaded,
       });
-      const existing = getResult(d.puzzleNumber);
+      const def = puzzleDef(sliced, d.clipsPerTrack, d.maxGuesses);
+      const saved = getProgress(d.puzzleNumber);
+      const result = getResult(d.puzzleNumber);
+      let start: GameState | null = null;
+      if (saved && isValidState(saved, def)) start = saved;
+      else if (result) start = finishedFromResult(def, result);
+
+      if (ghostParam) {
+        if (ghostParam.ghost.puzzle !== d.puzzleNumber) {
+          setStaleGhost(
+            `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle} — here’s today’s mix instead.`
+          );
+        } else if (!start || start.status === 'playing') {
+          setGhost(ghostParam);
+        } else {
+          setStaleGhost(
+            `You’ve already played today — compare with ${ghostParam.name} below.`
+          );
+          setGhost(ghostParam);
+        }
+      }
+
       setDaily(d);
-      setGame({ tracks });
-      setResult(existing);
-      setPlayedBefore(!!existing);
+      setTracks(sliced);
+      setInitial(start);
+      setLive(start);
       setStatus('ready');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
       setStatus('error');
     }
-  }, []);
+  }, [ghostParam]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  if (status === 'loading') {
-    return (
-      <section className="panel center">
-        <p className="muted">Loading today’s puzzle…</p>
-      </section>
+  const def = useMemo(
+    () =>
+      daily && tracks
+        ? puzzleDef(tracks, daily.clipsPerTrack, daily.maxGuesses)
+        : null,
+    [daily, tracks]
+  );
+
+  // Every finished (or newly named) game updates the crate. Idempotent.
+  const finished = live && live.status !== 'playing' && !replay;
+  const namedKey = JSON.stringify(live?.named ?? {});
+  useEffect(() => {
+    if (!finished || !tracks || !daily || !live) return;
+    addToCrate(
+      tracks.map((t) => ({
+        title: t.answer?.title ?? '',
+        artist: t.answer?.artist ?? '',
+        artwork: t.answer?.artwork,
+        previewUrl: t.previewUrl,
+        puzzle: daily.puzzleNumber,
+        solved: live.solved.includes(t.id),
+        named: Boolean(live.named?.[t.id]),
+      }))
     );
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, namedKey, tracks, daily]);
+
+  if (status === 'loading') return <Loading loaded={loaded} total={4} />;
 
   if (status === 'error') {
     return (
       <section className="panel center">
-        <p className="error">{error}</p>
+        <p className="error">The tape snapped. {error}</p>
         <button className="btn btn--primary" onClick={load}>
           Try again
         </button>
@@ -77,198 +161,86 @@ export default function DailyGame({ onPractice }: { onPractice: () => void }) {
     );
   }
 
-  if (!daily || !game) return null;
+  if (!daily || !tracks || !def) return null;
 
-  const alreadyPlayed = playedBefore && !replay;
+  const label = replay
+    ? `#${daily.puzzleNumber} · Replay`
+    : `Spliced #${daily.puzzleNumber}`;
 
   return (
-    <div>
-      <div className="bar">
-        <span className="bar-title">Daily Puzzle #{daily.puzzleNumber}</span>
-        <button className="link" onClick={onPractice}>
-          Practice mode →
-        </button>
-      </div>
-
-      <Countdown />
-
-      {alreadyPlayed && result ? (
-        <CompletedPanel
-          daily={daily}
-          result={result}
-          onReplay={() => setReplay(true)}
-        />
-      ) : (
-        <>
-          <Puzzle
-            key={`daily-${daily.puzzleNumber}`}
-            tracks={game.tracks}
-            clipsPerTrack={daily.clipsPerTrack}
-            seed={daily.puzzleNumber}
-            maxGuesses={daily.maxGuesses}
-            onResult={
-              replay
-                ? undefined // a replay shouldn't overwrite your official result
-                : (r) => setResult(saveResult(daily.puzzleNumber, r))
-            }
-          />
-          {result && (
-            <>
-              <StatsRow puzzleNumber={daily.puzzleNumber} />
-              <ShareBar daily={daily} result={result} />
-            </>
-          )}
-        </>
+    <div className="game">
+      {staleGhost && <p className="notice">{staleGhost}</p>}
+      {replay > 0 && (
+        <p className="notice">
+          Replaying for fun — your official result is saved.
+        </p>
       )}
+      <Puzzle
+        key={replay ? `replay-${replay}` : `daily-${daily.puzzleNumber}`}
+        tracks={tracks}
+        clipsPerTrack={daily.clipsPerTrack}
+        maxGuesses={daily.maxGuesses}
+        seed={daily.puzzleNumber}
+        label={label}
+        initialState={replay ? null : initial}
+        sfx={sfx}
+        paused={paused}
+        ghost={
+          replay
+            ? null
+            : ghost && live?.status !== 'won' && live?.status !== 'lost'
+              ? ghost
+              : null
+        }
+        onChange={(s) => {
+          setLive(s);
+          if (!replay) saveProgress(daily.puzzleNumber, s);
+        }}
+        onFinish={(s) => {
+          if (!replay) {
+            saveResult(daily.puzzleNumber, {
+              solved: s.status === 'won',
+              mistakes: s.mistakes,
+              solvedTracks: s.solved.length,
+              elapsedMs: s.elapsedMs,
+            });
+            trackEvent('daily-finish', {
+              outcome: s.status,
+              mistakes: s.mistakes,
+              ghost: Boolean(ghost),
+            });
+          }
+          if (s.status === 'won') {
+            setCelebrate(true);
+            setTimeout(() => setCelebrate(false), 3200);
+          }
+          setTimeout(
+            () =>
+              resultsRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              }),
+            s.status === 'won' ? 1400 : 900
+          );
+        }}
+      />
+      {celebrate && <Confetti />}
+      <div ref={resultsRef}>
+        {live && live.status !== 'playing' && (
+          <Results
+            state={live}
+            def={def}
+            puzzleNumber={replay ? undefined : daily.puzzleNumber}
+            title={`Spliced #${daily.puzzleNumber}`}
+            ghost={replay ? null : ghost}
+            onPractice={onPractice}
+            onReplay={() => {
+              setReplay((n) => n + 1);
+              setLive(null);
+            }}
+          />
+        )}
+      </div>
     </div>
-  );
-}
-
-function StatsRow({ puzzleNumber }: { puzzleNumber: number }) {
-  const stats = computeStats(puzzleNumber);
-  const cells = [
-    { label: 'Played', value: stats.played },
-    { label: 'Win %', value: stats.winPct },
-    { label: 'Streak', value: stats.currentStreak },
-    { label: 'Max', value: stats.maxStreak },
-    { label: 'Perfect', value: stats.perfect },
-  ];
-  return (
-    <section className="stats-row" aria-label="Your stats">
-      {cells.map((cell) => (
-        <div className="stat-cell" key={cell.label}>
-          <span className="stat-value">{cell.value}</span>
-          <span className="stat-label">{cell.label}</span>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-type Outcome = 'solved' | 'lost' | 'revealed';
-
-function outcome(daily: DailyResponse, result: GameResult): Outcome {
-  if (result.solved) return 'solved';
-  if ((result.mistakes ?? 0) >= daily.maxGuesses) return 'lost';
-  return 'revealed';
-}
-
-function CompletedPanel({
-  daily,
-  result,
-  onReplay,
-}: {
-  daily: DailyResponse;
-  result: GameResult;
-  onReplay: () => void;
-}) {
-  const kind = outcome(daily, result);
-  const message =
-    kind === 'solved'
-      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes${
-          result.elapsedMs ? ` in ${formatDuration(result.elapsedMs)}` : ''
-        }.`
-      : kind === 'lost'
-        ? 'Out of mistakes today.'
-        : 'You revealed today’s answer.';
-
-  return (
-    <section className="panel">
-      <div className="answer-stack">
-        {daily.answers.map((answer: Song) => (
-          <div
-            className="now-playing answer-row"
-            key={`${answer.title}-${answer.artist}`}
-          >
-            {answer.artwork && (
-              <img src={answer.artwork} alt="" className="np-art" />
-            )}
-            <div>
-              <div className="np-title">{answer.title}</div>
-              <div className="np-artist">{answer.artist}</div>
-              <ListenLinks title={answer.title} artist={answer.artist} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <p
-        className={`result-banner ${kind === 'solved' ? 'is-win' : 'is-loss'}`}
-      >
-        {message}
-      </p>
-
-      <StatsRow puzzleNumber={daily.puzzleNumber} />
-      <ShareBar daily={daily} result={result} />
-
-      <div className="controls">
-        <button className="btn" onClick={onReplay}>
-          <Icon name="reset" /> Replay this mix
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ShareBar({
-  daily,
-  result,
-}: {
-  daily: DailyResponse;
-  result: GameResult;
-}) {
-  const [copied, setCopied] = useState(false);
-  const kind = outcome(daily, result);
-  const summary =
-    kind === 'solved'
-      ? `${result.mistakes ?? 0}/${daily.maxGuesses} mistakes`
-      : kind === 'lost'
-        ? `X/${daily.maxGuesses}`
-        : 'revealed';
-  // Time and mistakes are the score; nothing else clutters the share.
-  const time =
-    kind === 'solved' && result.elapsedMs
-      ? `⏱ ${formatDuration(result.elapsedMs)}`
-      : '';
-
-  const origin = typeof location !== 'undefined' ? location.origin : '';
-  const text = [`Spliced #${daily.puzzleNumber} — ${summary}`, time, origin]
-    .filter(Boolean)
-    .join('\n');
-
-  async function share() {
-    try {
-      if (navigator.share) {
-        await navigator.share({ text });
-      } else {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1800);
-      }
-    } catch {
-      /* user dismissed the share sheet */
-    }
-  }
-
-  return (
-    <button className="btn btn--primary share-btn" onClick={share}>
-      <Icon name="share" /> {copied ? 'Copied result' : 'Share result'}
-    </button>
-  );
-}
-
-function Countdown() {
-  const [ms, setMs] = useState(msUntilNextPuzzle());
-  const ref = useRef<ReturnType<typeof setInterval>>(undefined);
-
-  useEffect(() => {
-    ref.current = setInterval(() => setMs(msUntilNextPuzzle()), 1000);
-    return () => clearInterval(ref.current);
-  }, []);
-
-  return (
-    <p className="muted center countdown">
-      Next puzzle in <strong>{formatCountdown(ms)}</strong>
-    </p>
   );
 }

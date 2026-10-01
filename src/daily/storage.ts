@@ -76,6 +76,8 @@ export function saveProgress(puzzleNumber: number, state: GameState): void {
 export interface Prefs {
   sfx: boolean;
   seenHelp: boolean;
+  // Optional name shown to friends who race your ghost.
+  name?: string;
 }
 
 export function getPrefs(): Prefs {
@@ -187,4 +189,76 @@ export function formatDuration(ms: number): string {
   const m = Math.floor(s / 60);
   const sec = String(s % 60).padStart(2, '0');
   return `${m}:${sec}`;
+}
+
+// Streak as it stands right now: today's solve extends it, but an unplayed
+// today doesn't break yesterday's run yet.
+export function liveStreak(currentPuzzleNumber: number): number {
+  const all = readAll();
+  let k = all[currentPuzzleNumber]?.solved
+    ? currentPuzzleNumber
+    : currentPuzzleNumber - 1;
+  let streak = 0;
+  for (; all[k]?.solved; k--) streak++;
+  return streak;
+}
+
+// ---- Record Crate ------------------------------------------------------------
+// Every song you've revealed, collected as a sleeve: a reason to come back and
+// a ready-made discovery playlist.
+
+const CRATE_KEY = 'spliced:crate';
+
+export interface CrateEntry {
+  title: string;
+  artist: string;
+  artwork?: string;
+  previewUrl?: string;
+  puzzle?: number;
+  solved: boolean;
+  named: boolean;
+  practice?: boolean;
+  ts: number;
+}
+
+export function getCrate(): CrateEntry[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(CRATE_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+const crateKey = (e: { title: string; artist: string }) =>
+  `${e.title}\u0000${e.artist}`.toLowerCase();
+
+// Add songs (newest first). A song already in the crate is upgraded, never
+// downgraded: once solved or named, it stays that way.
+export function addToCrate(entries: Omit<CrateEntry, 'ts'>[]): CrateEntry[] {
+  const crate = getCrate();
+  const byKey = new Map(crate.map((e) => [crateKey(e), e]));
+  const added: CrateEntry[] = [];
+  entries.forEach((entry) => {
+    const prev = byKey.get(crateKey(entry));
+    if (prev) {
+      prev.solved = prev.solved || entry.solved;
+      prev.named = prev.named || entry.named;
+      if (prev.practice && !entry.practice) {
+        prev.practice = false;
+        prev.puzzle = entry.puzzle;
+      }
+    } else {
+      const fresh = { ...entry, ts: Date.now() };
+      byKey.set(crateKey(entry), fresh);
+      added.push(fresh);
+    }
+  });
+  const next = [...added, ...crate].slice(0, 2000);
+  try {
+    localStorage.setItem(CRATE_KEY, JSON.stringify(next));
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+  return next;
 }

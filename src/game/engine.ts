@@ -16,6 +16,8 @@ export type Status = 'playing' | 'won' | 'lost';
 export interface Attempt {
   marks: Mark[];
   solved: boolean;
+  // Active play time when this lock-in happened (drives the ghost race).
+  atMs?: number;
 }
 
 export interface GameState {
@@ -31,6 +33,10 @@ export interface GameState {
   tried: Record<string, Mark[]>;
   status: Status;
   elapsedMs: number;
+  // Name-that-tune bonus: trackId -> named correctly? (absent = not answered).
+  named?: Record<string, boolean>;
+  // Every clip, seam, row or song played — the "ear score".
+  listens?: number;
 }
 
 // The minimal piece shape the engine needs.
@@ -90,9 +96,9 @@ export function isRowLocked(state: GameState, rowIndex: number): boolean {
   return state.status !== 'playing' || rowIndex < state.solved.length;
 }
 
-// Drag `fromId` onto `toId`. Within a row the clip is pushed into the slot (a
-// natural reorder); across rows the two clips swap, so dropping a clip never
-// shoves an unrelated clip into a neighbouring row.
+// Swap two clips. Every move is a swap — within a row or across rows — so a
+// move never disturbs any other clip, and any order is at most a few swaps
+// away.
 export function moveClip(
   state: GameState,
   def: PuzzleDef,
@@ -109,12 +115,7 @@ export function moveClip(
   if (isRowLocked(state, fromRow) || isRowLocked(state, toRow)) return state;
 
   const order = [...state.order];
-  if (fromRow === toRow) {
-    const [moved] = order.splice(from, 1);
-    order.splice(to, 0, moved);
-  } else {
-    [order[from], order[to]] = [order[to], order[from]];
-  }
+  [order[from], order[to]] = [order[to], order[from]];
   return { ...state, order };
 }
 
@@ -151,7 +152,10 @@ export function submitRow(
   const pieces = pieceMap(def);
   const grade = marksFor(rowIds, pieces);
   const solved = grade.solved && grade.trackId != null;
-  const attempts = [...state.attempts, { marks: grade.marks, solved }];
+  const attempts = [
+    ...state.attempts,
+    { marks: grade.marks, solved, atMs: Math.round(state.elapsedMs) },
+  ];
   const tried = { ...state.tried, [key]: grade.marks };
 
   if (solved) {
@@ -230,6 +234,8 @@ export function finishedFromResult(
     tried: {},
     status: result.solved ? 'won' : 'lost',
     elapsedMs: result.elapsedMs ?? 0,
+    // The songs were already shown when this result was saved: no quiz.
+    named: Object.fromEntries(def.tracks.map((t) => [t.id, false])),
   };
   return revealAll(base, def, base.status);
 }
@@ -252,6 +258,42 @@ export function isValidState(state: unknown, def: PuzzleDef): boolean {
   if (!s.order.every((id) => want.delete(id)) || want.size) return false;
   const trackIds = new Set(def.tracks.map((t) => t.id));
   return s.solved.every((id) => trackIds.has(id));
+}
+
+// Record a name-that-tune answer for a locked song. One try per song.
+export function nameTrack(
+  state: GameState,
+  trackId: string,
+  correct: boolean
+): GameState {
+  if (!state.solved.includes(trackId) || state.named?.[trackId] != null) {
+    return state;
+  }
+  return { ...state, named: { ...state.named, [trackId]: correct } };
+}
+
+export function namedCount(state: GameState): number {
+  return Object.values(state.named ?? {}).filter(Boolean).length;
+}
+
+// Results headline + subline, by outcome.
+export function headline(state: GameState): { title: string; sub: string } {
+  if (state.status === 'lost') {
+    return {
+      title: 'Tape jam.',
+      sub: 'Here’s what you were hearing — back tomorrow.',
+    };
+  }
+  return (
+    [
+      { title: 'Perfect mix!', sub: 'Not one bad splice.' },
+      { title: 'Studio quality.', sub: 'Clean cuts all round.' },
+      { title: 'Solid take.', sub: 'Every song found.' },
+    ][state.mistakes] ?? {
+      title: 'Saved in the final mix!',
+      sub: 'Clutch — every song found.',
+    }
+  );
 }
 
 // Short hint after a wrong lock-in — the "one away" moment.
@@ -281,11 +323,107 @@ const EMOJI: Record<Mark, string> = {
 };
 
 // The Wordle-style share card: one emoji row per lock-in.
+export function addListen(state: GameState): GameState {
+  return { ...state, listens: (state.listens ?? 0) + 1 };
+}
+
+// ---- Ghost race -------------------------------------------------------------
+// A finished run, compact enough for a share URL. It carries only the *shape*
+// of the run (marks, timings) — never clip or song identities — so it can't
+// spoil the puzzle for the friend who opens it.
+
+export interface Ghost {
+  puzzle: number;
+  won: boolean;
+  elapsedMs: number;
+  mistakes: number;
+  listens: number;
+  attempts: Attempt[];
+}
+
+const MARK_DIGIT: Record<Mark, string> = {
+  miss: '0',
+  misplaced: '1',
+  correct: '2',
+};
+const DIGIT_MARK: Record<string, Mark> = {
+  0: 'miss',
+  1: 'misplaced',
+  2: 'correct',
+};
+const ds36 = (ms: number) => Math.max(0, Math.round(ms / 100)).toString(36);
+
+export function encodeGhost(state: GameState, puzzle: number): string {
+  const attempts = state.attempts
+    .map(
+      (a) =>
+        a.marks.map((m) => MARK_DIGIT[m]).join('') +
+        (a.solved ? 's' : 'x') +
+        ds36(a.atMs ?? 0)
+    )
+    .join('_');
+  return [
+    'g1',
+    puzzle.toString(36),
+    state.status === 'won' ? 'w' : 'l',
+    ds36(state.elapsedMs),
+    state.mistakes,
+    (state.listens ?? 0).toString(36),
+    attempts,
+  ].join('.');
+}
+
+export function decodeGhost(code: string | null | undefined): Ghost | null {
+  if (!code || code.length > 400) return null;
+  const parts = code.split('.');
+  if (parts.length !== 7 || parts[0] !== 'g1') return null;
+  const [, p, w, t, m, l, att] = parts;
+  const num = (v: string, radix = 36) =>
+    /^[0-9a-z]+$/.test(v) ? parseInt(v, radix) : NaN;
+  const puzzle = num(p);
+  const elapsed = num(t);
+  const mistakes = num(m, 10);
+  const listens = num(l);
+  if ([puzzle, elapsed, mistakes, listens].some((n) => !Number.isFinite(n))) {
+    return null;
+  }
+  if (w !== 'w' && w !== 'l') return null;
+  const attempts: Attempt[] = [];
+  for (const chunk of att ? att.split('_') : []) {
+    const match = /^([012]{2,8})([sx])([0-9a-z]+)$/.exec(chunk);
+    if (!match) return null;
+    attempts.push({
+      marks: [...match[1]].map((d) => DIGIT_MARK[d]),
+      solved: match[2] === 's',
+      atMs: parseInt(match[3], 36) * 100,
+    });
+  }
+  if (attempts.length > 20) return null;
+  return {
+    puzzle,
+    won: w === 'w',
+    elapsedMs: elapsed * 100,
+    mistakes,
+    listens,
+    attempts,
+  };
+}
+
+// Compare a finished run against a ghost: a win beats a loss, then fewer
+// mistakes, then the faster time. Positive = you beat them.
+export function raceResult(state: GameState, ghost: Ghost): number {
+  const won = state.status === 'won';
+  if (won !== ghost.won) return won ? 1 : -1;
+  if (state.mistakes !== ghost.mistakes) return ghost.mistakes - state.mistakes;
+  return ghost.elapsedMs - state.elapsedMs;
+}
+
 export function shareText(
   title: string,
   state: GameState,
   def: PuzzleDef,
-  url?: string
+  url?: string,
+  extra?: string
 ): string {
   const won = state.status === 'won';
   const score = won
@@ -296,7 +434,14 @@ export function shareText(
   const time =
     won && state.elapsedMs ? ` · ⏱ ${formatDuration(state.elapsedMs)}` : '';
   const grid = state.attempts.map((a) => a.marks.map((m) => EMOJI[m]).join(''));
-  return [`${title} · ${score}${time}`, ...grid, url]
+  // Name-that-tune line: one note per song you locked, 🎵 if you named it.
+  const tunes = state.solved
+    .map((id) => (state.named?.[id] ? '🎵' : '🔇'))
+    .join('');
+  const named =
+    tunes && `Named ${namedCount(state)}/${def.tracks.length} ${tunes}`;
+  const ears = state.listens ? ` · 🎧 ${state.listens}` : '';
+  return [`${title} · ${score}${time}${ears}`, named, ...grid, extra, url]
     .filter(Boolean)
     .join('\n');
 }

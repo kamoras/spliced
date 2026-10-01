@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, practicePool, pickMatch, norm } from './daily.js';
+import {
+  choicesFor,
+  selectDaily,
+  practicePool,
+  pickMatch,
+  norm,
+} from './daily.js';
+import { mulberry32 } from './_prng.js';
 import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
 import catalog from './_catalog.json';
 
@@ -82,6 +89,30 @@ describe('practicePool', () => {
     const pool = practicePool(now, real);
     expect(pool.length).toBe(real.length - DAILY_TRACKS);
     expect(pool.some((s) => today.has(s.trackId))).toBe(false);
+  });
+});
+
+describe('choicesFor', () => {
+  it('offers the answer plus 3 distinct-artist decoys, deterministically', () => {
+    const [answer, ...today] = fakeCatalog.slice(0, 4);
+    const a = choicesFor(
+      answer,
+      [answer, ...today],
+      mulberry32(7),
+      fakeCatalog
+    );
+    const b = choicesFor(
+      answer,
+      [answer, ...today],
+      mulberry32(7),
+      fakeCatalog
+    );
+    expect(a).toEqual(b);
+    expect(a).toHaveLength(4);
+    expect(a).toContainEqual({ title: answer.title, artist: answer.artist });
+    expect(new Set(a.map((c) => c.artist)).size).toBe(4);
+    const todayTitles = today.map((s) => s.title);
+    expect(a.some((c) => todayTitles.includes(c.title))).toBe(false);
   });
 });
 

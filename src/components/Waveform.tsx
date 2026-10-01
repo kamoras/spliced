@@ -1,105 +1,80 @@
-// Tiny canvas waveform rendered from a piece's precomputed peaks. Bars use the
-// piece's identity `color` when given (so each clip is visually distinct and a
-// move is obvious); otherwise they fall back to the inherited CSS `color`.
-//
-// When `onSeek` is provided the waveform is scrubbable: click/tap to play from
-// that point, and a playhead (driven by `getClipProgress`) tracks playback.
+// A clip's waveform as inline SVG, drawn from its precomputed peaks. It uses
+// `currentColor`, so it follows the theme with no redraw. While the clip plays,
+// an accent copy is revealed left-to-right up to the playhead (driven by
+// `getProgress` each frame, without re-rendering React).
 
-import { useEffect, useRef } from 'react';
-import type { MouseEvent } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 interface WaveformProps {
   peaks: number[];
   active?: boolean;
-  color?: string;
-  onSeek?: (fraction: number) => void;
-  getClipProgress?: (pieceId: string) => number | null;
-  pieceId: string;
+  getProgress?: () => number | null;
+}
+
+function barsPath(peaks: number[]): string {
+  const n = peaks.length || 1;
+  const w = 100 / n;
+  const bar = Math.max(0.6, w * 0.62);
+  return peaks
+    .map((p, i) => {
+      const h = Math.max(4, p * 92);
+      const x = i * w + (w - bar) / 2;
+      const y = (100 - h) / 2;
+      return `M${x.toFixed(2)} ${y.toFixed(2)}h${bar.toFixed(2)}v${h.toFixed(2)}h-${bar.toFixed(2)}z`;
+    })
+    .join('');
 }
 
 export default function Waveform({
   peaks,
   active = false,
-  color,
-  onSeek,
-  getClipProgress,
-  pieceId,
+  getProgress,
 }: WaveformProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const d = useMemo(() => barsPath(peaks), [peaks]);
+  const fillRef = useRef<SVGSVGElement | null>(null);
   const headRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = color || getComputedStyle(canvas).color || '#888';
-
-    const n = peaks.length;
-    const gap = 1.5;
-    const barW = Math.max(1, w / n - gap);
-    const mid = h / 2;
-
-    peaks.forEach((p, i) => {
-      const barH = Math.max(2, p * (h * 0.92));
-      const x = i * (w / n);
-      ctx.globalAlpha = active ? 1 : 0.78;
-      ctx.fillRect(x, mid - barH / 2, barW, barH);
-    });
-  }, [peaks, active, color]);
-
-  // Drive the playhead from playback time without re-rendering React each frame.
-  useEffect(() => {
+    const fill = fillRef.current;
     const head = headRef.current;
-    if (!head || !getClipProgress) return undefined;
-    if (!active) {
-      head.style.opacity = '0';
+    if (!fill || !head) return undefined;
+    const paint = (p: number | null) => {
+      const pct = p == null ? 0 : p * 100;
+      fill.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      head.style.left = `${pct}%`;
+      head.style.opacity = p == null ? '0' : '1';
+    };
+    if (!active || !getProgress) {
+      paint(null);
       return undefined;
     }
     let raf = 0;
     const tick = () => {
-      const p = getClipProgress(pieceId);
-      if (p == null) {
-        head.style.opacity = '0';
-      } else {
-        head.style.opacity = '1';
-        head.style.left = `${p * 100}%`;
-      }
+      paint(getProgress());
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, getClipProgress, pieceId]);
-
-  function handleSeek(event: MouseEvent<HTMLButtonElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    // Keyboard activation reports clientX 0; clamping makes that play from start.
-    const fraction = (event.clientX - rect.left) / rect.width;
-    onSeek?.(Math.min(1, Math.max(0, fraction)));
-  }
-
-  if (!onSeek) {
-    return <canvas ref={canvasRef} className="waveform" />;
-  }
+  }, [active, getProgress]);
 
   return (
-    <button
-      type="button"
-      className="waveform-seek"
-      onClick={handleSeek}
-      aria-label="Scrub clip — click to play from here"
-    >
-      <canvas ref={canvasRef} className="waveform" />
-      <span ref={headRef} className="wave-playhead" aria-hidden="true" />
-    </button>
+    <span className="wave" aria-hidden="true">
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="wave-base"
+      >
+        <path d={d} />
+      </svg>
+      <svg
+        ref={fillRef}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="wave-fill"
+      >
+        <path d={d} />
+      </svg>
+      <span ref={headRef} className="wave-head" />
+    </span>
   );
 }

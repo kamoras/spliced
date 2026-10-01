@@ -1,9 +1,9 @@
 # Spliced
 
-A **daily music puzzle** built like a tiny audio mixer. Each day, four mystery
-songs are sliced into clips and shuffled together across four mixer tracks.
-Route the clips so each track is one song in the right order, and lock all four
-before you run out of mistakes — racing the clock.
+A **daily music puzzle** built like a tiny tape deck. Each day, four mystery
+songs are cut into clips and shuffled together. Listen, swap, and splice them
+back into four complete tracks — before you run out of mistakes. Name each song
+for a bonus 🎵, then send your run to a friend to race your ghost.
 
 Everyone gets the **same puzzle and the byte-identical audio each day** (it
 flips at UTC midnight), so times and scores are shareable.
@@ -23,24 +23,26 @@ flips at UTC midnight), so times and scores are shareable.
 
 ## How to play
 
-1. The board starts with **4 mixer tracks** of shuffled clips. Each clip carries
-   a colored token so you can track it as you move it.
-2. **Play a clip** to hear it — click anywhere along its waveform to scrub and
-   play from that point — then **drag** clips until each track is one song.
-   Dragging within a track **pushes** the clips to reorder; dragging across
-   tracks **swaps** the two clips, so a correct clip is never bumped out.
-3. Each track has a **Submit** button that plays that row back and checks it.
-4. Feedback colors the clips: **green** = correct song and slot; **amber** =
-   correct song, wrong slot; uncolored clips belong with another song.
-5. A correct track **locks** and reveals its song (with Apple Music / Spotify /
-   YouTube links). A wrong submit spends one of your **4 mistakes**; run out and
-   the answer is revealed.
-6. Your score is your **time** and **mistakes** — the timer pauses when the tab
-   loses focus. A countdown shows when the next puzzle drops, and a stats panel
-   tracks your streak, win %, and perfect (0-mistake) solves.
+1. **Tap a clip to hear it.** That also _cues_ it — every other clip then shows
+   a ⇄ button: tap one to swap the two clips. (Or press-and-drag one clip onto
+   another; every move is a swap.)
+2. **Listen for the seams.** Clips were cut back-to-back, so true neighbours
+   flow seamlessly. Tap the ⌇ knob between two clips to hear just their join,
+   or ▶ **Play** to hear a whole track. Listening is always free.
+3. **Lock in** a track to check it: ✓ right song, right slot; ⤨ right song,
+   wrong slot; blank — another song. A row is graded against the song most of
+   its clips belong to. A wrong lock-in costs one of **4 mistakes**; re-checking
+   an arrangement you already tried is free.
+4. A correct track **splices** into a song card and plays in full. Pick its
+   title from four choices to **name that tune** (🎵 bonus, no penalty).
+5. Finish to get your score — time, mistakes, songs named, listens — plus a
+   Wordle-style share grid. The share link carries a spoiler-free **ghost** of
+   your run: friends who open it race you live.
 
-A separate **Practice mode** builds a one-off mixer from random catalog songs
-with the same rules — no clock pressure, and you can reshuffle freely.
+Your progress survives a refresh, a stats sheet tracks streaks and a
+mistakes histogram, and every song you uncover lands in your **Record crate**.
+**Practice** serves fresh mixes from past dailies (so it never spoils an
+upcoming day) at Easy (3×3), Classic (4×4), or Hard (5×4).
 
 ## How it works
 
@@ -59,13 +61,21 @@ with the same rules — no clock pressure, and you can reshuffle freely.
 - **Web Audio slicing.** Each preview is decoded with the Web Audio API and cut
   into **contiguous, back-to-back clips** from a seeded start point, so the
   correct order reconstructs a continuous passage and a wrong order leaves an
-  audible seam. Per-track VU meters react to playback.
+  audible seam — which the ⌇ seam knobs let you audition directly. Sound
+  effects are synthesized on the fly (no audio assets).
+- **Pure game engine.** All rules live in
+  [`src/game/engine.ts`](./src/game/engine.ts) as pure state transitions
+  (swap, lock in, reveal, name, ghost encode/decode), so they're unit-tested
+  and the whole game state can be persisted and restored.
+- **Ghost race without a backend.** A finished run is encoded into a ~60-char
+  URL-safe code (marks, timings, mistakes, listens — never clip or song
+  identities) that rides in the share link.
 - **Honest reveal.** Titles stay hidden in the UI until you finish (they're
   discoverable in the network tab — the same trade-off Heardle-style games make).
 
 Three small serverless functions live in [`api/`](./api): `daily` (serves the
-day's puzzle from the pinned catalog), `search` (Practice search proxy), and
-`audio` (re-serves an Apple preview with permissive CORS so `decodeAudioData`
+day's puzzle and its seeded name-that-tune choices from the pinned catalog),
+`practice` (random songs from past dailies), and `audio` (re-serves an Apple preview with permissive CORS so `decodeAudioData`
 can read it, locked to Apple media hosts so it can't be an open proxy). The same
 handlers are mounted as Vite dev middleware (see
 [`vite.config.ts`](./vite.config.ts)), so `npm run dev` gives full functionality
@@ -110,14 +120,15 @@ Vercel also gives you a **preview deployment for every pull request** and
 
 Spliced targets **WCAG 2.1 AA**:
 
-- Full keyboard play, including reordering clips via the keyboard (dnd-kit
-  keyboard sensor) with screen-reader announcements.
-- Clip status is shown with an **icon and a word**, never color alone, and each
-  clip keeps a letter/token so it's distinguishable without relying on hue.
+- Full keyboard play: every clip, ⇄ swap target, seam knob, and row control is
+  a labelled button (Enter plays/cues a clip, Esc cancels a cue).
+- Clip status is shown with an **icon and border style** (solid vs dashed),
+  never color alone, plus a spoken label and a text row summary; each clip
+  keeps a letter so it's distinguishable without relying on hue.
 - Visible focus styles, semantic landmarks, labelled controls, and an
   `aria-live` region for feedback.
 - Light and dark themes with AA contrast, and `prefers-reduced-motion` support
-  (the VU meters and timer animations stand down).
+  (shake, confetti, and splice animations stand down).
 
 Accessibility is checked in review with [axe](https://github.com/dequelabs/axe-core)
 and the `eslint-plugin-jsx-a11y` lint rules.
@@ -125,7 +136,7 @@ and the `eslint-plugin-jsx-a11y` lint rules.
 ## Contributing
 
 Issues and PRs are welcome - see [CONTRIBUTING.md](./CONTRIBUTING.md). The
-curated classics that seed the catalog (and feed Practice mode) live in
+curated classics that seed the catalog live in
 [`api/_songs.ts`](./api/_songs.ts); regenerate the daily catalog with
 `npm run build:catalog`. You can also open a **Song suggestion** issue.
 Dependencies are kept current by Dependabot, with patch/minor/security updates

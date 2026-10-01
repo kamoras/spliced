@@ -10,6 +10,9 @@ import {
   saveProgress,
   getPrefs,
   setPrefs,
+  liveStreak,
+  getCrate,
+  addToCrate,
 } from './storage.js';
 
 beforeEach(() => localStorage.clear());
@@ -134,5 +137,29 @@ describe('msUntilNextPuzzle', () => {
     const ms = msUntilNextPuzzle();
     expect(ms).toBeGreaterThan(0);
     expect(ms).toBeLessThanOrEqual(86400000);
+  });
+});
+
+describe('liveStreak', () => {
+  it('keeps yesterday’s streak alive until today is played', () => {
+    saveResult(4, { solved: true });
+    saveResult(5, { solved: true });
+    expect(liveStreak(6)).toBe(2);
+    saveResult(6, { solved: true });
+    expect(liveStreak(6)).toBe(3);
+    expect(liveStreak(8)).toBe(0);
+  });
+});
+
+describe('crate', () => {
+  const song = { title: 'Africa', artist: 'Toto', solved: false, named: false };
+
+  it('collects songs newest-first without duplicates, upgrading flags', () => {
+    addToCrate([song, { ...song, title: 'Rosanna' }]);
+    addToCrate([{ ...song, solved: true, named: true }]);
+    addToCrate([{ ...song, solved: false }]);
+    const crate = getCrate();
+    expect(crate.map((e) => e.title)).toEqual(['Africa', 'Rosanna']);
+    expect(crate[0]).toMatchObject({ solved: true, named: true });
   });
 });

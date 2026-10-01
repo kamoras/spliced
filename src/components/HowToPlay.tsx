@@ -1,65 +1,92 @@
-import { useEffect, useRef } from 'react';
+// Three illustrated steps (pure CSS mini-tiles), shown automatically on a
+// first visit and from the header "?" any time.
+
+import Modal from './Modal.jsx';
 import Icon from './Icon.jsx';
 
-export default function HowToPlay({ onClose }: { onClose: () => void }) {
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
+function Mini({
+  letter,
+  mark,
+  cued,
+}: {
+  letter: string;
+  mark?: 'correct' | 'misplaced';
+  cued?: boolean;
+}) {
   return (
-    <div className="modal-layer">
+    <span
+      className={['mini', mark && `mark-${mark}`, cued && 'is-cued']
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <b>{letter}</b>
+      {mark && (
+        <i className={`tile-badge tile-badge--${mark}`}>
+          <Icon name={mark === 'correct' ? 'check' : 'shuffle'} />
+        </i>
+      )}
+    </span>
+  );
+}
+
+export default function HowToPlay({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal title="How to play" onClose={onClose} className="howto">
+      <p className="howto-lede">
+        Four mystery songs were cut into clips and shuffled together. Rebuild
+        every song — one per track, in order.
+      </p>
+      <ol className="howto-steps">
+        <li>
+          <div className="howto-art">
+            <Mini letter="F" cued />
+            <Mini letter="B" />
+            <span className="howto-swap" aria-hidden="true">
+              <Icon name="swap" />
+            </span>
+          </div>
+          <div>
+            <strong>Tap a clip to hear it.</strong> Then tap{' '}
+            <Icon name="swap" /> on another clip to swap the two — or just drag
+            one onto the other.
+          </div>
+        </li>
+        <li>
+          <div className="howto-art">
+            <Mini letter="K" />
+            <span className="howto-seam" aria-hidden="true" />
+            <Mini letter="C" />
+          </div>
+          <div>
+            <strong>Listen for the seams.</strong> Clips were cut back-to-back,
+            so the right neighbours flow seamlessly. Tap the ⌇ between two clips
+            to hear their join, or ▶ Play to hear the whole track — free.
+          </div>
+        </li>
+        <li>
+          <div className="howto-art">
+            <Mini letter="A" mark="correct" />
+            <Mini letter="H" mark="misplaced" />
+            <Mini letter="M" />
+          </div>
+          <div>
+            <strong>Lock in a track.</strong> <Icon name="check" /> right song,
+            right slot · <Icon name="shuffle" /> right song, wrong slot · blank:
+            another song. A wrong lock-in costs one of <b>4 mistakes</b>.
+          </div>
+        </li>
+      </ol>
+      <p className="howto-bonus">
+        🎵 Name each song you lock for a bonus, then share your mix — friends
+        who open your link race your ghost.
+      </p>
       <button
         type="button"
-        className="modal-backdrop"
-        aria-label="Close how to play"
+        className="btn btn--primary btn--wide"
         onClick={onClose}
-      />
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="howto-title"
       >
-        <div className="modal-head">
-          <h2 id="howto-title">How to play</h2>
-          <button
-            ref={closeRef}
-            type="button"
-            className="icon-btn"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        <ol>
-          <li>Four mystery songs are sliced into clips and mixed together.</li>
-          <li>
-            Play a clip to hear it — click along its waveform to start from any
-            point — then drag clips between tracks until each row is one song in
-            order.
-          </li>
-          <li>
-            Each track has a Submit button that plays that row and checks it.
-          </li>
-          <li>
-            The first clip in a checked row sets the song. Green means correct
-            song and slot; yellow means correct song in the wrong slot;
-            uncolored clips belong with another song.
-          </li>
-          <li>
-            Correct rows lock in place. A wrong check uses one mistake; you have
-            four mistakes before the tracks are revealed.
-          </li>
-        </ol>
-      </div>
-    </div>
+        Let’s play
+      </button>
+    </Modal>
   );
 }

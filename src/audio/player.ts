@@ -196,9 +196,59 @@ export class Player {
     );
   }
 
+  /**
+   * Play the join between two clips: the tail of `a` straight into the head of
+   * `b`. Clips are cut back-to-back, so a true neighbour sounds seamless and a
+   * wrong one jolts. `onEnd` fires when the seam finishes.
+   */
+  async playSeam(
+    a: Piece,
+    b: Piece,
+    onEnd?: () => void,
+    span = 0.7
+  ): Promise<void> {
+    await this._resume();
+    this.stop();
+    const myToken = this.token;
+    const len = Math.min(span, a.duration, b.duration);
+    const t0 = this.ctx.currentTime + 0.04;
+    const parts: [Piece, number, number][] = [
+      [a, a.offset + a.duration - len, t0],
+      [b, b.offset, t0 + len],
+    ];
+    parts.forEach(([piece, offset, at], i) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this._bufferFor(piece);
+      // Tiny fades at the outer edges only, so the join itself is untouched.
+      const env = this.ctx.createGain();
+      env.gain.setValueAtTime(i === 0 ? 0 : 1, at);
+      if (i === 0) env.gain.linearRampToValueAtTime(1, at + 0.03);
+      else {
+        env.gain.setValueAtTime(1, at + len - 0.04);
+        env.gain.linearRampToValueAtTime(0, at + len);
+      }
+      src.connect(env).connect(this.output);
+      src.start(at, offset, len);
+      this.sources.push(src);
+    });
+    this.timers.push(
+      setTimeout(
+        () => {
+          if (myToken === this.token) {
+            this.sources = [];
+            onEnd?.();
+          }
+        },
+        (t0 + 2 * len - this.ctx.currentTime) * 1000
+      )
+    );
+  }
+
   // Short synthesized cues, so a lock-in *feels* like something. They bypass
   // the analyser (no VU flicker) but follow the master volume.
-  async sfx(kind: 'lock' | 'wrong' | 'win' | 'pick'): Promise<void> {
+  async sfx(
+    kind: 'lock' | 'wrong' | 'win' | 'tick' | 'lose' | 'star'
+  ): Promise<void> {
     await this._resume();
     const now = this.ctx.currentTime + 0.01;
     const notes: [
@@ -226,8 +276,24 @@ export class Player {
                 [196, 0, 0.14, 'square'],
                 [155.56, 0.12, 0.22, 'square'],
               ]
-            : [[1200, 0, 0.05, 'sine']];
-    const peak = kind === 'wrong' ? 0.07 : kind === 'pick' ? 0.05 : 0.14;
+            : kind === 'lose'
+              ? [
+                  [392, 0, 0.25, 'sawtooth'],
+                  [294, 0.18, 0.3, 'sawtooth'],
+                  [196, 0.4, 0.55, 'sawtooth'],
+                ]
+              : kind === 'star'
+                ? [
+                    [1568, 0, 0.12, 'sine'],
+                    [2093, 0.07, 0.3, 'sine'],
+                  ]
+                : [[1400, 0, 0.04, 'sine']];
+    const peak =
+      kind === 'wrong' || kind === 'lose'
+        ? 0.06
+        : kind === 'tick'
+          ? 0.05
+          : 0.14;
     const bus = this.ctx.createGain();
     bus.gain.value = this.output.gain.value;
     bus.connect(this.ctx.destination);

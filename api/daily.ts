@@ -81,6 +81,38 @@ export function selectDaily(nowMs: number, catalog: CatalogEntry[] = CATALOG) {
   return { puzzleNumber, songs };
 }
 
+// Name-that-tune options: the answer plus three decoys from the catalog (none
+// of today's songs, none by the same artist), in a shuffled order. Pass a
+// seeded `rand` for the daily so everyone sees the same choices.
+export interface Choice {
+  title: string;
+  artist: string;
+}
+
+export function choicesFor(
+  answer: CatalogEntry,
+  exclude: CatalogEntry[],
+  rand: () => number,
+  catalog: CatalogEntry[] = CATALOG
+): Choice[] {
+  const banned = new Set(exclude.map((s) => s.trackId));
+  const artists = new Set([norm(answer.artist)]);
+  const decoys: CatalogEntry[] = [];
+  for (let tries = 0; decoys.length < 3 && tries < 200; tries++) {
+    const pick = catalog[Math.floor(rand() * catalog.length)];
+    if (!pick || banned.has(pick.trackId) || artists.has(norm(pick.artist))) {
+      continue;
+    }
+    artists.add(norm(pick.artist));
+    banned.add(pick.trackId);
+    decoys.push(pick);
+  }
+  return shuffle([answer, ...decoys], rand).map(({ title, artist }) => ({
+    title,
+    artist,
+  }));
+}
+
 // Practice songs: ones that already appeared in a past daily this epoch, so
 // practising never spoils an upcoming puzzle. Early in an epoch (a small pool)
 // it falls back to the whole catalog. Today's songs are always excluded.
@@ -118,6 +150,7 @@ export default async function handler(
     id: `track-${idx}`,
     previewUrl: song.previewUrl,
     answer: { title: song.title, artist: song.artist, artwork: song.artwork },
+    choices: choicesFor(song, songs, mulberry32(puzzleNumber * 977 + idx)),
   }));
 
   // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the

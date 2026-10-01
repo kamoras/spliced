@@ -31,6 +31,8 @@ export interface TrackDef {
   id?: string;
   previewUrl: string;
   answer?: Song;
+  // Name-that-tune options (the answer plus decoys), when the API offers them.
+  choices?: { title: string; artist: string }[];
 }
 
 // A fully prepared track: its decoded buffer cut into ordered pieces.

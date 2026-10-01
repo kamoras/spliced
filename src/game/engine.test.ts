@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  decodeGhost,
+  encodeGhost,
+  raceResult,
   finishedFromResult,
+  headline,
+  nameTrack,
   isValidState,
   moveClip,
   newGame,
@@ -60,9 +65,9 @@ describe('moveClip', () => {
     't0-2', 't1-2', 't2-2',
   ]); // prettier-ignore
 
-  it('pushes within a row', () => {
+  it('swaps within a row', () => {
     const s = moveClip(start, def, 't0-0', 't2-0');
-    expect(rowsOf(s, def)[0]).toEqual(['t1-0', 't2-0', 't0-0']);
+    expect(rowsOf(s, def)[0]).toEqual(['t2-0', 't1-0', 't0-0']);
   });
 
   it('swaps across rows', () => {
@@ -106,7 +111,7 @@ describe('submitRow', () => {
     expect(rowsOf(state, def)[0]).toEqual(['t1-0', 't1-1', 't1-2']);
     expect(state.mistakes).toBe(0);
     expect(state.attempts).toEqual([
-      { marks: ['correct', 'correct', 'correct'], solved: true },
+      { marks: ['correct', 'correct', 'correct'], solved: true, atMs: 0 },
     ]);
   });
 
@@ -203,6 +208,23 @@ describe('wrongHint', () => {
   });
 });
 
+describe('nameTrack / headline', () => {
+  it('records one answer per locked song only', () => {
+    const s: GameState = { ...boardState([]), solved: ['t0'] };
+    const a = nameTrack(s, 't0', true);
+    expect(a.named).toEqual({ t0: true });
+    expect(nameTrack(a, 't0', false)).toBe(a);
+    expect(nameTrack(s, 't1', true)).toBe(s);
+  });
+
+  it('picks a headline by mistakes', () => {
+    const won = { ...boardState([]), status: 'won' as const };
+    expect(headline(won).title).toMatch(/perfect/i);
+    expect(headline({ ...won, mistakes: 3 }).title).toMatch(/final mix/i);
+    expect(headline({ ...won, status: 'lost' }).title).toMatch(/jam/i);
+  });
+});
+
 describe('shareText', () => {
   const def = makeDef(2, 3, 4);
   it('renders an emoji grid with score and time', () => {
@@ -221,10 +243,76 @@ describe('shareText', () => {
     );
   });
 
+  it('adds a name-that-tune line once songs are locked', () => {
+    const s: GameState = {
+      ...boardState([]),
+      status: 'won',
+      solved: ['t0', 't1'],
+      named: { t0: true, t1: false },
+    };
+    expect(shareText('S', s, def).split('\n')[1]).toBe('Named 1/2 🎵🔇');
+  });
+
   it('marks a perfect solve and a loss', () => {
     const won = { ...boardState([]), status: 'won' as const };
     expect(shareText('S', won, def)).toMatch(/Perfect mix/);
     const lost = { ...boardState([]), status: 'lost' as const, mistakes: 4 };
     expect(shareText('S', lost, def)).toBe('S · X/4');
+  });
+});
+
+describe('ghost race', () => {
+  const run: GameState = {
+    ...boardState([]),
+    status: 'won',
+    mistakes: 1,
+    elapsedMs: 161_000,
+    listens: 31,
+    attempts: [
+      {
+        marks: ['correct', 'misplaced', 'miss', 'correct'],
+        solved: false,
+        atMs: 40_000,
+      },
+      {
+        marks: ['correct', 'correct', 'correct', 'correct'],
+        solved: true,
+        atMs: 75_300,
+      },
+    ],
+  };
+
+  it('round-trips a run through a URL-safe code', () => {
+    const code = encodeGhost(run, 153);
+    expect(code).toMatch(/^[0-9a-z._]+$/);
+    expect(decodeGhost(code)).toEqual({
+      puzzle: 153,
+      won: true,
+      elapsedMs: 161_000,
+      mistakes: 1,
+      listens: 31,
+      attempts: run.attempts,
+    });
+  });
+
+  it('rejects junk', () => {
+    expect(decodeGhost(null)).toBeNull();
+    expect(decodeGhost('hello')).toBeNull();
+    expect(decodeGhost('g1.4h.w.zz.1.v.2103x1')).toBeNull();
+    expect(decodeGhost('g1.4h.q.zz.1.v.')).toBeNull();
+    expect(decodeGhost('g1.4h.w.zz.1.v.')).toMatchObject({ attempts: [] });
+  });
+
+  it('ranks a win, then fewer mistakes, then time', () => {
+    const ghost = decodeGhost(encodeGhost(run, 1))!;
+    expect(raceResult({ ...run, mistakes: 0 }, ghost)).toBeGreaterThan(0);
+    expect(raceResult({ ...run, elapsedMs: 200_000 }, ghost)).toBeLessThan(0);
+    expect(raceResult({ ...run, status: 'lost' }, ghost)).toBeLessThan(0);
+  });
+
+  it('stamps lock-ins with the play time', () => {
+    const def = makeDef();
+    const s = { ...newGame(def, 9), elapsedMs: 12_345 };
+    expect(submitRow(s, def, 0).state.attempts[0].atMs).toBe(12_345);
   });
 });

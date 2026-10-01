@@ -82,6 +82,14 @@ const ICONS = {
       <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
     </>
   ),
+  chart: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+  mute: (
+    <>
+      <path d="M11 5 6 9H2v6h4l5 4V5z" />
+      <path d="m23 9-6 6M17 9l6 6" />
+    </>
+  ),
+  swap: <path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />
