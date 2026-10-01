@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computePeaks, samplePieces } from './slicer.js';
+import { beatsPerClip, computePeaks, samplePieces } from './slicer.js';
 
 // Minimal stand-in for an AudioBuffer's single channel.
 function fakeBuffer(samples: number[], sampleRate = 8): AudioBuffer {
@@ -69,5 +69,37 @@ describe('samplePieces', () => {
     const a = cut(42).map((p) => p.offset);
     const b = cut(42).map((p) => p.offset);
     expect(a).toEqual(b);
+  });
+});
+
+describe('beat-aligned cutting', () => {
+  it('picks about a bar per clip, doubling/halving for extreme tempos', () => {
+    expect(beatsPerClip(120)).toBe(4); // 2.0s
+    expect(beatsPerClip(200)).toBe(8); // 2.4s (tempo found at double speed)
+    expect(beatsPerClip(61)).toBe(2); // 1.97s (half speed)
+  });
+
+  it('cuts whole-beat clips that start on the beat grid', () => {
+    const bpm = 120;
+    const period = 0.5;
+    const pieces = cut(7, { beat: { bpm, offset: 0.137 } });
+    pieces.forEach((p, i) => {
+      expect(p.duration).toBeCloseTo(4 * period, 6);
+      // Start lies on the grid: (offset - 0.137) is a whole number of beats.
+      const beats = (p.offset - 0.137) / period;
+      expect(Math.abs(beats - Math.round(beats))).toBeLessThan(1e-6);
+      if (i > 0) {
+        expect(p.offset).toBeCloseTo(pieces[i - 1].offset + p.duration, 6);
+      }
+    });
+    // Deterministic for a seed.
+    expect(
+      cut(7, { beat: { bpm, offset: 0.137 } }).map((p) => p.offset)
+    ).toEqual(pieces.map((p) => p.offset));
+  });
+
+  it('falls back to fixed cuts when the grid would not fit', () => {
+    const pieces = cut(3, { duration: 5, beat: { bpm: 60, offset: 0 } });
+    expect(pieces[0].duration).toBeCloseTo(5 / 4, 6);
   });
 });

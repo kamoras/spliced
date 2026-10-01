@@ -133,6 +133,18 @@ export function choicesFor(
   }));
 }
 
+// Minimum tempo-analysis confidence to cut a song on its beat grid; below
+// this (rubato, live drums, ambient) clips fall back to fixed-length cuts.
+export const BEAT_CONFIDENCE = 0.3;
+
+export function beatGrid(
+  song: CatalogEntry
+): { bpm: number; offset: number } | undefined {
+  if (!song.bpm || song.beat == null) return undefined;
+  if ((song.beatConf ?? 0) < BEAT_CONFIDENCE) return undefined;
+  return { bpm: song.bpm, offset: song.beat };
+}
+
 // Lay a set of songs out as a Timeline board: rows ordered by release year
 // (oldest first), each with its year clue — plus genre where two rows share a
 // year (or the year is unknown), so every row stays distinguishable.
@@ -153,6 +165,7 @@ export function timelineTracks(
       previewUrl: song.previewUrl,
       answer: { title: song.title, artist: song.artist, artwork: song.artwork },
       clue: { year: song.year, genre: song.genre, showGenre: collides },
+      beat: beatGrid(song),
       choices: choicesFor(song, songs, randFor(idx), catalog),
     };
   });

@@ -103,6 +103,7 @@ export async function loadAndSampleTracks(
         clipsPerTrack,
         seed: seed + trackIndex * 101,
         clipSeconds,
+        beat: track.beat,
       });
 
       return {
@@ -130,6 +131,20 @@ interface SampleArgs {
   clipsPerTrack: number;
   seed: number;
   clipSeconds: number;
+  // The song's beat grid (bpm + time of a beat), when analysed.
+  beat?: { bpm: number; offset: number };
+}
+
+// How many beats one clip spans: about a bar (4 beats) when that's a
+// comfortable length, else 8 or 2 (fast or slow tempos, or a tempo found at
+// double/half speed), else whatever lands closest to ~2.4s.
+export function beatsPerClip(bpm: number): number {
+  const period = 60 / bpm;
+  for (const n of [4, 8, 2, 6, 3]) {
+    const d = n * period;
+    if (d >= 1.8 && d <= 3.2) return n;
+  }
+  return Math.max(1, Math.round(2.4 / period));
 }
 
 /**
@@ -146,7 +161,36 @@ export function samplePieces({
   clipsPerTrack,
   seed,
   clipSeconds,
+  beat,
 }: SampleArgs): Piece[] {
+  // On the beat: every clip is a whole number of beats and starts on a beat,
+  // so any join keeps the groove; only melody and harmony give a wrong
+  // order away.
+  if (beat && beat.bpm > 0) {
+    const period = 60 / beat.bpm;
+    const clipDuration = beatsPerClip(beat.bpm) * period;
+    const span = clipDuration * clipsPerTrack;
+    const first = beat.offset % period;
+    const lastStartBeat = Math.floor((duration - 0.05 - span - first) / period);
+    if (lastStartBeat >= 0) {
+      const k = Math.floor(mulberry32(seed)() * (lastStartBeat + 1));
+      const start = first + k * period;
+      return Array.from({ length: clipsPerTrack }, (_, i) => {
+        const offset = start + i * clipDuration;
+        return {
+          id: `${trackId}-piece-${i}`,
+          trackId,
+          trackIndex,
+          correctIndex: i,
+          offset,
+          duration: clipDuration,
+          buffer,
+          peaks: computePeaks(buffer, offset, clipDuration, 56),
+        };
+      });
+    }
+  }
+
   const clipDuration = Math.min(clipSeconds, duration / clipsPerTrack);
   const span = clipDuration * clipsPerTrack;
   const slack = Math.max(0, duration - span);

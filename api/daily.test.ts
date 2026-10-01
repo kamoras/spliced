@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   choicesFor,
   timelineTracks,
+  beatGrid,
   selectDaily,
   practicePool,
   pickMatch,
@@ -170,6 +171,20 @@ describe('catalog', () => {
         (c) => c.title && c.artist && c.trackId && /^https?:/.test(c.previewUrl)
       )
     ).toBe(true);
+  });
+});
+
+describe('beatGrid', () => {
+  const song = fakeCatalog[0];
+  it('passes a confident beat grid through, and drops a shaky one', () => {
+    expect(beatGrid({ ...song, bpm: 120, beat: 0.2, beatConf: 0.8 })).toEqual({
+      bpm: 120,
+      offset: 0.2,
+    });
+    expect(beatGrid({ ...song, bpm: 120, beat: 0.2, beatConf: 0.1 })).toBe(
+      undefined
+    );
+    expect(beatGrid(song)).toBe(undefined);
   });
 });
 

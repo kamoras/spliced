@@ -33,6 +33,8 @@ export interface TrackDef {
   answer?: Song;
   // Name-that-tune options (the answer plus decoys), when the API offers them.
   choices?: { title: string; artist: string }[];
+  // The song's beat grid, when known: clips are cut on it.
+  beat?: { bpm: number; offset: number };
   // Timeline clue for this track's row.
   clue?: { year?: number; genre?: string; showGenre?: boolean };
 }

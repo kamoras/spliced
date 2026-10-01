@@ -76,11 +76,17 @@ Native American Heritage Month) by the player's local date — see
   and groupings stay varied. The puzzle number also seeds the clip slicing and
   the board scramble, so everyone gets the same board. The day's songs are laid
   out oldest-first as a timeline, one per channel.
-- **Web Audio slicing.** Each preview is decoded with the Web Audio API and cut
-  into **contiguous, back-to-back clips** from a seeded start point, so the
-  correct order reconstructs a continuous passage and a wrong order leaves an
-  audible seam — which the ⌇ seam knobs let you audition directly. Sound
-  effects are synthesized on the fly (no audio assets).
+- **Beat-aligned slicing.** Each preview is decoded with the Web Audio API and
+  cut into **contiguous, back-to-back clips** from a seeded start point, so the
+  correct order reconstructs a continuous passage. Songs are cut **on the
+  beat**: [`scripts/beats.ts`](./scripts/beats.ts) analyses every preview at
+  build time (spectral-flux onsets, harmonic-weighted tempo, beat phase;
+  `npm run beats:catalog`, needs ffmpeg) and stores its tempo in the catalog,
+  so each clip is a whole number of beats and any join keeps the groove. A
+  wrong order is given away by melody, harmony and lyrics, not by a rhythmic
+  glitch. Songs whose tempo analysis isn't confident fall back to fixed-length
+  cuts, and every clip gets a 3ms edge fade so no cut can click. Turn a seam knob to
+  audition any join directly. Sound effects are synthesized on the fly (no audio assets).
 - **Pure game engine.** All rules live in
   [`src/game/engine.ts`](./src/game/engine.ts) as pure state transitions
   (swap, lock in, reveal, name, ghost encode/decode), so they're unit-tested

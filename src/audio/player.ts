@@ -4,6 +4,7 @@ import type { Piece } from '../types.js';
 import { kickMeter } from './meter.js';
 
 const DEFAULT_VOLUME = 0.85;
+const EDGE_FADE = 0.003;
 
 function clampVolume(value: number): number {
   const numeric = Number(value);
@@ -125,6 +126,20 @@ export class Player {
     setTimeout(kickMeter, 80);
   }
 
+  // A per-clip gain with 3ms fades at both edges, so no cut point can click.
+  // Applied to every clip the same way, so a join sounds the same whether
+  // it's right or wrong: only the music itself can tell them apart.
+  private _edges(at: number, len: number, dest: AudioNode): GainNode {
+    const g = this.ctx.createGain();
+    const f = Math.min(EDGE_FADE, len / 4);
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(1, at + f);
+    g.gain.setValueAtTime(1, at + len - f);
+    g.gain.linearRampToValueAtTime(0, at + len);
+    g.connect(dest);
+    return g;
+  }
+
   private _bufferFor(piece: Piece): AudioBuffer | null {
     return piece.buffer || this.buffer;
   }
@@ -146,14 +161,15 @@ export class Player {
 
     const src = this.ctx.createBufferSource();
     src.buffer = this._bufferFor(piece);
-    src.connect(this.deck);
+    const at = this.ctx.currentTime;
+    src.connect(this._edges(at, playLength, this.deck));
     src.onended = () => {
       if (myToken === this.token) {
         this._clip = null;
         onEnd?.();
       }
     };
-    src.start(0, startOffset, playLength);
+    src.start(at, startOffset, playLength);
     this.sources.push(src);
     this._clip = {
       pieceId: piece.id,
@@ -193,7 +209,7 @@ export class Player {
     pieces.forEach((p, idx) => {
       const src = this.ctx.createBufferSource();
       src.buffer = this._bufferFor(p);
-      src.connect(this.deck);
+      src.connect(this._edges(t, p.duration, this.deck));
       if (tapeStart && idx === 0) {
         src.playbackRate.setValueAtTime(0.85, t);
         src.playbackRate.linearRampToValueAtTime(1, t + 0.12);
@@ -252,18 +268,10 @@ export class Player {
       [a, a.offset + a.duration - len, t0],
       [b, b.offset, t0 + len],
     ];
-    parts.forEach(([piece, offset, at], i) => {
+    parts.forEach(([piece, offset, at]) => {
       const src = this.ctx.createBufferSource();
       src.buffer = this._bufferFor(piece);
-      // Tiny fades at the outer edges only, so the join itself is untouched.
-      const env = this.ctx.createGain();
-      env.gain.setValueAtTime(i === 0 ? 0 : 1, at);
-      if (i === 0) env.gain.linearRampToValueAtTime(1, at + 0.03);
-      else {
-        env.gain.setValueAtTime(1, at + len - 0.04);
-        env.gain.linearRampToValueAtTime(0, at + len);
-      }
-      src.connect(env).connect(this.deck);
+      src.connect(this._edges(at, len, this.deck));
       src.start(at, offset, len);
       this.sources.push(src);
     });
@@ -324,7 +332,7 @@ export class Player {
       pieces.forEach((p) => {
         const src = this.ctx.createBufferSource();
         src.buffer = this._bufferFor(p);
-        src.connect(gain);
+        src.connect(this._edges(at, p.duration, gain));
         src.start(at, p.offset, p.duration);
         this.sources.push(src);
         at += p.duration;

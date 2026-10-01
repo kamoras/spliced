@@ -13,6 +13,11 @@ export interface CatalogEntry {
   // added by scripts/catalog-meta.ts. Used for row clues and decoys.
   year?: number;
   genre?: string;
+  // Tempo and the time of a beat in the preview (scripts/beats.ts), plus how
+  // confident that analysis is (0..1). Used to cut clips on the beat.
+  bpm?: number;
+  beat?: number;
+  beatConf?: number;
 }
 
 // The (partial) shape of an iTunes Search/Lookup result we read.
