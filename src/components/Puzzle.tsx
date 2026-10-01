@@ -492,6 +492,34 @@ export default function Puzzle({
     [player, tracks, trackIndex]
   );
 
+  // The win medley: each song's middle clips, in timeline order, crossfaded.
+  const playMixtape = useCallback(() => {
+    const segments = tracks.map((t) => {
+      const mid = Math.max(0, Math.floor(t.pieces.length / 2) - 1);
+      return t.pieces.slice(mid, mid + 2);
+    });
+    const years = def.tracks.map((t, i) => clueLabel(t.clue ?? {}, i));
+    player.playMixtape(segments, {
+      onSegment: (i) => {
+        setPlaying({ kind: 'song', trackId: tracks[i].id, id: null });
+        setMessage(
+          `MIXTAPE ▸ ${years.map((y, k) => (k === i ? `[${y}]` : y)).join(' ▸ ')}`
+        );
+      },
+      onEnd: () => {
+        setPlaying(null);
+        setMessage('★ MASTER MIX COMPLETE ★');
+      },
+    });
+  }, [player, tracks, def.tracks]);
+
+  // The results panel's PLAY MIXTAPE key asks for an encore.
+  useEffect(() => {
+    const onEncore = () => playMixtape();
+    window.addEventListener('spliced:mixtape', onEncore);
+    return () => window.removeEventListener('spliced:mixtape', onEncore);
+  }, [playMixtape]);
+
   function toggleSong(trackId: string) {
     cue('click');
     if (playing?.kind === 'song' && playing.trackId === trackId) stopAll(true);
@@ -568,7 +596,8 @@ export default function Puzzle({
             window.dispatchEvent(new Event('spliced:win'));
             onFinish?.({ ...next, elapsedMs: elapsedNow() });
           }
-          playSong(trackId, 0.15);
+          if (outcome.won) later(playMixtape, 900);
+          else playSong(trackId, 0.15);
         },
         reducedMotion() ? 150 : 720
       );

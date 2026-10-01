@@ -2513,3 +2513,8 @@ button {
     white-space: nowrap;
   }
 }
+.results-mixtape {
+  justify-self: center;
+  height: 36px;
+  padding: 0 16px;
+}

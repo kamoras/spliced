@@ -279,4 +279,77 @@ export class Player {
       )
     );
   }
+
+  /**
+   * The win "mixtape": a medley of several songs back to back, each a short
+   * run of its clips, with equal-power crossfades between songs.
+   * `onSegment(i)` fires as each song comes in; `onEnd()` when it's done.
+   */
+  async playMixtape(
+    segments: Piece[][],
+    {
+      onSegment,
+      onEnd,
+      fade = 0.4,
+    }: {
+      onSegment?: (idx: number) => void;
+      onEnd?: () => void;
+      fade?: number;
+    } = {}
+  ): Promise<void> {
+    await this._resume();
+    this.stop();
+    const myToken = this.token;
+    const steps = 32;
+    const fadeIn = new Float32Array(steps);
+    const fadeOut = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const x = i / (steps - 1);
+      fadeIn[i] = Math.sin((x * Math.PI) / 2);
+      fadeOut[i] = Math.cos((x * Math.PI) / 2);
+    }
+
+    let t = this.ctx.currentTime + 0.08;
+    segments.forEach((pieces, idx) => {
+      const len = pieces.reduce((sum, p) => sum + p.duration, 0);
+      const gain = this.ctx.createGain();
+      gain.connect(this.deck);
+      const first = idx === 0;
+      const last = idx === segments.length - 1;
+      gain.gain.setValueAtTime(first ? 1 : 0, t);
+      if (!first) gain.gain.setValueCurveAtTime(fadeIn, t, fade);
+      if (!last) gain.gain.setValueCurveAtTime(fadeOut, t + len - fade, fade);
+
+      let at = t;
+      pieces.forEach((p) => {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this._bufferFor(p);
+        src.connect(gain);
+        src.start(at, p.offset, p.duration);
+        this.sources.push(src);
+        at += p.duration;
+      });
+
+      const startMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
+      this.timers.push(
+        setTimeout(() => {
+          if (myToken === this.token) onSegment?.(idx);
+        }, startMs)
+      );
+      // The next song starts as this one fades out.
+      t += len - (last ? 0 : fade);
+    });
+
+    this.timers.push(
+      setTimeout(
+        () => {
+          if (myToken === this.token) {
+            this.sources = [];
+            onEnd?.();
+          }
+        },
+        Math.max(0, (t - this.ctx.currentTime) * 1000)
+      )
+    );
+  }
 }

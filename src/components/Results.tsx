@@ -223,6 +223,17 @@ export default function Results({
         </details>
       )}
 
+      {won && (
+        <button
+          type="button"
+          className="cbtn results-mixtape"
+          onClick={() => window.dispatchEvent(new Event('spliced:mixtape'))}
+        >
+          <span className="lamp" aria-hidden="true" />
+          Play mixtape
+        </button>
+      )}
+
       <div className="results-actions">
         {onNewMix && (
           <button type="button" className="btn" onClick={onNewMix}>
