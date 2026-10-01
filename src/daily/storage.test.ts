@@ -6,6 +6,13 @@ import {
   formatCountdown,
   formatDuration,
   msUntilNextPuzzle,
+  getProgress,
+  saveProgress,
+  getPrefs,
+  setPrefs,
+  liveStreak,
+  getCrate,
+  addToCrate,
 } from './storage.js';
 
 beforeEach(() => localStorage.clear());
@@ -20,6 +27,29 @@ describe('saveResult / getResult', () => {
     saveResult(2, { solved: true, mistakes: 2 });
     saveResult(2, { solved: false, mistakes: 9 });
     expect(getResult(2)).toMatchObject({ solved: true, mistakes: 2 });
+  });
+
+  it('keeps the first result: a later solve cannot erase a loss', () => {
+    saveResult(3, { solved: false, mistakes: 4 });
+    saveResult(3, { solved: true, mistakes: 0 });
+    expect(getResult(3)).toMatchObject({ solved: false });
+  });
+
+  it('never reopens a finished game from a stale tab', () => {
+    const base = {
+      order: ['a'],
+      solved: [],
+      mistakes: 4,
+      attempts: [],
+      tried: {},
+      elapsedMs: 0,
+    };
+    saveProgress(4, { ...base, status: 'lost' });
+    saveProgress(4, { ...base, status: 'playing' });
+    expect(getProgress(4)?.status).toBe('lost');
+    // A second tab's different ending can't replace the first.
+    saveProgress(4, { ...base, status: 'won' });
+    expect(getProgress(4)?.status).toBe('lost');
   });
 
   it('returns null for unknown puzzles', () => {
@@ -65,6 +95,51 @@ describe('computeStats', () => {
       perfect: 0,
       currentStreak: 0,
       maxStreak: 0,
+      distribution: [0, 0, 0, 0],
+      losses: 0,
+    });
+  });
+
+  it('buckets wins by mistake count', () => {
+    saveResult(1, { solved: true, mistakes: 0 });
+    saveResult(2, { solved: true, mistakes: 2 });
+    saveResult(3, { solved: true, mistakes: 2 });
+    saveResult(4, { solved: false, mistakes: 4 });
+    expect(computeStats(4)).toMatchObject({
+      distribution: [1, 0, 2, 0],
+      losses: 1,
+    });
+  });
+});
+
+describe('progress', () => {
+  const state = {
+    order: ['a'],
+    solved: [],
+    mistakes: 1,
+    attempts: [],
+    tried: {},
+    status: 'playing' as const,
+    elapsedMs: 10,
+  };
+
+  it('round-trips and keeps only the latest week', () => {
+    for (let n = 1; n <= 9; n++) saveProgress(n, { ...state, mistakes: n });
+    expect(getProgress(9)).toMatchObject({ mistakes: 9 });
+    expect(getProgress(3)).toMatchObject({ mistakes: 3 });
+    expect(getProgress(2)).toBeNull();
+  });
+});
+
+describe('prefs', () => {
+  it('defaults sound on and help unseen, and persists changes', () => {
+    expect(getPrefs()).toMatchObject({ sfx: true, seenHelp: false });
+    setPrefs({ seenHelp: true, volume: 0.4 });
+    expect(getPrefs()).toEqual({
+      sfx: true,
+      seenHelp: true,
+      volume: 0.4,
+      muted: false,
     });
   });
 });
@@ -90,5 +165,43 @@ describe('msUntilNextPuzzle', () => {
     const ms = msUntilNextPuzzle();
     expect(ms).toBeGreaterThan(0);
     expect(ms).toBeLessThanOrEqual(86400000);
+  });
+});
+
+describe('liveStreak', () => {
+  it('keeps yesterday’s streak alive until today is played', () => {
+    saveResult(4, { solved: true });
+    saveResult(5, { solved: true });
+    expect(liveStreak(6)).toBe(2);
+    saveResult(6, { solved: true });
+    expect(liveStreak(6)).toBe(3);
+    expect(liveStreak(8)).toBe(0);
+  });
+});
+
+describe('crate', () => {
+  const song = { title: 'Africa', artist: 'Toto', solved: false, named: false };
+
+  it('collects songs newest-first without duplicates, upgrading flags', () => {
+    addToCrate([song, { ...song, title: 'Rosanna' }]);
+    addToCrate([{ ...song, solved: true, named: true }]);
+    addToCrate([{ ...song, solved: false }]);
+    const crate = getCrate();
+    expect(crate.map((e) => e.title)).toEqual(['Africa', 'Rosanna']);
+    expect(crate[0]).toMatchObject({ solved: true, named: true });
+  });
+});
+
+describe('corrupted storage', () => {
+  it('ignores junk instead of crashing', () => {
+    localStorage.setItem('spliced:daily', '"oops"');
+    expect(getResult(1)).toBeNull();
+    localStorage.setItem(
+      'spliced:crate',
+      '[null, 3, {"title":"A","artist":"B"}]'
+    );
+    expect(getCrate()).toHaveLength(1);
+    localStorage.setItem('spliced:prefs', '{"volume":"loud","sfx":"no"}');
+    expect(getPrefs()).toMatchObject({ volume: 0.85, sfx: true });
   });
 });

@@ -12,6 +12,16 @@ export function getAudioContext(): AudioContext {
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext;
     _ctx = new Ctx();
+    // iOS mutes Web Audio under the ring/silent switch unless the page asks for
+    // "playback" audio (Safari 17+). Harmless elsewhere.
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) {
+      try {
+        nav.audioSession.type = 'playback';
+      } catch {
+        /* unsupported */
+      }
+    }
   }
   return _ctx;
 }
@@ -26,7 +36,14 @@ async function decodePreview(
   if (!resp.ok) throw new Error('Could not load the audio preview.');
 
   const arrayBuffer = await resp.arrayBuffer();
-  const buffer = await ctx.decodeAudioData(arrayBuffer);
+  let buffer: AudioBuffer;
+  try {
+    buffer = await ctx.decodeAudioData(arrayBuffer);
+  } catch {
+    throw new Error(
+      'This browser couldn’t decode the song previews (AAC). Try Chrome, Safari, Firefox, or Edge.'
+    );
+  }
   return { buffer, duration: buffer.duration };
 }
 
@@ -61,12 +78,23 @@ export function computePeaks(
 export async function loadAndSampleTracks(
   trackDefs: TrackDef[],
   clipsPerTrack: number,
-  { seed = 0, clipSeconds = 2.4 }: { seed?: number; clipSeconds?: number } = {}
+  {
+    seed = 0,
+    clipSeconds = 2.4,
+    onProgress,
+  }: {
+    seed?: number;
+    clipSeconds?: number;
+    // Called with the number of tracks decoded so far.
+    onProgress?: (loaded: number) => void;
+  } = {}
 ): Promise<Track[]> {
-  return Promise.all(
+  let loaded = 0;
+  const tracks = await Promise.all(
     trackDefs.map(async (track, trackIndex) => {
       const trackId = track.id || `track-${trackIndex}`;
       const { buffer, duration } = await decodePreview(track.previewUrl);
+      onProgress?.(++loaded);
       const pieces = samplePieces({
         buffer,
         trackId,
@@ -75,6 +103,7 @@ export async function loadAndSampleTracks(
         clipsPerTrack,
         seed: seed + trackIndex * 101,
         clipSeconds,
+        beat: track.beat,
       });
 
       return {
@@ -86,6 +115,17 @@ export async function loadAndSampleTracks(
       };
     })
   );
+  // Opaque clip ids: a seeded shuffle, so nothing in the page (ids, saved
+  // progress) spells out which song or slot a clip belongs to.
+  const all = tracks.flatMap((t) => t.pieces);
+  const rand = mulberry32(seed * 7919 + 17);
+  const order = all.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  all.forEach((p, i) => (p.id = `clip-${order[i].toString(36)}`));
+  return tracks;
 }
 
 // Offsets snap to this grid (seconds) so a tiny difference in a preview's
@@ -102,6 +142,20 @@ interface SampleArgs {
   clipsPerTrack: number;
   seed: number;
   clipSeconds: number;
+  // The song's beat grid (bpm + time of a beat), when analysed.
+  beat?: { bpm: number; offset: number };
+}
+
+// How many beats one clip spans: about a bar (4 beats) when that's a
+// comfortable length, else 8 or 2 (fast or slow tempos, or a tempo found at
+// double/half speed), else whatever lands closest to ~2.4s.
+export function beatsPerClip(bpm: number): number {
+  const period = 60 / bpm;
+  for (const n of [4, 8, 2, 6, 3]) {
+    const d = n * period;
+    if (d >= 1.8 && d <= 3.2) return n;
+  }
+  return Math.max(1, Math.round(2.4 / period));
 }
 
 /**
@@ -118,15 +172,54 @@ export function samplePieces({
   clipsPerTrack,
   seed,
   clipSeconds,
+  beat,
 }: SampleArgs): Piece[] {
-  const clipDuration = Math.min(clipSeconds, duration / clipsPerTrack);
+  // On the beat: every clip is a whole number of beats and starts on a beat,
+  // so any join keeps the groove; only melody and harmony give a wrong
+  // order away.
+  if (beat && beat.bpm > 0) {
+    const period = 60 / beat.bpm;
+    const clipDuration = beatsPerClip(beat.bpm) * period;
+    const span = clipDuration * clipsPerTrack;
+    const first = beat.offset % period;
+    // Use a nominal length (half-second steps, at most 29s) so a few ms of
+    // decoder difference between browsers can't change the window, and so
+    // the seeded start beat — everyone's puzzle.
+    const nominal = Math.min(29, Math.floor(duration * 2) / 2);
+    const lastStartBeat = Math.floor((nominal - span - first) / period);
+    if (lastStartBeat >= 0) {
+      const k = Math.floor(mulberry32(seed)() * (lastStartBeat + 1));
+      const start = first + k * period;
+      return Array.from({ length: clipsPerTrack }, (_, i) => {
+        const offset = start + i * clipDuration;
+        return {
+          id: `${trackId}-piece-${i}`,
+          trackId,
+          trackIndex,
+          correctIndex: i,
+          offset,
+          duration: clipDuration,
+          buffer,
+          peaks: computePeaks(buffer, offset, clipDuration, 56),
+        };
+      });
+    }
+  }
+
+  // Snap the clip length too, so snapped offsets stay exactly back-to-back.
+  const clipDuration = Math.max(
+    OFFSET_STEP,
+    Math.floor(Math.min(clipSeconds, duration / clipsPerTrack) / OFFSET_STEP) *
+      OFFSET_STEP
+  );
   const span = clipDuration * clipsPerTrack;
   const slack = Math.max(0, duration - span);
-  const start = snap(slack * mulberry32(seed)());
-  const maxOffset = Math.max(0, duration - clipDuration);
+  // Round down so the last clip never runs past the end of the buffer.
+  const start =
+    Math.floor((slack * mulberry32(seed)()) / OFFSET_STEP) * OFFSET_STEP;
 
   return Array.from({ length: clipsPerTrack }, (_, i) => {
-    const offset = snap(Math.min(maxOffset, start + i * clipDuration));
+    const offset = snap(start + i * clipDuration);
     return {
       id: `${trackId}-piece-${i}`,
       trackId,

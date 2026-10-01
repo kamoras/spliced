@@ -28,7 +28,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:catalog": "tsx scripts/build-catalog.ts"
+    "build:catalog": "tsx scripts/build-catalog.ts",
+    "enrich:catalog": "tsx scripts/catalog-meta.ts",
+    "build:art": "node scripts/og/render.cjs",
+    "beats:catalog": "tsx scripts/beats.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

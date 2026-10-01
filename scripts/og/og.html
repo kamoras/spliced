@@ -1,0 +1,335 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Arial,
+          sans-serif;
+        background: radial-gradient(120% 90% at 30% 0, #2b2f34, #0d0f11 70%);
+        color: #ece7da;
+      }
+      .wrap {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: 560px 1fr;
+        gap: 36px;
+        padding: 0 56px;
+        align-items: center;
+      }
+      .plate {
+        display: inline-flex;
+        align-items: center;
+        padding: 18px 28px;
+        border-radius: 10px;
+        font:
+          900 66px/1 'Eurostile',
+          'Microgramma D Extended',
+          'Bank Gothic',
+          'DIN Alternate',
+          'Arial Narrow',
+          ui-sans-serif,
+          sans-serif;
+        letter-spacing: 0.16em;
+        color: #ebe7dc;
+        text-shadow: 0 2px 0 #000;
+        background:
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.08),
+            rgba(0, 0, 0, 0.25)
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.04) 0 1px,
+            transparent 1px 3px
+          ),
+          #26292d;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          0 6px 20px rgba(0, 0, 0, 0.6),
+          0 0 0 2px rgba(0, 0, 0, 0.4);
+      }
+      .slot {
+        position: relative;
+        width: 14px;
+        height: 64px;
+        margin: 0 0.2em 0 0.1em;
+        border-radius: 8px;
+        background: #07080a;
+        box-shadow: inset 0 2px 4px #000;
+      }
+      .cap {
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        width: 40px;
+        height: 20px;
+        transform: translateX(-50%);
+        border-radius: 5px;
+        background: linear-gradient(
+          180deg,
+          #f7f5ef,
+          #d6d2c8 45%,
+          #9e9b94 50%,
+          #e2ded5
+        );
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.6);
+      }
+      .cap::after {
+        content: '';
+        position: absolute;
+        left: 5px;
+        right: 5px;
+        top: 50%;
+        height: 4px;
+        margin-top: -2px;
+        background: #d8432f;
+        border-radius: 2px;
+      }
+      .brand {
+        display: inline-flex;
+        flex-direction: column;
+      }
+      .leds {
+        display: flex;
+        gap: 6px;
+        margin-top: 12px;
+      }
+      .leds i {
+        flex: 1;
+        height: 10px;
+        border-radius: 2px;
+        background: #57f2d6;
+        box-shadow: 0 0 10px rgba(87, 242, 214, 0.6);
+      }
+      .leds i:nth-child(n + 6) {
+        background: #e9dfc0;
+        box-shadow: none;
+        opacity: 0.5;
+      }
+      .leds i:nth-child(7) {
+        background: #e0261b;
+        opacity: 0.9;
+        box-shadow: 0 0 10px #e0261b;
+      }
+      .tag {
+        margin-top: 34px;
+        font:
+          600 40px/1.25 ui-sans-serif,
+          system-ui,
+          sans-serif;
+        color: #f2eee4;
+        max-width: 560px;
+      }
+      .tag b {
+        color: #57f2d6;
+        font-weight: 800;
+      }
+      .sub {
+        margin-top: 18px;
+        white-space: nowrap;
+        font:
+          600 22px/1.3 ui-monospace,
+          Menlo,
+          monospace;
+        color: #b3ac9e;
+        letter-spacing: 0.04em;
+      }
+      .console {
+        align-self: center;
+        padding: 18px;
+        border-radius: 16px;
+        background:
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.035) 0 1px,
+            transparent 1px 3px
+          ),
+          linear-gradient(180deg, #34383d, #1e2124 18%, #26292d);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.2),
+          0 20px 50px rgba(0, 0, 0, 0.6);
+        transform: rotate(-2deg);
+      }
+      .vfd {
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: #06120f;
+        color: #57f2d6;
+        font:
+          700 20px/1.3 ui-monospace,
+          Menlo,
+          monospace;
+        text-shadow: 0 0 6px rgba(87, 242, 214, 0.7);
+        box-shadow: inset 0 2px 8px #000;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .strip {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 8px;
+        background: #26292d;
+        box-shadow: inset 0 0 0 1px #0f1113;
+      }
+      .ch {
+        font:
+          800 16px/1 'Arial Narrow',
+          sans-serif;
+        border: 2px solid #e9e4d6;
+        border-radius: 4px;
+        text-align: center;
+        padding: 4px 0;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .tape {
+        padding: 4px 14px;
+        background: #e9dfbf;
+        color: #1e2a5a;
+        font:
+          700 22px/1.2 'Marker Felt',
+          'Bradley Hand',
+          'Segoe Print',
+          ui-rounded,
+          sans-serif;
+        transform: rotate(-1deg);
+        clip-path: polygon(
+          0 8%,
+          3% 0,
+          97% 4%,
+          100% 0,
+          99% 50%,
+          100% 100%,
+          96% 94%,
+          4% 100%,
+          0 92%,
+          1% 50%
+        );
+      }
+      .carts {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .cart {
+        height: 54px;
+        border-radius: 6px;
+        padding: 5px;
+        background: linear-gradient(180deg, #4b5057, #3a3e44 40%, #2b2e33);
+        box-shadow: 0 3px 0 #0f1012;
+      }
+      .cart.ok {
+        outline: 3px solid #53d769;
+      }
+      .cart.mid {
+        outline: 3px dashed #f6b73c;
+      }
+      .scope {
+        height: 100%;
+        border-radius: 3px;
+        background: #0c0e0f;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 4px;
+      }
+      .scope i {
+        flex: 1;
+        background: #9ff5e0;
+        border-radius: 1px;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div>
+        <div class="brand">
+          <div class="plate">
+            SPLI<span class="slot"><span class="cap"></span></span>CED
+          </div>
+          <div class="leds">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </div>
+        <div class="tag">
+          Three mystery songs, <b>spliced</b> and shuffled. Rebuild them by ear.
+        </div>
+        <div class="sub">A new daily mix · free · no sign-up</div>
+      </div>
+      <div class="console">
+        <div class="vfd"><span>SPLICED · DAILY MIX</span><span>0:42</span></div>
+        <div class="strip">
+          <span class="ch">1</span>
+          <div>
+            <div class="row"><span class="tape">1984</span></div>
+            <div class="carts" id="c1"></div>
+          </div>
+        </div>
+        <div class="strip">
+          <span class="ch">2</span>
+          <div>
+            <div class="row"><span class="tape">1997</span></div>
+            <div class="carts" id="c2"></div>
+          </div>
+        </div>
+        <div class="strip">
+          <span class="ch">3</span>
+          <div>
+            <div class="row"><span class="tape">2011</span></div>
+            <div class="carts" id="c3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      let seed = 7;
+      const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+      for (const [id, marks] of [
+        ['c1', ['ok', 'ok', 'mid', '']],
+        ['c2', ['', 'mid', 'ok', '']],
+        ['c3', ['', '', '', 'mid']],
+      ]) {
+        const el = document.getElementById(id);
+        marks.forEach((m) => {
+          const c = document.createElement('div');
+          c.className = 'cart ' + m;
+          const s = document.createElement('div');
+          s.className = 'scope';
+          for (let i = 0; i < 22; i++) {
+            const b = document.createElement('i');
+            b.style.height = 20 + rnd() * 75 + '%';
+            s.appendChild(b);
+          }
+          c.appendChild(s);
+          el.appendChild(c);
+        });
+      }
+    </script>
+  </body>
+</html>

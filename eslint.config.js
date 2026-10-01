@@ -58,6 +58,13 @@ export default tseslint.config(
     languageOptions: { sourceType: 'module', globals: globals.node },
   },
 
+  // CommonJS helper scripts (Playwright art rendering).
+  {
+    files: ['scripts/**/*.cjs'],
+    languageOptions: { sourceType: 'commonjs', globals: globals.node },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+
   // Tests + Vitest setup run under jsdom: both browser and node globals.
   {
     files: ['**/*.test.{js,jsx,ts,tsx}', 'vitest.setup.ts'],

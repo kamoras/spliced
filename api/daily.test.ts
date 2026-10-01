@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, pickMatch, norm } from './daily.js';
+import {
+  choicesFor,
+  timelineTracks,
+  beatGrid,
+  selectDaily,
+  practicePool,
+  pickMatch,
+  norm,
+} from './daily.js';
+import { mulberry32 } from './_prng.js';
 import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
 import catalog from './_catalog.json';
 
@@ -60,6 +69,113 @@ describe('selectDaily', () => {
   });
 });
 
+describe('practicePool', () => {
+  const real = catalog as NonNullable<Parameters<typeof practicePool>[1]>;
+
+  it('only uses songs from past dailies once the pool is big enough', () => {
+    const now = LAUNCH_UTC + 100 * DAY;
+    const pool = practicePool(now, real);
+    const past = new Set<number>();
+    for (let d = 0; d < 100; d++) {
+      selectDaily(LAUNCH_UTC + d * DAY, real).songs.forEach((s) =>
+        past.add(s.trackId)
+      );
+    }
+    expect(pool.length).toBe(past.size);
+    expect(pool.every((s) => past.has(s.trackId))).toBe(true);
+  });
+
+  it('never includes today’s or the next month’s songs when falling back', () => {
+    const now = LAUNCH_UTC + 2 * DAY;
+    const soon = new Set<number>();
+    for (let d = 2; d <= 32; d++) {
+      selectDaily(LAUNCH_UTC + d * DAY, real).songs.forEach((s) =>
+        soon.add(s.trackId)
+      );
+    }
+    const pool = practicePool(now, real);
+    expect(pool.length).toBeGreaterThan(real.length / 2);
+    expect(pool.some((s) => soon.has(s.trackId))).toBe(false);
+  });
+});
+
+describe('choicesFor', () => {
+  it('offers the answer plus 3 distinct-artist decoys, deterministically', () => {
+    const [answer, ...today] = fakeCatalog.slice(0, 4);
+    const a = choicesFor(
+      answer,
+      [answer, ...today],
+      mulberry32(7),
+      fakeCatalog
+    );
+    const b = choicesFor(
+      answer,
+      [answer, ...today],
+      mulberry32(7),
+      fakeCatalog
+    );
+    expect(a).toEqual(b);
+    expect(a).toHaveLength(4);
+    expect(a).toContainEqual({ title: answer.title, artist: answer.artist });
+    expect(new Set(a.map((c) => c.artist)).size).toBe(4);
+    const todayTitles = today.map((s) => s.title);
+    expect(a.some((c) => todayTitles.includes(c.title))).toBe(false);
+  });
+});
+
+describe('timelineTracks', () => {
+  const genres = ['Pop', 'Rock'];
+  const dated = fakeCatalog.map((s, i) => ({
+    ...s,
+    year: 1980 + i,
+    genre: genres[i % 2],
+  }));
+
+  it('orders rows oldest-first with a year clue, adding genre on collisions', () => {
+    const songs = [
+      { ...dated[3], year: 1985 },
+      { ...dated[1], year: 1975 },
+      { ...dated[11], year: 1975 },
+      { ...dated[0], year: 1970 },
+    ];
+    const rows = timelineTracks(songs, (i) => `r${i}`);
+    expect(rows.map((r) => r.clue.year)).toEqual([1970, 1975, 1975, 1985]);
+    expect(rows.map((r) => r.clue.showGenre)).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
+    expect(rows.map((r) => r.id)).toEqual([
+      'track-0',
+      'track-1',
+      'track-2',
+      'track-3',
+    ]);
+    expect(rows.map((r) => r.ref)).toEqual(['r0', 'r1', 'r2', 'r3']);
+  });
+
+  it('never includes titles, artists or choices', () => {
+    const text = JSON.stringify(timelineTracks(dated.slice(0, 3), String));
+    dated.slice(0, 3).forEach((s) => {
+      expect(text).not.toContain(s.title);
+      expect(text).not.toContain(s.artist);
+    });
+    expect(text).not.toContain('choices');
+  });
+
+  it('draws decoys from the same genre and era when it can', () => {
+    const answer = dated[10]; // 1990, Pop
+    const choices = choicesFor(answer, [answer], mulberry32(3), dated);
+    const byTitle = new Map(dated.map((d) => [d.title, d]));
+    choices.forEach((c) => {
+      const d = byTitle.get(c.title)!;
+      expect(d.genre).toBe('Pop');
+      expect(Math.abs(d.year - 1990)).toBeLessThanOrEqual(4);
+    });
+  });
+});
+
 describe('catalog', () => {
   it('is roughly a year of unique, previewable songs', () => {
     // ~4 tracks * 365 days, allowing a little slack from dedupe.
@@ -70,6 +186,46 @@ describe('catalog', () => {
         (c) => c.title && c.artist && c.trackId && /^https?:/.test(c.previewUrl)
       )
     ).toBe(true);
+  });
+});
+
+describe('catalog uniqueness', () => {
+  it('lists each song once, even across remasters / live versions', () => {
+    const base = (t: string) =>
+      norm(t.replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, ''));
+    const keys = catalog.map((c) => `${base(c.title)}|${norm(c.artist)}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('serves previews over https only', () => {
+    expect(catalog.every((c) => c.previewUrl.startsWith('https://'))).toBe(
+      true
+    );
+  });
+});
+
+describe('beatGrid', () => {
+  const song = fakeCatalog[0];
+  it('passes a confident beat grid through, and drops a shaky one', () => {
+    expect(beatGrid({ ...song, bpm: 120, beat: 0.2, beatConf: 0.8 })).toEqual({
+      bpm: 120,
+      offset: 0.2,
+    });
+    expect(beatGrid({ ...song, bpm: 120, beat: 0.2, beatConf: 0.1 })).toBe(
+      undefined
+    );
+    expect(beatGrid(song)).toBe(undefined);
+  });
+});
+
+describe('catalog metadata', () => {
+  it('gives every song a plausible release year and a genre', () => {
+    const withYear = catalog.filter(
+      (c) =>
+        c.year && c.year >= 1900 && c.year <= new Date().getUTCFullYear() + 1
+    );
+    expect(withYear.length).toBe(catalog.length);
+    expect(catalog.every((c) => typeof c.genre === 'string')).toBe(true);
   });
 });
 
@@ -104,5 +260,16 @@ describe('norm', () => {
     expect(norm("Guns N' Roses")).toBe('gunsnroses');
     expect(norm('Earth, Wind & Fire')).toBe('earthwindfire');
     expect(norm(null)).toBe('');
+  });
+});
+
+describe('pinned schedule', () => {
+  // Guards against an accidental catalog rebuild silently changing which
+  // songs every past (and today's) puzzle used. Update deliberately.
+  it('keeps the songs for known puzzle numbers', () => {
+    const real = catalog as NonNullable<Parameters<typeof selectDaily>[1]>;
+    const ids = (n: number) =>
+      selectDaily(LAUNCH_UTC + n * DAY, real).songs.map((s) => s.trackId);
+    expect([ids(0), ids(100), ids(273)]).toMatchSnapshot();
   });
 });

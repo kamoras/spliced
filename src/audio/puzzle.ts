@@ -67,11 +67,38 @@ export function buildMixerOrder<T extends OrderablePiece>(
   return order;
 }
 
+// Which song a row is "trying" to be: the song with the most clips in it. Ties
+// go to the song with more clips already in their correct slot, then to the
+// earliest clip. Anchoring on the majority (not just the first clip) means a
+// single stray clip at the front can't make the whole row's feedback useless.
+export function rowAnchor(row: OrderablePiece[]): string | null {
+  let best: string | null = null;
+  let bestCount = -1;
+  let bestPlaced = -1;
+  row.forEach((piece) => {
+    const id = piece.trackId;
+    if (!id || id === best) return;
+    let count = 0;
+    let placed = 0;
+    row.forEach((other, idx) => {
+      if (other.trackId !== id) return;
+      count++;
+      if (other.correctIndex === idx) placed++;
+    });
+    if (count > bestCount || (count === bestCount && placed > bestPlaced)) {
+      best = id;
+      bestCount = count;
+      bestPlaced = placed;
+    }
+  });
+  return best;
+}
+
 export function gradeMixerRow(
   row: OrderablePiece[],
   solvedTrackIds: string[] = []
 ): RowGrade {
-  const trackId = row[0]?.trackId ?? null;
+  const trackId = rowAnchor(row);
   const alreadySolved = trackId ? solvedTrackIds.includes(trackId) : false;
   const cells: CellGrade[] = row.map((piece, idx) => {
     const sameTrack = Boolean(trackId) && piece.trackId === trackId;

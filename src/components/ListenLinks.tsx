@@ -8,14 +8,20 @@ interface Service {
   href: (query: string) => string;
 }
 
-const SERVICES: Service[] = [
+const SERVICES: (Service & { short: string })[] = [
   {
     name: 'Apple Music',
+    short: 'Apple',
     href: (q) => `https://music.apple.com/search?term=${q}`,
   },
-  { name: 'Spotify', href: (q) => `https://open.spotify.com/search/${q}` },
+  {
+    name: 'Spotify',
+    short: 'Spotify',
+    href: (q) => `https://open.spotify.com/search/${q}`,
+  },
   {
     name: 'YouTube',
+    short: 'YouTube',
     href: (q) => `https://www.youtube.com/results?search_query=${q}`,
   },
 ];
@@ -23,16 +29,18 @@ const SERVICES: Service[] = [
 export default function ListenLinks({
   title,
   artist,
+  compact = false,
 }: {
   title?: string;
   artist?: string;
+  compact?: boolean;
 }) {
   if (!title) return null;
   const query = encodeURIComponent(`${title} ${artist || ''}`.trim());
 
   return (
-    <div className="listen-links">
-      <span className="listen-label">Listen</span>
+    <div className={compact ? 'listen-links is-compact' : 'listen-links'}>
+      {!compact && <span className="listen-label">Listen</span>}
       {SERVICES.map((service) => (
         <a
           key={service.name}
@@ -40,9 +48,9 @@ export default function ListenLinks({
           href={service.href(query)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Find ${title} by ${artist} on ${service.name}`}
+          aria-label={`Find ${title}${artist ? ` by ${artist}` : ''} on ${service.name} (opens in a new tab)`}
         >
-          {service.name}
+          {compact ? service.short : service.name}
           <Icon name="external" />
         </a>
       ))}

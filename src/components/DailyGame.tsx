@@ -1,75 +1,213 @@
-// Today's shared puzzle. The songs stay hidden until you solve, run out of
-// mistakes, or reveal them.
+// Today's shared puzzle: load + slice the day's songs, restore any game in
+// progress, race a friend's ghost if you arrived via their link, and record
+// the result, stats, and crate when you finish.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Puzzle from './Puzzle.jsx';
-import Icon from './Icon.jsx';
-import ListenLinks from './ListenLinks.jsx';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Puzzle, { puzzleDef, requestBoardFocus } from './Puzzle.jsx';
+import Results from './Results.jsx';
+import Loading from './Loading.jsx';
+import { DAILY_CLIPS_PER_TRACK, DAILY_TRACKS } from '../../api/_songs.js';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
+  addToCrate,
+  getProgress,
   getResult,
+  getGhost,
+  saveGhost,
+  saveProgress,
   saveResult,
-  computeStats,
-  msUntilNextPuzzle,
-  formatCountdown,
-  formatDuration,
 } from '../daily/storage.js';
-import type { DailyResponse, GameResult, Song, Track } from '../types.js';
+import { prefersReducedMotion } from '../audio/meter.js';
+import {
+  revealAll,
+  decodeGhost,
+  finishedFromResult,
+  isValidState,
+} from '../game/engine.js';
+import type { GameState, Ghost } from '../game/engine.js';
+import type { DailyResponse, Song, Track } from '../types.js';
+import { track as trackEvent } from '../analytics.js';
 
 type Status = 'loading' | 'ready' | 'error';
 
-export default function DailyGame({ onPractice }: { onPractice: () => void }) {
+interface GhostParam {
+  ghost: Ghost;
+  name: string;
+  code: string;
+  saved?: boolean;
+}
+
+// Read (once per page load, even under React's dev double render) a ghost
+// from ?g=…&n=… and clean the URL. Without one, fall back to the ghost saved
+// from an earlier visit (a reload mid-race).
+let ghostParamCache: GhostParam | null | undefined;
+function readGhostParam(): GhostParam | null {
+  if (ghostParamCache === undefined) ghostParamCache = parseGhostParam();
+  return ghostParamCache;
+}
+
+function parseGhostParam(): GhostParam | null {
+  if (typeof location === 'undefined') return null;
+  const params = new URLSearchParams(location.search);
+  if (!params.has('g')) {
+    const saved = getGhost();
+    const ghost = decodeGhost(saved?.code);
+    return saved && ghost
+      ? { ghost, name: saved.name, code: saved.code, saved: true }
+      : null;
+  }
+  const code = params.get('g');
+  const ghost = decodeGhost(code);
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (!ghost || !code) return null;
+  const name =
+    (params.get('n') || 'A friend')
+      .replace(/[^\p{L}\p{N} '._-]/gu, '')
+      .slice(0, 16) || 'A friend';
+  return { ghost, name, code };
+}
+
+export default function DailyGame({
+  onPractice,
+  sfx,
+  volume,
+  paused,
+}: {
+  onPractice: () => void;
+  sfx: boolean;
+  volume: number;
+  paused: boolean;
+}) {
   const [status, setStatus] = useState<Status>('loading');
+  const [loaded, setLoaded] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [daily, setDaily] = useState<DailyResponse | null>(null);
-  const [game, setGame] = useState<{ tracks: Track[] } | null>(null);
-  const [result, setResult] = useState<GameResult | null>(null);
-  const [playedBefore, setPlayedBefore] = useState(false);
-  const [replay, setReplay] = useState(false);
+  const [tracks, setTracks] = useState<Track[] | null>(null);
+  const [initial, setInitial] = useState<GameState | null>(null);
+  const [live, setLive] = useState<GameState | null>(null);
+  const [answers, setAnswers] = useState<Record<string, Song>>({});
+  const [replay, setReplay] = useState(0);
+  const [ghostParam] = useState(readGhostParam);
+  const [ghost, setGhost] = useState<{ ghost: Ghost; name: string } | null>(
+    null
+  );
+  const [staleGhost, setStaleGhost] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
     setError(null);
+    setLoaded(0);
     try {
-      const r = await fetch('/api/daily');
+      // Ask for today's UTC date explicitly: each day is its own cache entry.
+      const today = new Date().toISOString().slice(0, 10);
+      let r = await fetch(`/api/daily?date=${today}`);
+      // A device clock running ahead of the server at midnight: fall back to
+      // the server's own "today".
+      if (r.status === 404) r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = (await r.json()) as DailyResponse;
       if (!Array.isArray(d.tracks)) {
         throw new Error(
-          'The puzzle API responded in an old format (no tracks). The deployed /api is likely a version behind this app — redeploy them together.'
+          'The puzzle API responded in an old format. Redeploy the app and API together.'
         );
       }
-      const tracks = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
+      const sliced = await loadAndSliceTracks(d.tracks, d.clipsPerTrack, {
         seed: d.puzzleNumber,
+        onProgress: setLoaded,
       });
-      const existing = getResult(d.puzzleNumber);
+      const def = puzzleDef(sliced, d.clipsPerTrack, d.maxGuesses);
+      const saved = getProgress(d.puzzleNumber);
+      const result = getResult(d.puzzleNumber);
+      let start: GameState | null = null;
+      if (saved && isValidState(saved, def)) {
+        // A finished result is final, even if another tab kept playing.
+        start =
+          result && saved.status === 'playing'
+            ? revealAll(saved, def, result.solved ? 'won' : 'lost')
+            : saved;
+      } else if (result) start = finishedFromResult(def, result);
+
+      if (ghostParam) {
+        if (ghostParam.ghost.puzzle !== d.puzzleNumber) {
+          // A saved ghost from another day is just stale: ignore it quietly.
+          if (!ghostParam.saved)
+            setStaleGhost(
+              `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle}. Here’s today’s mix instead.`
+            );
+        } else if (!start || start.status === 'playing') {
+          // Only today's ghost is kept, so a stale link can't replace it.
+          saveGhost({ code: ghostParam.code, name: ghostParam.name });
+          setGhost(ghostParam);
+        } else {
+          if (!ghostParam.saved) {
+            setStaleGhost(
+              `You’ve already played today. Compare with ${ghostParam.name} below.`
+            );
+          }
+          setGhost(ghostParam);
+        }
+      }
+
       setDaily(d);
-      setGame({ tracks });
-      setResult(existing);
-      setPlayedBefore(!!existing);
+      setTracks(sliced);
+      setInitial(start);
+      setLive(start);
       setStatus('ready');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
       setStatus('error');
     }
-  }, []);
+  }, [ghostParam]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const def = useMemo(
+    () =>
+      daily && tracks
+        ? puzzleDef(tracks, daily.clipsPerTrack, daily.maxGuesses)
+        : null,
+    [daily, tracks]
+  );
+
+  // Every finished (or newly named) game updates the crate. Idempotent.
+  const finished = live && live.status !== 'playing' && !replay;
+  const namedKey = JSON.stringify(live?.named ?? {});
+  useEffect(() => {
+    if (!finished || !tracks || !daily || !live) return;
+    const known = tracks.filter((t) => answers[t.id]);
+    if (!known.length) return;
+    addToCrate(
+      known.map((t) => ({
+        title: answers[t.id].title,
+        artist: answers[t.id].artist,
+        artwork: answers[t.id].artwork,
+        previewUrl: t.previewUrl,
+        puzzle: daily.puzzleNumber,
+        solved: live.solved.includes(t.id),
+        named: Boolean(live.named?.[t.id]),
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, namedKey, tracks, daily, answers]);
+
   if (status === 'loading') {
     return (
-      <section className="panel center">
-        <p className="muted">Loading today’s puzzle…</p>
-      </section>
+      <Loading
+        loaded={loaded}
+        total={DAILY_TRACKS}
+        rows={DAILY_TRACKS}
+        cols={DAILY_CLIPS_PER_TRACK}
+      />
     );
   }
 
   if (status === 'error') {
     return (
       <section className="panel center">
-        <p className="error">{error}</p>
+        <p className="error">The tape snapped. {error}</p>
         <button className="btn btn--primary" onClick={load}>
           Try again
         </button>
@@ -77,198 +215,92 @@ export default function DailyGame({ onPractice }: { onPractice: () => void }) {
     );
   }
 
-  if (!daily || !game) return null;
+  if (!daily || !tracks || !def) return null;
 
-  const alreadyPlayed = playedBefore && !replay;
+  const label = replay
+    ? `#${daily.puzzleNumber} · Replay`
+    : `Spliced #${daily.puzzleNumber}`;
 
   return (
-    <div>
-      <div className="bar">
-        <span className="bar-title">Daily Puzzle #{daily.puzzleNumber}</span>
-        <button className="link" onClick={onPractice}>
-          Practice mode →
-        </button>
-      </div>
-
-      <Countdown />
-
-      {alreadyPlayed && result ? (
-        <CompletedPanel
-          daily={daily}
-          result={result}
-          onReplay={() => setReplay(true)}
-        />
-      ) : (
-        <>
-          <Puzzle
-            key={`daily-${daily.puzzleNumber}`}
-            tracks={game.tracks}
-            clipsPerTrack={daily.clipsPerTrack}
-            seed={daily.puzzleNumber}
-            maxGuesses={daily.maxGuesses}
-            onResult={
-              replay
-                ? undefined // a replay shouldn't overwrite your official result
-                : (r) => setResult(saveResult(daily.puzzleNumber, r))
-            }
-          />
-          {result && (
-            <>
-              <StatsRow puzzleNumber={daily.puzzleNumber} />
-              <ShareBar daily={daily} result={result} />
-            </>
-          )}
-        </>
+    <div className="game">
+      {staleGhost && <p className="notice">{staleGhost}</p>}
+      {replay > 0 && (
+        <p className="notice">
+          Replaying for fun. Your official result is saved.
+        </p>
       )}
+      <div ref={resultsRef}>
+        {live && live.status !== 'playing' && (
+          <Results
+            state={live}
+            def={def}
+            puzzleNumber={replay ? undefined : daily.puzzleNumber}
+            title={
+              replay
+                ? `Spliced #${daily.puzzleNumber} (replay)`
+                : `Spliced #${daily.puzzleNumber}`
+            }
+            ghost={replay ? null : ghost}
+            onPractice={onPractice}
+            onReplay={() => {
+              requestBoardFocus();
+              setReplay((n) => n + 1);
+              setLive(null);
+            }}
+          />
+        )}
+      </div>
+      <Puzzle
+        key={replay ? `replay-${replay}` : `daily-${daily.puzzleNumber}`}
+        tracks={tracks}
+        clipsPerTrack={daily.clipsPerTrack}
+        maxGuesses={daily.maxGuesses}
+        seed={daily.puzzleNumber}
+        label={label}
+        initialState={replay ? null : initial}
+        sfx={sfx}
+        volume={volume}
+        paused={paused}
+        ghost={
+          replay
+            ? null
+            : ghost && live?.status !== 'won' && live?.status !== 'lost'
+              ? ghost
+              : null
+        }
+        onAnswers={replay ? undefined : setAnswers}
+        onChange={(s) => {
+          setLive(s);
+          if (!replay) saveProgress(daily.puzzleNumber, s);
+        }}
+        onFinish={(s) => {
+          if (!replay) {
+            saveResult(daily.puzzleNumber, {
+              solved: s.status === 'won',
+              mistakes: s.mistakes,
+              solvedTracks: s.solved.length,
+              elapsedMs: s.elapsedMs,
+            });
+            trackEvent('daily-finish', {
+              outcome: s.status,
+              mistakes: s.mistakes,
+              ghost: Boolean(ghost),
+            });
+          }
+          setTimeout(
+            () => {
+              resultsRef.current?.scrollIntoView({
+                behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+                block: 'start',
+              });
+              resultsRef.current
+                ?.querySelector<HTMLElement>('.results-head')
+                ?.focus({ preventScroll: true });
+            },
+            s.status === 'won' ? 1400 : 900
+          );
+        }}
+      />
     </div>
-  );
-}
-
-function StatsRow({ puzzleNumber }: { puzzleNumber: number }) {
-  const stats = computeStats(puzzleNumber);
-  const cells = [
-    { label: 'Played', value: stats.played },
-    { label: 'Win %', value: stats.winPct },
-    { label: 'Streak', value: stats.currentStreak },
-    { label: 'Max', value: stats.maxStreak },
-    { label: 'Perfect', value: stats.perfect },
-  ];
-  return (
-    <section className="stats-row" aria-label="Your stats">
-      {cells.map((cell) => (
-        <div className="stat-cell" key={cell.label}>
-          <span className="stat-value">{cell.value}</span>
-          <span className="stat-label">{cell.label}</span>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-type Outcome = 'solved' | 'lost' | 'revealed';
-
-function outcome(daily: DailyResponse, result: GameResult): Outcome {
-  if (result.solved) return 'solved';
-  if ((result.mistakes ?? 0) >= daily.maxGuesses) return 'lost';
-  return 'revealed';
-}
-
-function CompletedPanel({
-  daily,
-  result,
-  onReplay,
-}: {
-  daily: DailyResponse;
-  result: GameResult;
-  onReplay: () => void;
-}) {
-  const kind = outcome(daily, result);
-  const message =
-    kind === 'solved'
-      ? `Solved with ${result.mistakes ?? 0}/${daily.maxGuesses} mistakes${
-          result.elapsedMs ? ` in ${formatDuration(result.elapsedMs)}` : ''
-        }.`
-      : kind === 'lost'
-        ? 'Out of mistakes today.'
-        : 'You revealed today’s answer.';
-
-  return (
-    <section className="panel">
-      <div className="answer-stack">
-        {daily.answers.map((answer: Song) => (
-          <div
-            className="now-playing answer-row"
-            key={`${answer.title}-${answer.artist}`}
-          >
-            {answer.artwork && (
-              <img src={answer.artwork} alt="" className="np-art" />
-            )}
-            <div>
-              <div className="np-title">{answer.title}</div>
-              <div className="np-artist">{answer.artist}</div>
-              <ListenLinks title={answer.title} artist={answer.artist} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <p
-        className={`result-banner ${kind === 'solved' ? 'is-win' : 'is-loss'}`}
-      >
-        {message}
-      </p>
-
-      <StatsRow puzzleNumber={daily.puzzleNumber} />
-      <ShareBar daily={daily} result={result} />
-
-      <div className="controls">
-        <button className="btn" onClick={onReplay}>
-          <Icon name="reset" /> Replay this mix
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ShareBar({
-  daily,
-  result,
-}: {
-  daily: DailyResponse;
-  result: GameResult;
-}) {
-  const [copied, setCopied] = useState(false);
-  const kind = outcome(daily, result);
-  const summary =
-    kind === 'solved'
-      ? `${result.mistakes ?? 0}/${daily.maxGuesses} mistakes`
-      : kind === 'lost'
-        ? `X/${daily.maxGuesses}`
-        : 'revealed';
-  // Time and mistakes are the score; nothing else clutters the share.
-  const time =
-    kind === 'solved' && result.elapsedMs
-      ? `⏱ ${formatDuration(result.elapsedMs)}`
-      : '';
-
-  const origin = typeof location !== 'undefined' ? location.origin : '';
-  const text = [`Spliced #${daily.puzzleNumber} — ${summary}`, time, origin]
-    .filter(Boolean)
-    .join('\n');
-
-  async function share() {
-    try {
-      if (navigator.share) {
-        await navigator.share({ text });
-      } else {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1800);
-      }
-    } catch {
-      /* user dismissed the share sheet */
-    }
-  }
-
-  return (
-    <button className="btn btn--primary share-btn" onClick={share}>
-      <Icon name="share" /> {copied ? 'Copied result' : 'Share result'}
-    </button>
-  );
-}
-
-function Countdown() {
-  const [ms, setMs] = useState(msUntilNextPuzzle());
-  const ref = useRef<ReturnType<typeof setInterval>>(undefined);
-
-  useEffect(() => {
-    ref.current = setInterval(() => setMs(msUntilNextPuzzle()), 1000);
-    return () => clearInterval(ref.current);
-  }, []);
-
-  return (
-    <p className="muted center countdown">
-      Next puzzle in <strong>{formatCountdown(ms)}</strong>
-    </p>
   );
 }

@@ -1,189 +1,143 @@
-// A single puzzle clip tile. Each clip has a neutral token that travels with it
-// as it is reordered; solved tracks become locked.
+// One clip on the board. Tap the tile to hear it — that also "cues" it. While a
+// clip is cued, every other movable tile offers a ⇄ button: tap it to swap the
+// two. (Press-and-drag does the same swap, as a power move.) Grades show as a
+// glyph + border style, never colour alone.
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Waveform from './Waveform.jsx';
 import Icon from './Icon.jsx';
 import type { Piece } from '../types.js';
-
-export type TileState = 'correct' | 'misplaced' | null;
+import type { Mark } from '../game/engine.js';
 
 export interface PieceTileProps {
   piece: Piece;
-  position: number;
-  letter?: string;
-  color?: string;
-  isPlaying: boolean;
-  tileState: TileState;
-  gradeVisible?: boolean;
-  locked?: boolean;
-  revealed?: boolean;
-  onPlay?: () => void;
-  onSeek?: (fraction: number) => void;
-  getClipProgress?: (pieceId: string) => number | null;
+  slot: number;
+  row: number;
+  letter: string;
+  mark: Mark | null;
+  playing: boolean;
+  cued: boolean;
+  // Letter of the cued clip when this tile can swap with it.
+  swapWith: string | null;
+  flash?: boolean;
+  disabled?: boolean;
+  // Has this clip been heard yet? Unheard clips show a blank scope, so the
+  // waveforms can't give away grouping or order at a glance.
+  heard?: boolean;
+  onTap: (fraction: number | null) => void;
+  onSwap: () => void;
+  getProgress: () => number | null;
 }
 
-export default function PieceTile(props: PieceTileProps) {
-  return props.locked ? (
-    <LockedPieceTile {...props} />
-  ) : (
-    <SortablePieceTile {...props} />
-  );
-}
+const MARK_TEXT: Record<Mark, string> = {
+  correct: 'right song, right slot',
+  misplaced: 'right song, wrong slot',
+  miss: 'not this song',
+};
 
-function SortablePieceTile(props: PieceTileProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: props.piece.id });
+export default function PieceTile({
+  piece,
+  slot,
+  row,
+  letter,
+  mark,
+  playing,
+  cued,
+  swapWith,
+  flash = false,
+  disabled = false,
+  heard = true,
+  onTap,
+  onSwap,
+  getProgress,
+}: PieceTileProps) {
+  const { listeners, setNodeRef, transform, transition, isDragging, isOver } =
+    useSortable({ id: piece.id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 5 : 1,
-  };
+    '--i': slot,
+  } as CSSProperties;
 
-  return (
-    <TileShell
-      {...props}
-      isDragging={isDragging}
-      nodeRef={setNodeRef}
-      style={style}
-      grip={
-        <button
-          type="button"
-          className="tile-grip"
-          aria-label={`Reorder clip ${props.letter} currently in slot ${props.position + 1}`}
-          {...attributes}
-          {...listeners}
-        >
-          <span className="tile-grip-main">
-            <TilePosition position={props.position} />
-            <TileIdentity letter={props.letter} color={props.color} />
-          </span>
-          <Icon name="grip" className="grip-dots" />
-        </button>
-      }
-    />
-  );
-}
+  function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    if (!playing) return onTap(null);
+    const rect = event.currentTarget.getBoundingClientRect();
+    // Keyboard "clicks" report clientX 0: treat as a restart.
+    const fraction =
+      event.clientX > 0 ? (event.clientX - rect.left) / rect.width : 0;
+    onTap(Math.min(0.98, Math.max(0, fraction)));
+  }
 
-function LockedPieceTile(props: PieceTileProps) {
-  return (
-    <TileShell
-      {...props}
-      grip={
-        <div
-          className="tile-grip tile-grip--locked"
-          aria-label={`Locked clip ${props.letter} at slot ${props.position + 1}`}
-        >
-          <span className="tile-grip-main">
-            <TilePosition position={props.position} />
-            <TileIdentity letter={props.letter} color={props.color} />
-          </span>
-          <span className="tile-locked-label">
-            <Icon name="lock" /> Locked
-          </span>
-        </div>
-      }
-    />
-  );
-}
-
-interface TileShellProps extends PieceTileProps {
-  isDragging?: boolean;
-  nodeRef?: (node: HTMLElement | null) => void;
-  style?: CSSProperties;
-  grip: ReactNode;
-}
-
-function TileShell({
-  piece,
-  color,
-  isPlaying,
-  tileState,
-  isDragging = false,
-  locked = false,
-  revealed,
-  gradeVisible = false,
-  nodeRef,
-  style,
-  grip,
-  onPlay,
-  onSeek,
-  getClipProgress,
-}: TileShellProps) {
-  // `revealed` lights status on locked/finished rows; `gradeVisible` lights it
-  // on an active row right after a wrong submit, while keeping the clip playable.
-  const showGrade = revealed || gradeVisible;
-  // Playback no longer hinges on `revealed`: solved/finished rows stay
-  // auditionable so players can replay a clip after locking it. The caller
-  // gates this by passing/withholding onPlay and onSeek.
-  const seekable = Boolean(onSeek);
   const className = [
     'tile',
-    locked && 'tile-locked',
-    isPlaying && 'tile-playing',
-    isDragging && 'tile-dragging',
-    showGrade && tileState === 'correct' && 'tile-correct',
-    showGrade && tileState === 'misplaced' && 'tile-misplaced',
+    playing && 'is-playing',
+    cued && 'is-cued',
+    isDragging && 'is-dragging',
+    isOver && !isDragging && 'is-over',
+    flash && 'is-flash',
+    mark && `mark-${mark}`,
   ]
     .filter(Boolean)
     .join(' ');
 
-  const stateLabel = tileState === 'correct' ? 'Correct spot' : 'Right track';
-
   return (
-    <div ref={nodeRef} style={style} className={className}>
-      {grip}
-
-      <div className="tile-wave">
-        <Waveform
-          peaks={piece.peaks}
-          active={isPlaying}
-          color={color}
-          pieceId={piece.id}
-          onSeek={seekable ? onSeek : undefined}
-          getClipProgress={seekable ? getClipProgress : undefined}
-        />
-      </div>
-
-      {onPlay && (
-        <button type="button" className="tile-play" onClick={onPlay}>
-          <Icon name={isPlaying ? 'stop' : 'play'} />
-          {isPlaying ? 'Stop' : 'Play clip'}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={className}
+      data-piece={piece.id}
+      {...listeners}
+    >
+      <button
+        type="button"
+        className="tile-face"
+        onClick={handleClick}
+        aria-pressed={cued}
+        aria-label={`Clip ${letter}, channel ${row + 1} slot ${slot + 1}${
+          mark ? `, ${MARK_TEXT[mark]}` : ''
+        }. ${playing ? 'Playing. Press to restart.' : 'Press to play.'}`}
+      >
+        <span className="tile-chip" aria-hidden="true">
+          {playing ? (
+            <span className="eq">
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : (
+            letter
+          )}
+        </span>
+        {heard || playing ? (
+          <Waveform
+            peaks={piece.peaks}
+            active={playing}
+            getProgress={getProgress}
+          />
+        ) : (
+          <span className="wave wave--blank" aria-hidden="true">
+            <span>No signal</span>
+          </span>
+        )}
+        {mark && mark !== 'miss' && (
+          <span className={`tile-badge tile-badge--${mark}`} aria-hidden="true">
+            <Icon name={mark === 'correct' ? 'check' : 'shuffle'} />
+          </span>
+        )}
+      </button>
+      {swapWith && (
+        <button
+          type="button"
+          className="tile-swap"
+          onClick={onSwap}
+          aria-label={`Swap clip ${swapWith} with clip ${letter}`}
+        >
+          <Icon name="swap" />
         </button>
       )}
-
-      {showGrade && tileState && (
-        <div className={`tile-state tile-state--${tileState}`}>
-          <Icon name={tileState === 'correct' ? 'check' : 'shuffle'} />
-          {stateLabel}
-        </div>
-      )}
     </div>
-  );
-}
-
-function TilePosition({ position }: { position: number }) {
-  return <span className="tile-position">{position + 1}</span>;
-}
-
-function TileIdentity({ letter, color }: { letter?: string; color?: string }) {
-  return (
-    <span className="tile-id">
-      <span
-        className="tile-dot"
-        style={{ background: color }}
-        aria-hidden="true"
-      />
-      {letter}
-    </span>
   );
 }

@@ -1,8 +1,7 @@
-// Curated cross-era classics. Two jobs:
-//  1. Practice mode picks from this list.
-//  2. scripts/build-catalog.ts seeds the generated daily catalog with these
-//     (then fills the rest from iTunes charts) so the catalog isn't all recent
-//     hits — `api/_catalog.json` is the source of truth for the daily.
+// Curated cross-era classics. scripts/build-catalog.ts seeds the generated
+// daily catalog with these (then fills the rest from iTunes charts) so the
+// catalog isn't all recent hits — `api/_catalog.json` is the source of truth
+// for both the daily and Practice mode.
 //
 // Files prefixed with "_" are NOT treated as routes by Vercel.
 
@@ -108,7 +107,6 @@ export const SONGS: CuratedSong[] = [
   { title: 'Boulevard of Broken Dreams', artist: 'Green Day' },
   { title: 'Clocks', artist: 'Coldplay' },
   { title: 'Stronger', artist: 'Kanye West' },
-  { title: 'Rolling in the Deep', artist: 'Adele' },
   { title: 'Mr. Jones', artist: 'Counting Crows' },
   { title: 'Take Me Out', artist: 'Franz Ferdinand' },
   { title: 'Float On', artist: 'Modest Mouse' },
@@ -120,8 +118,10 @@ export const SONGS: CuratedSong[] = [
   { title: 'Basket Case', artist: 'Green Day' },
 ];
 
-// Multi-track daily: four mystery songs, four clips per song.
-export const DAILY_TRACKS = 4;
+// Daily size: three mystery songs, four clips each. Sized for a ~3 minute
+// game (like Wordle): fewer songs cuts the slow "which clip is which song"
+// sorting, while four clips per song keep ordering a real ear test.
+export const DAILY_TRACKS = 3;
 export const DAILY_CLIPS_PER_TRACK = 4;
 export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
 
