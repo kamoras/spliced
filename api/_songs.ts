@@ -1,8 +1,7 @@
-// Curated cross-era classics. Two jobs:
-//  1. Practice mode picks from this list.
-//  2. scripts/build-catalog.ts seeds the generated daily catalog with these
-//     (then fills the rest from iTunes charts) so the catalog isn't all recent
-//     hits — `api/_catalog.json` is the source of truth for the daily.
+// Curated cross-era classics. scripts/build-catalog.ts seeds the generated
+// daily catalog with these (then fills the rest from iTunes charts) so the
+// catalog isn't all recent hits — `api/_catalog.json` is the source of truth
+// for both the daily and Practice mode.
 //
 // Files prefixed with "_" are NOT treated as routes by Vercel.
 
@@ -108,7 +107,6 @@ export const SONGS: CuratedSong[] = [
   { title: 'Boulevard of Broken Dreams', artist: 'Green Day' },
   { title: 'Clocks', artist: 'Coldplay' },
   { title: 'Stronger', artist: 'Kanye West' },
-  { title: 'Rolling in the Deep', artist: 'Adele' },
   { title: 'Mr. Jones', artist: 'Counting Crows' },
   { title: 'Take Me Out', artist: 'Franz Ferdinand' },
   { title: 'Float On', artist: 'Modest Mouse' },

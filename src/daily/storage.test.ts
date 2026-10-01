@@ -6,6 +6,10 @@ import {
   formatCountdown,
   formatDuration,
   msUntilNextPuzzle,
+  getProgress,
+  saveProgress,
+  getPrefs,
+  setPrefs,
 } from './storage.js';
 
 beforeEach(() => localStorage.clear());
@@ -65,7 +69,47 @@ describe('computeStats', () => {
       perfect: 0,
       currentStreak: 0,
       maxStreak: 0,
+      distribution: [0, 0, 0, 0],
+      losses: 0,
     });
+  });
+
+  it('buckets wins by mistake count', () => {
+    saveResult(1, { solved: true, mistakes: 0 });
+    saveResult(2, { solved: true, mistakes: 2 });
+    saveResult(3, { solved: true, mistakes: 2 });
+    saveResult(4, { solved: false, mistakes: 4 });
+    expect(computeStats(4)).toMatchObject({
+      distribution: [1, 0, 2, 0],
+      losses: 1,
+    });
+  });
+});
+
+describe('progress', () => {
+  const state = {
+    order: ['a'],
+    solved: [],
+    mistakes: 1,
+    attempts: [],
+    tried: {},
+    status: 'playing' as const,
+    elapsedMs: 10,
+  };
+
+  it('round-trips and keeps only the latest week', () => {
+    for (let n = 1; n <= 9; n++) saveProgress(n, { ...state, mistakes: n });
+    expect(getProgress(9)).toMatchObject({ mistakes: 9 });
+    expect(getProgress(3)).toMatchObject({ mistakes: 3 });
+    expect(getProgress(2)).toBeNull();
+  });
+});
+
+describe('prefs', () => {
+  it('defaults sound on and help unseen, and persists changes', () => {
+    expect(getPrefs()).toEqual({ sfx: true, seenHelp: false });
+    setPrefs({ seenHelp: true });
+    expect(getPrefs()).toEqual({ sfx: true, seenHelp: true });
   });
 });
 

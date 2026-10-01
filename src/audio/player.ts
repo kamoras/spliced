@@ -143,13 +143,19 @@ export class Player {
     {
       onPiece,
       onEnd,
-    }: { onPiece?: (idx: number) => void; onEnd?: () => void } = {}
+      delay = 0,
+    }: {
+      onPiece?: (idx: number) => void;
+      onEnd?: () => void;
+      // Seconds to wait before the first clip (e.g. to let a chime ring).
+      delay?: number;
+    } = {}
   ): Promise<void> {
     await this._resume();
     this.stop();
     const myToken = this.token;
 
-    const startAt = this.ctx.currentTime + 0.06;
+    const startAt = this.ctx.currentTime + 0.06 + delay;
     let t = startAt;
 
     pieces.forEach((p, idx) => {
@@ -166,6 +172,19 @@ export class Player {
         }, delayMs)
       );
 
+      // Remember which clip is sounding so its waveform can draw a playhead.
+      this.timers.push(
+        setTimeout(() => {
+          if (myToken !== this.token) return;
+          this._clip = {
+            pieceId: p.id,
+            startedAt: this.ctx.currentTime,
+            duration: p.duration,
+            fromFraction: 0,
+          };
+        }, delayMs)
+      );
+
       t += p.duration;
     });
 
@@ -175,5 +194,54 @@ export class Player {
         if (myToken === this.token) onEnd?.();
       }, totalMs)
     );
+  }
+
+  // Short synthesized cues, so a lock-in *feels* like something. They bypass
+  // the analyser (no VU flicker) but follow the master volume.
+  async sfx(kind: 'lock' | 'wrong' | 'win' | 'pick'): Promise<void> {
+    await this._resume();
+    const now = this.ctx.currentTime + 0.01;
+    const notes: [
+      freq: number,
+      at: number,
+      len: number,
+      type: OscillatorType,
+    ][] =
+      kind === 'lock'
+        ? [
+            [659.25, 0, 0.16, 'triangle'],
+            [880, 0.08, 0.16, 'triangle'],
+            [1318.5, 0.16, 0.28, 'triangle'],
+          ]
+        : kind === 'win'
+          ? [
+              [523.25, 0, 0.18, 'triangle'],
+              [659.25, 0.1, 0.18, 'triangle'],
+              [783.99, 0.2, 0.18, 'triangle'],
+              [1046.5, 0.3, 0.6, 'triangle'],
+              [1318.5, 0.3, 0.6, 'sine'],
+            ]
+          : kind === 'wrong'
+            ? [
+                [196, 0, 0.14, 'square'],
+                [155.56, 0.12, 0.22, 'square'],
+              ]
+            : [[1200, 0, 0.05, 'sine']];
+    const peak = kind === 'wrong' ? 0.07 : kind === 'pick' ? 0.05 : 0.14;
+    const bus = this.ctx.createGain();
+    bus.gain.value = this.output.gain.value;
+    bus.connect(this.ctx.destination);
+    notes.forEach(([freq, at, len, type]) => {
+      const osc = this.ctx.createOscillator();
+      const env = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0, now + at);
+      env.gain.linearRampToValueAtTime(peak, now + at + 0.012);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + at + len);
+      osc.connect(env).connect(bus);
+      osc.start(now + at);
+      osc.stop(now + at + len + 0.05);
+    });
   }
 }

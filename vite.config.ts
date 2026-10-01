@@ -3,13 +3,13 @@ import { defineConfig } from 'vite';
 import type { Connect, PluginOption } from 'vite';
 import type { ServerResponse } from 'node:http';
 import react from '@vitejs/plugin-react';
-import searchHandler from './api/search.js';
+import practiceHandler from './api/practice.js';
 import audioHandler from './api/audio.js';
 import dailyHandler from './api/daily.js';
 
 // In production these live as Vercel serverless functions under /api.
 // Vite's dev server doesn't know about them, so we mount the same handlers
-// as middleware here — giving `npm run dev` full search + audio without
+// as middleware here — giving `npm run dev` full practice + audio without
 // needing `vercel dev`.
 function devApi(): PluginOption {
   return {
@@ -19,7 +19,7 @@ function devApi(): PluginOption {
         (req: Connect.IncomingMessage, res: ServerResponse, next) => {
           const url = req.url ?? '';
           if (url.startsWith('/api/daily')) return dailyHandler(req, res);
-          if (url.startsWith('/api/search')) return searchHandler(req, res);
+          if (url.startsWith('/api/practice')) return practiceHandler(req, res);
           if (url.startsWith('/api/audio')) return audioHandler(req, res);
           next();
         }

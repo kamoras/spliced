@@ -81,6 +81,23 @@ export function selectDaily(nowMs: number, catalog: CatalogEntry[] = CATALOG) {
   return { puzzleNumber, songs };
 }
 
+// Practice songs: ones that already appeared in a past daily this epoch, so
+// practising never spoils an upcoming puzzle. Early in an epoch (a small pool)
+// it falls back to the whole catalog. Today's songs are always excluded.
+export function practicePool(
+  nowMs: number,
+  catalog: CatalogEntry[] = CATALOG
+): CatalogEntry[] {
+  const { puzzleNumber, songs: today } = selectDaily(nowMs, catalog);
+  const perEpoch = Math.max(1, Math.floor(catalog.length / DAILY_TRACKS));
+  const epoch = Math.floor(puzzleNumber / perEpoch);
+  const played = (puzzleNumber % perEpoch) * DAILY_TRACKS;
+  const past = seededShuffle(catalog, epoch).slice(0, played);
+  const todayIds = new Set(today.map((s) => s.trackId));
+  const pool = past.length >= 40 ? past : catalog;
+  return pool.filter((s) => !todayIds.has(s.trackId));
+}
+
 export default async function handler(
   req: IncomingMessage,
   res: ServerResponse

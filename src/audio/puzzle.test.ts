@@ -5,6 +5,7 @@ import {
   buildMixerOrder,
   chunkTracks,
   gradeMixerRow,
+  rowAnchor,
   isMixerSolved,
   isSolved,
 } from './puzzle.js';
@@ -108,24 +109,33 @@ describe('multi-track mixer helpers', () => {
     ]);
   });
 
-  it('uses the first clip as the submitted row target', () => {
+  it('grades a row against the song most of its clips belong to', () => {
     const a = makeTrackPieces('a', 4);
     const b = makeTrackPieces('b', 4);
-    const grade = gradeMixerRow([a[1], a[0], b[1], a[3]]);
+    // A stray clip up front no longer hijacks the row: it's still graded as
+    // song "a" (three of its clips are here).
+    const grade = gradeMixerRow([b[1], a[1], a[0], a[3]]);
 
     expect(grade).toMatchObject({
       solved: false,
       trackId: 'a',
       sameTrack: false,
-      correctPositions: 1,
+      correctPositions: 2,
       rightRowCount: 3,
     });
     expect(grade.cells).toEqual([
-      { id: 'a-1', correct: false, sameTrack: true },
-      { id: 'a-0', correct: false, sameTrack: true },
       { id: 'b-1', correct: false, sameTrack: false },
+      { id: 'a-1', correct: true, sameTrack: false },
+      { id: 'a-0', correct: false, sameTrack: true },
       { id: 'a-3', correct: true, sameTrack: false },
     ]);
+  });
+
+  it('breaks a 2–2 tie toward the song with more clips in place', () => {
+    const a = makeTrackPieces('a', 4);
+    const b = makeTrackPieces('b', 4);
+    expect(rowAnchor([a[2], b[1], a[0], b[3]])).toBe('b');
+    expect(rowAnchor([a[0], b[0], a[2], b[2]])).toBe('a');
   });
 
   it('solves any physical row that contains one complete track in order', () => {

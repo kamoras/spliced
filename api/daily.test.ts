@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectDaily, pickMatch, norm } from './daily.js';
+import { selectDaily, practicePool, pickMatch, norm } from './daily.js';
 import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
 import catalog from './_catalog.json';
 
@@ -57,6 +57,31 @@ describe('selectDaily', () => {
     expect(selectDaily(LAUNCH_UTC - 10 * DAY, fakeCatalog).puzzleNumber).toBe(
       0
     );
+  });
+});
+
+describe('practicePool', () => {
+  const real = catalog as NonNullable<Parameters<typeof practicePool>[1]>;
+
+  it('only uses songs from past dailies once the pool is big enough', () => {
+    const now = LAUNCH_UTC + 100 * DAY;
+    const pool = practicePool(now, real);
+    const past = new Set<number>();
+    for (let d = 0; d < 100; d++) {
+      selectDaily(LAUNCH_UTC + d * DAY, real).songs.forEach((s) =>
+        past.add(s.trackId)
+      );
+    }
+    expect(pool.length).toBe(past.size);
+    expect(pool.every((s) => past.has(s.trackId))).toBe(true);
+  });
+
+  it('never includes today’s songs, even when falling back', () => {
+    const now = LAUNCH_UTC + 2 * DAY;
+    const today = new Set(selectDaily(now, real).songs.map((s) => s.trackId));
+    const pool = practicePool(now, real);
+    expect(pool.length).toBe(real.length - DAILY_TRACKS);
+    expect(pool.some((s) => today.has(s.trackId))).toBe(false);
   });
 });
 

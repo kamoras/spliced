@@ -12,6 +12,16 @@ export function getAudioContext(): AudioContext {
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext;
     _ctx = new Ctx();
+    // iOS mutes Web Audio under the ring/silent switch unless the page asks for
+    // "playback" audio (Safari 17+). Harmless elsewhere.
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) {
+      try {
+        nav.audioSession.type = 'playback';
+      } catch {
+        /* unsupported */
+      }
+    }
   }
   return _ctx;
 }
@@ -26,7 +36,14 @@ async function decodePreview(
   if (!resp.ok) throw new Error('Could not load the audio preview.');
 
   const arrayBuffer = await resp.arrayBuffer();
-  const buffer = await ctx.decodeAudioData(arrayBuffer);
+  let buffer: AudioBuffer;
+  try {
+    buffer = await ctx.decodeAudioData(arrayBuffer);
+  } catch {
+    throw new Error(
+      'This browser couldn’t decode the song previews (AAC). Try Chrome, Safari, Firefox, or Edge.'
+    );
+  }
   return { buffer, duration: buffer.duration };
 }
 
@@ -61,12 +78,23 @@ export function computePeaks(
 export async function loadAndSampleTracks(
   trackDefs: TrackDef[],
   clipsPerTrack: number,
-  { seed = 0, clipSeconds = 2.4 }: { seed?: number; clipSeconds?: number } = {}
+  {
+    seed = 0,
+    clipSeconds = 2.4,
+    onProgress,
+  }: {
+    seed?: number;
+    clipSeconds?: number;
+    // Called with the number of tracks decoded so far.
+    onProgress?: (loaded: number) => void;
+  } = {}
 ): Promise<Track[]> {
+  let loaded = 0;
   return Promise.all(
     trackDefs.map(async (track, trackIndex) => {
       const trackId = track.id || `track-${trackIndex}`;
       const { buffer, duration } = await decodePreview(track.previewUrl);
+      onProgress?.(++loaded);
       const pieces = samplePieces({
         buffer,
         trackId,
