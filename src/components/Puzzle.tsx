@@ -19,9 +19,13 @@ import { SortableContext, rectSwappingStrategy } from '@dnd-kit/sortable';
 import PieceTile from './PieceTile.jsx';
 import SongCard from './SongCard.jsx';
 import type { Choice } from './SongCard.jsx';
-import Icon from './Icon.jsx';
+import VuNeedle from './VuNeedle.jsx';
+import SevenSeg from './SevenSeg.jsx';
 import { Player } from '../audio/player.js';
 import { getAudioContext } from '../audio/slicer.js';
+import { getSfx } from '../audio/sfx.js';
+import type { SfxKind } from '../audio/sfx.js';
+import { prefersReducedMotion, setLevelSource } from '../audio/meter.js';
 import { shufflePieces } from '../audio/puzzle.js';
 import { formatDuration } from '../daily/storage.js';
 import {
@@ -225,16 +229,42 @@ export default function Puzzle({
   const playerRef = useRef<Player | null>(null);
   if (!playerRef.current) playerRef.current = new Player(getAudioContext());
   const player = playerRef.current;
+  const fx = getSfx(getAudioContext());
   const sfxOn = useRef(sfx);
   sfxOn.current = sfx;
   const cue = useCallback(
-    (kind: Parameters<Player['sfx']>[0]) => {
-      if (sfxOn.current) player.sfx(kind);
+    (kind: SfxKind) => {
+      if (sfxOn.current) fx.play(kind);
     },
-    [player]
+    [fx]
   );
   useEffect(() => () => player.stop(), [player]);
-  useEffect(() => player.setVolume(volume), [player, volume]);
+  useEffect(() => {
+    player.setVolume(volume);
+    fx.setVolume(volume);
+  }, [player, fx, volume]);
+  // This board's output drives every meter on screen.
+  useEffect(() => {
+    setLevelSource(() => player.getLevel());
+    return () => setLevelSource(null);
+  }, [player]);
+
+  // Power-on sweep, once per session; a lamp chase when you win.
+  const [booting, setBooting] = useState(() => {
+    try {
+      if (sessionStorage.getItem('spliced:booted')) return false;
+      sessionStorage.setItem('spliced:booted', '1');
+    } catch {
+      /* storage unavailable */
+    }
+    return !prefersReducedMotion();
+  });
+  useEffect(() => {
+    if (!booting) return undefined;
+    const id = setTimeout(() => setBooting(false), 1300);
+    return () => clearTimeout(id);
+  }, [booting]);
+  const [chase, setChase] = useState(false);
 
   const [playing, setPlaying] = useState<Playing>(null);
   const progressGetters = useMemo(() => {
@@ -243,8 +273,8 @@ export default function Puzzle({
     return map;
   }, [pieceById, player]);
 
-  function stopAll() {
-    player.stop();
+  function stopAll(tapeStop = false) {
+    player.stop(tapeStop);
     setPlaying(null);
   }
 
@@ -349,7 +379,7 @@ export default function Puzzle({
     setCued(null);
     if (next === state) return;
     beginTiming();
-    cue('tick');
+    cue('swap');
     if (coach <= 1) setCoach(2);
     setMessage(null);
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
@@ -366,7 +396,7 @@ export default function Puzzle({
     const next = moveClip(state, def, String(active.id), String(target.id));
     if (next === state) return;
     beginTiming();
-    cue('tick');
+    cue('swap');
     setCued(null);
     if (coach <= 1) setCoach(2);
     setMessage(null);
@@ -393,7 +423,7 @@ export default function Puzzle({
     setMessage(null);
     if (next === state) return;
     beginTiming();
-    cue('tick');
+    cue('swap');
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
     setActiveRow(row);
     setState(next);
@@ -405,8 +435,9 @@ export default function Puzzle({
       playing.row === row &&
       playing.seam === seam
     ) {
-      return stopAll();
+      return stopAll(true);
     }
+    cue('detent');
     const a = pieceById.get(rows[row][seam])!;
     const b = pieceById.get(rows[row][seam + 1])!;
     listen(seamKey(a.id, b.id));
@@ -419,7 +450,8 @@ export default function Puzzle({
   }
 
   function playRow(row: number) {
-    if (playing?.kind === 'row' && playing.row === row) return stopAll();
+    cue('click');
+    if (playing?.kind === 'row' && playing.row === row) return stopAll(true);
     listen(rowPlayKey(rows[row]));
     setActiveRow(row);
     const seq = rows[row].map((id) => pieceById.get(id)!);
@@ -450,7 +482,8 @@ export default function Puzzle({
   );
 
   function toggleSong(trackId: string) {
-    if (playing?.kind === 'song' && playing.trackId === trackId) stopAll();
+    cue('click');
+    if (playing?.kind === 'song' && playing.trackId === trackId) stopAll(true);
     else playSong(trackId);
   }
 
@@ -460,7 +493,7 @@ export default function Puzzle({
       choice != null &&
       choice.title === answer?.title &&
       choice.artist === answer?.artist;
-    if (choice) cue(correct ? 'star' : 'wrong');
+    if (choice) cue(correct ? 'star' : 'buzzer');
     if (correct) vibrate(15);
     setMessage(
       correct
@@ -472,6 +505,7 @@ export default function Puzzle({
 
   function lockIn(row: number) {
     if (busy || over) return;
+    cue('click');
     beginTiming();
     setCued(null);
     const { state: next, outcome } = submitRow(
@@ -494,7 +528,7 @@ export default function Puzzle({
       const hasQuiz = Boolean(
         tracks[trackIndex.get(trackId)!]?.choices?.length
       );
-      cue(outcome.won ? 'win' : 'lock');
+      cue(outcome.won ? 'win' : 'open');
       vibrate(20);
       // Stage 1: light the marks and splice the tiles together in place…
       setSplicing(row);
@@ -514,9 +548,13 @@ export default function Puzzle({
           // …stage 2: commit, open the channel, and take a victory lap.
           setSplicing(null);
           setFreshCard(trackId);
+          cue('slide');
           setState(next);
           if (outcome.won) {
             bank();
+            setChase(true);
+            later(() => setChase(false), 2400);
+            window.dispatchEvent(new Event('spliced:win'));
             onFinish?.({ ...next, elapsedMs: elapsedNow() });
           }
           playSong(trackId, 0.15);
@@ -527,7 +565,7 @@ export default function Puzzle({
     }
 
     // Wrong (possibly a whole song in the wrong year's row).
-    cue(outcome.lost ? 'lose' : 'wrong');
+    cue(outcome.lost ? 'lose' : 'buzzer');
     vibrate([30, 40, 30]);
     setShake({ row, n: Date.now() });
     setLedPop(next.mistakes);
@@ -583,42 +621,77 @@ export default function Puzzle({
 
   const songsLeft = def.tracks.length - state.solved.length;
 
+  // Which channel's VU should be live right now.
+  const meterRow =
+    playing?.kind === 'row' || playing?.kind === 'seam'
+      ? playing.row
+      : playing?.kind === 'clip'
+        ? rowOfId(playing.id)
+        : playing?.kind === 'song'
+          ? def.tracks.findIndex((t) => t.id === playing.trackId)
+          : null;
+  const left = Math.max(0, maxGuesses - state.mistakes);
+  const vfdMessage =
+    message ??
+    (over
+      ? state.status === 'won'
+        ? '★ MASTER MIX COMPLETE ★'
+        : 'TAPE JAM — EVERY SONG REVEALED'
+      : coachLine);
+
   return (
     <section
-      className={`puzzle${over ? ' is-over' : ''}`}
+      className={[
+        'console',
+        'puzzle',
+        over && 'is-over',
+        booting && 'is-booting',
+        chase && 'is-chase',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={{ '--cols': clipsPerTrack } as CSSProperties}
-      aria-label="Puzzle"
+      aria-label="Mixing console"
     >
-      <div className="gamebar" hidden={over}>
-        <span className="gamebar-label">{label}</span>
-        {ghost && (
-          <span className="ghost-pill" title={`Racing ${ghost.name}`}>
-            👻 {ghost.name}{' '}
-            {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'lost'}
-          </span>
-        )}
-        <Clock getElapsed={elapsedNow} frozen={over} />
-        <span
-          className="leds"
-          role="img"
-          aria-label={`${Math.max(0, maxGuesses - state.mistakes)} of ${maxGuesses} mistakes left`}
-        >
-          {Array.from({ length: maxGuesses }, (_, i) => {
-            const spentIndex = maxGuesses - i; // rightmost LED goes first
-            const spent = spentIndex <= state.mistakes;
-            return (
-              <span
-                key={i}
-                className={[
-                  'led',
-                  spent ? 'is-spent' : 'is-lit',
-                  ledPop === spentIndex && 'is-pop',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              />
-            );
-          })}
+      <div className="vfd">
+        <div className="vfd-top">
+          <span className="vfd-label">{label}</span>
+          <Reels spinning={playing != null} />
+          {ghost && !over && (
+            <span className="vfd-ghost" title={`Racing ${ghost.name}`}>
+              👻 {ghost.name}{' '}
+              {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'X'}
+            </span>
+          )}
+          <Clock getElapsed={elapsedNow} frozen={over} />
+        </div>
+        <p className="vfd-msg" role="status" aria-live="polite">
+          {vfdMessage}
+        </p>
+      </div>
+
+      <div
+        className="peak"
+        role="img"
+        aria-label={`${left} of ${maxGuesses} mistakes left`}
+      >
+        <span className="peak-label" aria-hidden="true">
+          Peak
+        </span>
+        {Array.from({ length: maxGuesses }, (_, i) => (
+          <span
+            key={i}
+            className={[
+              'lamp',
+              i < state.mistakes && 'is-on',
+              ledPop === i + 1 && 'is-flare',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          />
+        ))}
+        <span className="peak-left" aria-hidden="true">
+          {left} {left === 1 ? 'mistake' : 'mistakes'} left
         </span>
       </div>
 
@@ -635,7 +708,7 @@ export default function Puzzle({
           <ol
             className="board"
             ref={boardRef}
-            aria-label={`Tracks — ${songsLeft} ${songsLeft === 1 ? 'song' : 'songs'} to find`}
+            aria-label={`Channels — ${songsLeft} ${songsLeft === 1 ? 'song' : 'songs'} to find`}
             onClick={clearCue}
           >
             {rows.map((ids, r) => {
@@ -647,15 +720,18 @@ export default function Puzzle({
                   <li
                     key={`song-${trackId}`}
                     data-track={trackId}
-                    className="lane lane--song"
+                    className="strip strip--song"
+                    style={{ '--i': r } as CSSProperties}
                   >
                     <SongCard
+                      ch={r + 1}
                       answer={tracks[ti]?.answer}
                       hue={SONG_HUES[ti % SONG_HUES.length]}
                       discovered={discovered}
                       playing={
                         playing?.kind === 'song' && playing.trackId === trackId
                       }
+                      meter={meterRow === r}
                       onPlay={() => toggleSong(trackId)}
                       choices={discovered ? tracks[ti]?.choices : undefined}
                       named={state.named?.[trackId]}
@@ -671,22 +747,75 @@ export default function Puzzle({
               const marks: Mark[] | null =
                 splicing === r ? ids.map(() => 'correct') : tried;
               const rowPlaying = playing?.kind === 'row' && playing.row === r;
+              const armed = !tried && (activeRow === r || lastRow === r);
+              const clue = clueFor(state, def, r);
               return (
                 <li
                   key={`row-${r}`}
                   className={[
-                    'lane',
+                    'strip',
                     splicing === r && 'is-splicing',
                     lastRow === r && 'is-last',
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  aria-label={`Track ${r + 1}`}
+                  aria-label={`Channel ${r + 1}${clue.year ? `, ${clue.year}` : ''}`}
                 >
+                  <div className="strip-head">
+                    <span className="ch" aria-hidden="true">
+                      {r + 1}
+                    </span>
+                    <span className="tape-wrap">
+                      <button
+                        type="button"
+                        className={`tape${rowCue === r ? ' is-cued' : ''}${rowCue != null && rowCue !== r ? ' is-target' : ''}`}
+                        onClick={() => tapRowLabel(r)}
+                        disabled={busy}
+                        aria-pressed={rowCue === r}
+                        aria-label={`Clue: ${[clue.year, clue.genre].filter(Boolean).join(', ') || `channel ${r + 1}`}. ${rowCue != null && rowCue !== r ? 'Press to swap channels.' : 'Press, then press another label, to swap channels.'}`}
+                      >
+                        <span className="tape-year">{labelFor(r)}</span>
+                        {clue.genre && (
+                          <span className="tape-genre">{clue.genre}</span>
+                        )}
+                      </button>
+                    </span>
+                    <VuNeedle active={meterRow === r} />
+                    <button
+                      type="button"
+                      className={`cbtn${rowPlaying ? ' is-on' : ''}`}
+                      onClick={() => playRow(r)}
+                      disabled={busy}
+                      aria-pressed={rowPlaying}
+                      aria-label={`${rowPlaying ? 'Stop' : 'Play'} channel ${r + 1}`}
+                    >
+                      <span className="lamp" aria-hidden="true" />
+                      {rowPlaying ? 'Stop' : 'Play'}
+                    </button>
+                    <button
+                      type="button"
+                      className={[
+                        'cbtn',
+                        'cbtn--rec',
+                        armed && 'is-armed',
+                        tried && 'is-tried',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      onClick={() => lockIn(r)}
+                      disabled={busy}
+                      aria-label={
+                        tried
+                          ? `Channel ${r + 1}: this exact mix was already tried`
+                          : `Lock in channel ${r + 1}`
+                      }
+                    >
+                      <span className="lamp" aria-hidden="true" />
+                      {tried ? 'Tried' : 'Lock'}
+                    </button>
+                  </div>
                   <div
-                    className={['lane-tiles', shake?.row === r && 'is-shaking']
-                      .filter(Boolean)
-                      .join(' ')}
+                    className={`lane-tiles${shake?.row === r ? ' is-shaking' : ''}`}
                     key={shake?.row === r ? shake.n : 0}
                   >
                     {ids.map((id, slot) => {
@@ -734,51 +863,10 @@ export default function Puzzle({
                           disabled={busy}
                           aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}${heard ? ' (heard — free replay)' : ''}`}
                         >
-                          <span aria-hidden="true" />
+                          <span className="knob" aria-hidden="true" />
                         </button>
                       );
                     })}
-                  </div>
-                  <div className="lane-foot">
-                    <button
-                      type="button"
-                      className="pill pill--ghost"
-                      onClick={() => playRow(r)}
-                      disabled={busy}
-                      aria-label={`${rowPlaying ? 'Stop' : 'Play'} track ${r + 1}`}
-                    >
-                      <Icon name={rowPlaying ? 'stop' : 'play'} />
-                      {rowPlaying ? 'Stop' : 'Play'}
-                    </button>
-                    <button
-                      type="button"
-                      className={`clue${rowCue === r ? ' is-cued' : ''}${rowCue != null && rowCue !== r ? ' is-target' : ''}`}
-                      onClick={() => tapRowLabel(r)}
-                      disabled={busy}
-                      aria-pressed={rowCue === r}
-                      aria-label={`Clue: ${[clueFor(state, def, r).year, clueFor(state, def, r).genre].filter(Boolean).join(', ') || `track ${r + 1}`}. ${rowCue != null && rowCue !== r ? 'Press to swap rows.' : 'Press, then press another year, to swap rows.'}`}
-                    >
-                      <span className="clue-year">{labelFor(r)}</span>
-                      {clueFor(state, def, r).genre && (
-                        <span className="clue-genre">
-                          {clueFor(state, def, r).genre}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className={`pill ${tried ? 'pill--tried' : activeRow === r || lastRow === r ? 'pill--primary' : 'pill--lock'}`}
-                      onClick={() => lockIn(r)}
-                      disabled={busy}
-                      aria-label={
-                        tried
-                          ? `Track ${r + 1}: this exact mix was already tried`
-                          : `Lock in track ${r + 1}`
-                      }
-                    >
-                      <Icon name={tried ? 'reset' : 'lock'} />
-                      {tried ? 'Tried' : 'Lock in'}
-                    </button>
                   </div>
                 </li>
               );
@@ -786,11 +874,27 @@ export default function Puzzle({
           </ol>
         </SortableContext>
       </DndContext>
-
-      <p className="hint" role="status" aria-live="polite">
-        {message ?? (over ? '' : coachLine)}
-      </p>
     </section>
+  );
+}
+
+// Two little tape reels in the display that turn while anything plays.
+function Reels({ spinning }: { spinning: boolean }) {
+  const reel = (
+    <svg viewBox="0 0 14 14" aria-hidden="true">
+      <circle cx="7" cy="7" r="6" />
+      <circle cx="7" cy="7" r="1.6" className="hub" />
+      <path d="M7 1.5v3M11.8 9.8l-2.6-1.5M2.2 9.8l2.6-1.5" />
+    </svg>
+  );
+  return (
+    <span
+      className={`reels${spinning ? ' is-spinning' : ''}`}
+      aria-hidden="true"
+    >
+      {reel}
+      {reel}
+    </span>
   );
 }
 
@@ -808,9 +912,6 @@ function Clock({
     const id = setInterval(() => setMs(getElapsed()), 250);
     return () => clearInterval(id);
   }, [getElapsed, frozen]);
-  return (
-    <span className="lcd" role="timer" aria-label="Time">
-      <Icon name="clock" /> {formatDuration(ms)}
-    </span>
-  );
+  const text = formatDuration(ms);
+  return <SevenSeg value={text.padStart(5, ' ')} label={`Time ${text}`} />;
 }

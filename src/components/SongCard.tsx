@@ -1,5 +1,6 @@
-// A locked (or revealed) track: its clips spliced into one song, styled like a
-// cassette J-card. Tapping the card plays the whole passage.
+// A locked (or revealed) channel: the clips spliced back into one song. The
+// title is written onto the channel's masking tape, the fader sits at full,
+// and tapping the strip replays the whole passage.
 //
 // A freshly locked song first asks "Name that tune": pick it from four
 // choices (while the rebuilt song plays) for a 🎵 bonus. One try, no penalty.
@@ -7,6 +8,7 @@
 import type { CSSProperties } from 'react';
 import Icon from './Icon.jsx';
 import ListenLinks from './ListenLinks.jsx';
+import VuNeedle from './VuNeedle.jsx';
 import type { Song } from '../types.js';
 
 export interface Choice {
@@ -15,10 +17,12 @@ export interface Choice {
 }
 
 interface SongCardProps {
+  ch: number;
   answer?: Song;
   hue: string;
   discovered: boolean;
   playing: boolean;
+  meter?: boolean;
   onPlay: () => void;
   // Name-that-tune: `choices` while unanswered; `named` once answered.
   choices?: Choice[];
@@ -26,15 +30,17 @@ interface SongCardProps {
   onName?: (choice: Choice | null) => void;
   order?: number;
   fresh?: boolean;
-  // The row's Timeline label, printed like a cassette J-card ("1984").
+  // The row's Timeline label, printed on the tape ("1984").
   label?: string;
 }
 
 export default function SongCard({
+  ch,
   answer,
   hue,
   discovered,
   playing,
+  meter = false,
   onPlay,
   choices,
   named,
@@ -62,13 +68,16 @@ export default function SongCard({
       style={style}
     >
       <div className="song-row">
+        <span className="ch" aria-hidden="true">
+          {ch}
+        </span>
         <button
           type="button"
           className="song-play"
           onClick={onPlay}
           aria-label={
             quiz
-              ? `${playing ? 'Stop' : 'Play'} the mystery song`
+              ? `${playing ? 'Stop' : 'Play'} the mystery song from ${label ?? `channel ${ch}`}`
               : `${playing ? 'Stop' : 'Play'} ${title}${artist ? ` by ${artist}` : ''}`
           }
         >
@@ -80,21 +89,17 @@ export default function SongCard({
               <Icon name={playing ? 'stop' : 'play'} />
             </span>
           </span>
-          <span className="song-meta">
-            {label && <span className="song-label">{label}</span>}
-            {quiz ? (
-              <>
-                <span className="song-title">Name that tune!</span>
-                <span className="song-artist">Pick it for a bonus 🎵</span>
-              </>
-            ) : (
-              <>
-                <span className="song-title">{title}</span>
-                <span className="song-artist">{artist}</span>
-              </>
-            )}
+          <span className="tape-wrap song-tape-wrap">
+            <span className="tape song-tape">
+              {label && <span className="tape-year">{label}</span>}
+              <span className="song-title">
+                {quiz ? 'Name that tune?' : title}
+              </span>
+            </span>
+            {!quiz && artist && <span className="song-artist">{artist}</span>}
           </span>
         </button>
+        <VuNeedle active={meter} />
         {!quiz && (
           <span
             className={`song-tag ${discovered ? 'is-win' : 'is-miss'}`}
@@ -104,7 +109,9 @@ export default function SongCard({
           >
             {named && <span aria-label="Named">🎵</span>}
             <Icon name={discovered ? 'check' : 'eye'} />
-            {discovered ? 'Spliced' : 'Answer'}
+            <span className="song-tag-text">
+              {discovered ? 'Spliced' : 'Answer'}
+            </span>
           </span>
         )}
       </div>

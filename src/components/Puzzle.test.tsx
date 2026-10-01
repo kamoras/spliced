@@ -5,6 +5,9 @@ import type { Track } from '../types.js';
 
 // No Web Audio in jsdom: stub the player and context.
 vi.mock('../audio/slicer.js', () => ({ getAudioContext: () => ({}) }));
+vi.mock('../audio/sfx.js', () => ({
+  getSfx: () => ({ play() {}, setVolume() {} }),
+}));
 vi.mock('../audio/player.js', () => ({
   Player: class {
     stop() {}
@@ -15,6 +18,9 @@ vi.mock('../audio/player.js', () => ({
     sfx() {}
     getClipProgress() {
       return null;
+    }
+    getLevel() {
+      return 0;
     }
   },
 }));
@@ -104,7 +110,7 @@ describe('Puzzle', () => {
     )!;
     await userEvent.click(
       within(lanes[row]).getByRole('button', {
-        name: `Lock in track ${row + 1}`,
+        name: `Lock in channel ${row + 1}`,
       })
     );
     expect(
@@ -116,7 +122,7 @@ describe('Puzzle', () => {
     expect(
       screen.getByRole('img', { name: '3 of 4 mistakes left' })
     ).toBeInTheDocument();
-    expect(document.querySelector('.hint')).toHaveTextContent(
+    expect(document.querySelector('.vfd-msg')).toHaveTextContent(
       /no mistake charged/
     );
     expect(onChange.mock.lastCall?.[0]).toMatchObject({ mistakes: 1 });

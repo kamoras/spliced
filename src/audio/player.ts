@@ -21,6 +21,9 @@ export class Player {
   private ctx: AudioContext;
   private buffer: AudioBuffer | null;
   private output: GainNode;
+  // Sources feed a per-take "deck" gain, so a tape-stop can fade the take out
+  // without touching the master volume.
+  private deck: GainNode;
   private analyser: AnalyserNode;
   private _timeData: Uint8Array<ArrayBuffer>;
   private sources: AudioBufferSourceNode[] = [];
@@ -41,6 +44,8 @@ export class Player {
     this.analyser.smoothingTimeConstant = 0.5;
     this._timeData = new Uint8Array(this.analyser.fftSize);
     this.output.connect(this.analyser);
+    this.deck = ctx.createGain();
+    this.deck.connect(this.output);
     this.analyser.connect(ctx.destination);
     this.setVolume(DEFAULT_VOLUME);
   }
@@ -76,7 +81,28 @@ export class Player {
     this.output.gain.setValueAtTime(volume, this.ctx.currentTime);
   }
 
-  stop(): void {
+  // Stop everything. With `tapeStop`, the take winds down like a tape
+  // machine (pitch drop + fade over ~250ms) instead of cutting dead.
+  stop(tapeStop = false): void {
+    if (tapeStop && this.sources.length) {
+      const now = this.ctx.currentTime;
+      const old = this.deck;
+      this.sources.forEach((s) => {
+        try {
+          s.onended = null;
+          s.playbackRate.setValueAtTime(s.playbackRate.value, now);
+          s.playbackRate.linearRampToValueAtTime(0.3, now + 0.25);
+          s.stop(now + 0.26);
+        } catch {
+          /* already stopped */
+        }
+      });
+      old.gain.setValueAtTime(old.gain.value, now);
+      old.gain.linearRampToValueAtTime(0, now + 0.25);
+      this.deck = this.ctx.createGain();
+      this.deck.connect(this.output);
+      this.sources = [];
+    }
     this.token++;
     this.sources.forEach((s) => {
       try {
@@ -117,7 +143,7 @@ export class Player {
 
     const src = this.ctx.createBufferSource();
     src.buffer = this._bufferFor(piece);
-    src.connect(this.output);
+    src.connect(this.deck);
     src.onended = () => {
       if (myToken === this.token) {
         this._clip = null;
@@ -144,11 +170,14 @@ export class Player {
       onPiece,
       onEnd,
       delay = 0,
+      tapeStart = false,
     }: {
       onPiece?: (idx: number) => void;
       onEnd?: () => void;
       // Seconds to wait before the first clip (e.g. to let a chime ring).
       delay?: number;
+      // Spin the first clip up from slightly slow, like a tape machine.
+      tapeStart?: boolean;
     } = {}
   ): Promise<void> {
     await this._resume();
@@ -161,7 +190,11 @@ export class Player {
     pieces.forEach((p, idx) => {
       const src = this.ctx.createBufferSource();
       src.buffer = this._bufferFor(p);
-      src.connect(this.output);
+      src.connect(this.deck);
+      if (tapeStart && idx === 0) {
+        src.playbackRate.setValueAtTime(0.85, t);
+        src.playbackRate.linearRampToValueAtTime(1, t + 0.12);
+      }
       src.start(t, p.offset, p.duration);
       this.sources.push(src);
 
@@ -227,7 +260,7 @@ export class Player {
         env.gain.setValueAtTime(1, at + len - 0.04);
         env.gain.linearRampToValueAtTime(0, at + len);
       }
-      src.connect(env).connect(this.output);
+      src.connect(env).connect(this.deck);
       src.start(at, offset, len);
       this.sources.push(src);
     });
@@ -242,72 +275,5 @@ export class Player {
         (t0 + 2 * len - this.ctx.currentTime) * 1000
       )
     );
-  }
-
-  // Short synthesized cues, so a lock-in *feels* like something. They bypass
-  // the analyser (no VU flicker) but follow the master volume.
-  async sfx(
-    kind: 'lock' | 'wrong' | 'win' | 'tick' | 'lose' | 'star'
-  ): Promise<void> {
-    await this._resume();
-    const now = this.ctx.currentTime + 0.01;
-    const notes: [
-      freq: number,
-      at: number,
-      len: number,
-      type: OscillatorType,
-    ][] =
-      kind === 'lock'
-        ? [
-            [659.25, 0, 0.16, 'triangle'],
-            [880, 0.08, 0.16, 'triangle'],
-            [1318.5, 0.16, 0.28, 'triangle'],
-          ]
-        : kind === 'win'
-          ? [
-              [523.25, 0, 0.18, 'triangle'],
-              [659.25, 0.1, 0.18, 'triangle'],
-              [783.99, 0.2, 0.18, 'triangle'],
-              [1046.5, 0.3, 0.6, 'triangle'],
-              [1318.5, 0.3, 0.6, 'sine'],
-            ]
-          : kind === 'wrong'
-            ? [
-                [196, 0, 0.14, 'square'],
-                [155.56, 0.12, 0.22, 'square'],
-              ]
-            : kind === 'lose'
-              ? [
-                  [392, 0, 0.25, 'sawtooth'],
-                  [294, 0.18, 0.3, 'sawtooth'],
-                  [196, 0.4, 0.55, 'sawtooth'],
-                ]
-              : kind === 'star'
-                ? [
-                    [1568, 0, 0.12, 'sine'],
-                    [2093, 0.07, 0.3, 'sine'],
-                  ]
-                : [[1400, 0, 0.04, 'sine']];
-    const peak =
-      kind === 'wrong' || kind === 'lose'
-        ? 0.06
-        : kind === 'tick'
-          ? 0.05
-          : 0.14;
-    const bus = this.ctx.createGain();
-    bus.gain.value = this.output.gain.value;
-    bus.connect(this.ctx.destination);
-    notes.forEach(([freq, at, len, type]) => {
-      const osc = this.ctx.createOscillator();
-      const env = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      env.gain.setValueAtTime(0, now + at);
-      env.gain.linearRampToValueAtTime(peak, now + at + 0.012);
-      env.gain.exponentialRampToValueAtTime(0.0001, now + at + len);
-      osc.connect(env).connect(bus);
-      osc.start(now + at);
-      osc.stop(now + at + len + 0.05);
-    });
   }
 }

@@ -8,6 +8,7 @@ import Stats from './components/Stats.jsx';
 import Crate from './components/Crate.jsx';
 import { Countdown } from './components/Results.jsx';
 import Icon from './components/Icon.jsx';
+import Logo from './components/Logo.jsx';
 import SoundControl from './components/SoundControl.jsx';
 import {
   getPrefs,
@@ -45,13 +46,7 @@ export default function App() {
       </a>
 
       <header className="site-header">
-        <h1 className="wordmark" aria-label="Spliced">
-          SPLI
-          <span className="wordmark-cut" aria-hidden="true">
-            |
-          </span>
-          CED
-        </h1>
+        <Logo />
         <div className="header-actions">
           <button
             type="button"

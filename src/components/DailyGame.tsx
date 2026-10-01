@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Puzzle, { puzzleDef } from './Puzzle.jsx';
 import Results from './Results.jsx';
-import Confetti from './Confetti.jsx';
 import Loading from './Loading.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import {
@@ -61,7 +60,6 @@ export default function DailyGame({
   const [initial, setInitial] = useState<GameState | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
   const [replay, setReplay] = useState(0);
-  const [celebrate, setCelebrate] = useState(false);
   const [ghostParam] = useState(readGhostParam);
   const [ghost, setGhost] = useState<{ ghost: Ghost; name: string } | null>(
     null
@@ -229,10 +227,6 @@ export default function DailyGame({
               ghost: Boolean(ghost),
             });
           }
-          if (s.status === 'won') {
-            setCelebrate(true);
-            setTimeout(() => setCelebrate(false), 3200);
-          }
           setTimeout(
             () =>
               resultsRef.current?.scrollIntoView({
@@ -243,7 +237,6 @@ export default function DailyGame({
           );
         }}
       />
-      {celebrate && <Confetti />}
     </div>
   );
 }

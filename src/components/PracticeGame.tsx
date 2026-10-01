@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Puzzle, { puzzleDef } from './Puzzle.jsx';
 import Results from './Results.jsx';
-import Confetti from './Confetti.jsx';
 import Loading from './Loading.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
 import { MAX_GUESSES } from '../config.js';
@@ -42,7 +41,6 @@ export default function PracticeGame({
     n: number;
   } | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
-  const [celebrate, setCelebrate] = useState(false);
   const requestRef = useRef(0);
 
   const start = useCallback(async (lvl: Level) => {
@@ -158,13 +156,8 @@ export default function PracticeGame({
                     practice: true,
                   }))
               );
-              if (s.status === 'won') {
-                setCelebrate(true);
-                setTimeout(() => setCelebrate(false), 3200);
-              }
             }}
           />
-          {celebrate && <Confetti />}
         </>
       )}
 
