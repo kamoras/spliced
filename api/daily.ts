@@ -28,7 +28,8 @@ function loadCatalog(): CatalogEntry[] {
     return JSON.parse(
       readFileSync(new URL('./_catalog.json', import.meta.url), 'utf8')
     );
-  } catch {
+  } catch (err) {
+    console.error('daily: could not load _catalog.json', err);
     return [];
   }
 }
@@ -242,7 +243,6 @@ export default async function handler(
       numPieces: DAILY_PIECES,
       maxGuesses: DAILY_GUESSES,
       tracks,
-      answers: tracks.map((track) => track.answer),
     },
     cache
   );

@@ -68,7 +68,8 @@ Native American Heritage Month) by the player's local date — see
   genres, each resolved to a free 30-second preview and tagged with its
   original release year and a friendly genre
   ([`scripts/catalog-meta.ts`](./scripts/catalog-meta.ts); run
-  `npm run enrich:catalog` to refresh just that). Pinning the previews means
+  `npm run enrich:catalog` to refresh just that). Rebuilding reshuffles every
+  daily, so `npm run build:catalog -- --force` is required. Pinning the previews means
   every player hears the **byte-identical audio** — no per-request resolution,
   no regional drift. No API key required.
 - **Deterministic selection.** [`/api/daily`](./api/daily.ts) picks the day's

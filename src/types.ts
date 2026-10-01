@@ -84,5 +84,4 @@ export interface DailyResponse {
   numPieces: number;
   maxGuesses: number;
   tracks: TrackDef[];
-  answers: Song[];
 }

@@ -123,6 +123,15 @@ function toEntry(t: ITunesResult): CatalogEntry {
 }
 
 async function main(): Promise<void> {
+  // Every daily is a deterministic shuffle of the whole catalog, so rebuilding
+  // it reshuffles past and current puzzles. Require an explicit opt-in.
+  if (!process.argv.includes('--force')) {
+    console.error(
+      'Rebuilding the catalog changes every daily puzzle (including today).\n' +
+        'Re-run with --force if that is intended, then run beats:catalog.'
+    );
+    process.exit(1);
+  }
   console.log(`resolving ${SONGS.length} curated songs…`);
   const curated = await curatedIds();
   console.log(`fetching charts across ${GENRES.length} genres…`);

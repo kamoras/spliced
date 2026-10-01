@@ -22,7 +22,8 @@ function loadAllowed(): Set<string> {
       readFileSync(new URL('./_catalog.json', import.meta.url), 'utf8')
     ) as CatalogEntry[];
     return new Set(catalog.map((c) => c.previewUrl));
-  } catch {
+  } catch (err) {
+    console.error('audio: could not load _catalog.json', err);
     return new Set();
   }
 }

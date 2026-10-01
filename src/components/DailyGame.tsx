@@ -77,7 +77,10 @@ export default function DailyGame({
     try {
       // Ask for today's UTC date explicitly: each day is its own cache entry.
       const today = new Date().toISOString().slice(0, 10);
-      const r = await fetch(`/api/daily?date=${today}`);
+      let r = await fetch(`/api/daily?date=${today}`);
+      // A device clock running ahead of the server at midnight: fall back to
+      // the server's own "today".
+      if (r.status === 404) r = await fetch('/api/daily');
       if (!r.ok) throw new Error('Could not load today’s puzzle.');
       const d = (await r.json()) as DailyResponse;
       if (!Array.isArray(d.tracks)) {

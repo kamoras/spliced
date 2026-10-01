@@ -53,6 +53,13 @@ function seo(): PluginOption {
   const url = siteUrl();
   return {
     name: 'spliced-seo',
+    buildStart() {
+      if (!url) {
+        this.warn(
+          'SITE_URL not set: og:image, twitter:image and JSON-LD will use relative URLs that link previews ignore.'
+        );
+      }
+    },
     transformIndexHtml(html) {
       if (!url) {
         // No public URL: drop tags that need an absolute address rather than
