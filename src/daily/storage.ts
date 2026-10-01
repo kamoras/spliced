@@ -76,12 +76,20 @@ export function saveProgress(puzzleNumber: number, state: GameState): void {
 export interface Prefs {
   sfx: boolean;
   seenHelp: boolean;
+  // Master volume 0..1 and a mute that silences everything.
+  volume: number;
+  muted: boolean;
   // Optional name shown to friends who race your ghost.
   name?: string;
 }
 
 export function getPrefs(): Prefs {
-  const defaults: Prefs = { sfx: true, seenHelp: false };
+  const defaults: Prefs = {
+    sfx: true,
+    seenHelp: false,
+    volume: 0.85,
+    muted: false,
+  };
   try {
     return {
       ...defaults,

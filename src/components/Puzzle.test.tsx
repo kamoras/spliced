@@ -8,6 +8,7 @@ vi.mock('../audio/slicer.js', () => ({ getAudioContext: () => ({}) }));
 vi.mock('../audio/player.js', () => ({
   Player: class {
     stop() {}
+    setVolume() {}
     playPiece() {}
     playSequence() {}
     playSeam() {}

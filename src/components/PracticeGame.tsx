@@ -24,10 +24,12 @@ type Phase = 'loading' | 'play' | 'error';
 export default function PracticeGame({
   onDaily,
   sfx,
+  volume,
   paused,
 }: {
   onDaily: () => void;
   sfx: boolean;
+  volume: number;
   paused: boolean;
 }) {
   const [level, setLevel] = useState<Level>(LEVELS[1]);
@@ -131,6 +133,7 @@ export default function PracticeGame({
             maxGuesses={MAX_GUESSES}
             label={`Practice · ${game.level.label}`}
             sfx={sfx}
+            volume={volume}
             paused={paused}
             onChange={setLive}
             onFinish={(s) => {

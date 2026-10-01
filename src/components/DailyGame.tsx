@@ -45,10 +45,12 @@ function readGhostParam(): { ghost: Ghost; name: string } | null {
 export default function DailyGame({
   onPractice,
   sfx,
+  volume,
   paused,
 }: {
   onPractice: () => void;
   sfx: boolean;
+  volume: number;
   paused: boolean;
 }) {
   const [status, setStatus] = useState<Status>('loading');
@@ -184,6 +186,7 @@ export default function DailyGame({
         label={label}
         initialState={replay ? null : initial}
         sfx={sfx}
+        volume={volume}
         paused={paused}
         ghost={
           replay

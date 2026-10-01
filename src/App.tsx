@@ -8,6 +8,7 @@ import Stats from './components/Stats.jsx';
 import Crate from './components/Crate.jsx';
 import { Countdown } from './components/Results.jsx';
 import Icon from './components/Icon.jsx';
+import SoundControl from './components/SoundControl.jsx';
 import {
   getPrefs,
   getProgress,
@@ -35,10 +36,6 @@ export default function App() {
       setPrefsState(setPrefs({ seenHelp: true }));
     }
     setSheet(null);
-  }
-
-  function toggleSfx() {
-    setPrefsState(setPrefs({ sfx: !prefs.sfx }));
   }
 
   return (
@@ -81,16 +78,10 @@ export default function App() {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={toggleSfx}
-            aria-pressed={prefs.sfx}
-            aria-label="Sound effects"
-            title={prefs.sfx ? 'Sound effects on' : 'Sound effects off'}
-          >
-            <Icon name={prefs.sfx ? 'volume' : 'mute'} />
-          </button>
+          <SoundControl
+            prefs={prefs}
+            onChange={(patch) => setPrefsState(setPrefs(patch))}
+          />
           <button
             type="button"
             className="icon-btn"
@@ -128,12 +119,14 @@ export default function App() {
           <DailyGame
             onPractice={() => setMode('practice')}
             sfx={prefs.sfx}
+            volume={prefs.muted ? 0 : prefs.volume}
             paused={sheet != null}
           />
         ) : (
           <PracticeGame
             onDaily={() => setMode('daily')}
             sfx={prefs.sfx}
+            volume={prefs.muted ? 0 : prefs.volume}
             paused={sheet != null}
           />
         )}

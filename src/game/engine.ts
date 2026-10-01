@@ -35,8 +35,9 @@ export interface GameState {
   elapsedMs: number;
   // Name-that-tune bonus: trackId -> named correctly? (absent = not answered).
   named?: Record<string, boolean>;
-  // Every clip, seam, row or song played — the "ear score".
-  listens?: number;
+  // Every distinct seam or row arrangement you've listened to. Replays of
+  // anything already heard are free; only new ideas count as "tries".
+  heard?: string[];
 }
 
 // The minimal piece shape the engine needs.
@@ -323,8 +324,30 @@ const EMOJI: Record<Mark, string> = {
 };
 
 // The Wordle-style share card: one emoji row per lock-in.
-export function addListen(state: GameState): GameState {
-  return { ...state, listens: (state.listens ?? 0) + 1 };
+// ---- Tries + par ---------------------------------------------------------------
+// Listening is never limited. What's scored is how many *new* ideas you had to
+// test — distinct seams (clip A into clip B) and distinct row orders played.
+// Knowing the song means fewer tries; replays are always free.
+
+export const seamKey = (a: string, b: string) => `s:${a}>${b}`;
+export const rowPlayKey = (ids: string[]) => `r:${ids.join(',')}`;
+
+export function hear(state: GameState, key: string): GameState {
+  if (state.status !== 'playing' || state.heard?.includes(key)) return state;
+  return { ...state, heard: [...(state.heard ?? []), key] };
+}
+
+export function hasHeard(state: GameState, key: string): boolean {
+  return Boolean(state.heard?.includes(key));
+}
+
+export function triesOf(state: GameState): number {
+  return state.heard?.length ?? 0;
+}
+
+// A good ear needs about one seam per join plus a couple of row plays per song.
+export function parFor(def: PuzzleDef): number {
+  return def.tracks.length * (def.clipsPerTrack + 2);
 }
 
 // ---- Ghost race -------------------------------------------------------------
@@ -337,7 +360,7 @@ export interface Ghost {
   won: boolean;
   elapsedMs: number;
   mistakes: number;
-  listens: number;
+  tries: number;
   attempts: Attempt[];
 }
 
@@ -368,7 +391,7 @@ export function encodeGhost(state: GameState, puzzle: number): string {
     state.status === 'won' ? 'w' : 'l',
     ds36(state.elapsedMs),
     state.mistakes,
-    (state.listens ?? 0).toString(36),
+    triesOf(state).toString(36),
     attempts,
   ].join('.');
 }
@@ -383,8 +406,8 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
   const puzzle = num(p);
   const elapsed = num(t);
   const mistakes = num(m, 10);
-  const listens = num(l);
-  if ([puzzle, elapsed, mistakes, listens].some((n) => !Number.isFinite(n))) {
+  const tries = num(l);
+  if ([puzzle, elapsed, mistakes, tries].some((n) => !Number.isFinite(n))) {
     return null;
   }
   if (w !== 'w' && w !== 'l') return null;
@@ -404,7 +427,7 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
     won: w === 'w',
     elapsedMs: elapsed * 100,
     mistakes,
-    listens,
+    tries,
     attempts,
   };
 }
@@ -440,7 +463,9 @@ export function shareText(
     .join('');
   const named =
     tunes && `Named ${namedCount(state)}/${def.tracks.length} ${tunes}`;
-  const ears = state.listens ? ` · 🎧 ${state.listens}` : '';
+  const ears = state.heard
+    ? ` · 🎧 ${triesOf(state)} ${triesOf(state) === 1 ? 'try' : 'tries'} (par ${parFor(def)})`
+    : '';
   return [`${title} · ${score}${time}${ears}`, named, ...grid, extra, url]
     .filter(Boolean)
     .join('\n');

@@ -32,7 +32,10 @@ import { getAudioContext } from '../audio/slicer.js';
 import { shufflePieces } from '../audio/puzzle.js';
 import { formatDuration } from '../daily/storage.js';
 import {
-  addListen,
+  hasHeard,
+  hear,
+  rowPlayKey,
+  seamKey,
   isRowLocked,
   moveClip,
   nameTrack,
@@ -82,6 +85,8 @@ export interface PuzzleProps {
   label: string;
   initialState?: GameState | null;
   sfx?: boolean;
+  // Master volume 0..1 (0 = muted; mutes sound effects too).
+  volume?: number;
   // Pause the clock (e.g. while a dialog is open).
   paused?: boolean;
   // A friend's run to race (daily only).
@@ -111,6 +116,7 @@ export default function Puzzle({
   label,
   initialState,
   sfx = true,
+  volume = 0.85,
   paused = false,
   ghost,
   onChange,
@@ -232,6 +238,7 @@ export default function Puzzle({
     [player]
   );
   useEffect(() => () => player.stop(), [player]);
+  useEffect(() => player.setVolume(volume), [player, volume]);
 
   const [playing, setPlaying] = useState<Playing>(null);
   const progressGetters = useMemo(() => {
@@ -245,9 +252,10 @@ export default function Puzzle({
     setPlaying(null);
   }
 
-  const listen = () => {
+  // Record a new listening "try" (replays of anything heard are free).
+  const listen = (key: string) => {
     beginTiming();
-    setState((s) => (s.status === 'playing' ? addListen(s) : s));
+    setState((s) => hear(s, key));
   };
 
   // ---- coach line, feedback, and moment-to-moment animation ----------------
@@ -339,7 +347,7 @@ export default function Puzzle({
     if (Date.now() - justDragged.current < 250) return;
     if (coach === 0) setCoach(1);
     setCued(over ? null : piece.id);
-    if (fraction == null) listen();
+    beginTiming();
     setPlaying({ kind: 'clip', id: piece.id });
     player.playPiece(
       piece,
@@ -387,9 +395,9 @@ export default function Puzzle({
     ) {
       return stopAll();
     }
-    listen();
     const a = pieceById.get(rows[row][seam])!;
     const b = pieceById.get(rows[row][seam + 1])!;
+    listen(seamKey(a.id, b.id));
     setPlaying({ kind: 'seam', row, seam });
     player.playSeam(a, b, () =>
       setPlaying((p) =>
@@ -400,7 +408,7 @@ export default function Puzzle({
 
   function playRow(row: number) {
     if (playing?.kind === 'row' && playing.row === row) return stopAll();
-    listen();
+    listen(rowPlayKey(rows[row]));
     const seq = rows[row].map((id) => pieceById.get(id)!);
     setPlaying({ kind: 'row', row, id: null });
     player.playSequence(seq, {
@@ -691,15 +699,22 @@ export default function Puzzle({
                         playing?.kind === 'seam' &&
                         playing.row === r &&
                         playing.seam === k;
+                      const heard = hasHeard(state, seamKey(ids[k], id));
                       return (
                         <button
                           type="button"
                           key={`seam-${k}`}
-                          className={`seam${active ? ' is-playing' : ''}`}
+                          className={[
+                            'seam',
+                            active && 'is-playing',
+                            heard && 'is-heard',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                           style={{ '--k': k + 1 } as CSSProperties}
                           onClick={() => playSeam(r, k)}
                           disabled={busy}
-                          aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}`}
+                          aria-label={`Hear the join between clips ${letterOf(ids[k])} and ${letterOf(id)}${heard ? ' (heard — free replay)' : ''}`}
                         >
                           <span aria-hidden="true" />
                         </button>

@@ -110,9 +110,14 @@ describe('progress', () => {
 
 describe('prefs', () => {
   it('defaults sound on and help unseen, and persists changes', () => {
-    expect(getPrefs()).toEqual({ sfx: true, seenHelp: false });
-    setPrefs({ seenHelp: true });
-    expect(getPrefs()).toEqual({ sfx: true, seenHelp: true });
+    expect(getPrefs()).toMatchObject({ sfx: true, seenHelp: false });
+    setPrefs({ seenHelp: true, volume: 0.4 });
+    expect(getPrefs()).toEqual({
+      sfx: true,
+      seenHelp: true,
+      volume: 0.4,
+      muted: false,
+    });
   });
 });
 

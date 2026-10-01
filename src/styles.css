@@ -1645,3 +1645,62 @@ button {
     outline: 2px solid var(--bad);
   }
 }
+
+/* ---------- sound menu ---------- */
+.sound {
+  position: relative;
+}
+.sound-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 45;
+  width: 248px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lift);
+  animation: swap-in 0.15s ease-out both;
+}
+.sound-mute {
+  width: 100%;
+  min-height: 40px;
+}
+.sound-mute.is-on {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: transparent;
+}
+.sound-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sound-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.sound-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 3.5ch;
+  text-align: right;
+}
+.sound-check {
+  grid-template-columns: auto 1fr;
+}
+.sound-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.seam.is-heard span {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}

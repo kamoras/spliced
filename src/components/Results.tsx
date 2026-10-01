@@ -16,6 +16,8 @@ import {
   encodeGhost,
   headline,
   namedCount,
+  parFor,
+  triesOf,
   raceResult,
   shareText,
 } from '../game/engine.js';
@@ -60,6 +62,11 @@ export default function Results({
     tags.push(`🔥 ${streak}-day streak`);
   }
   const named = namedCount(state);
+  const tries = triesOf(state);
+  const par = parFor(def);
+  if (won && state.heard && tries <= par) {
+    tags.push(tries <= par - 6 ? '🎯 Golden ear' : '🎯 Under par');
+  }
   if (named === def.tracks.length) tags.push('🎵 Perfect ear');
 
   const race = ghost ? raceResult(state, ghost.ghost) : 0;
@@ -108,9 +115,9 @@ export default function Results({
         <span>
           🎵 {named}/{def.tracks.length} named
         </span>
-        {state.listens ? (
+        {state.heard ? (
           <span>
-            🎧 {state.listens} {state.listens === 1 ? 'listen' : 'listens'}
+            🎧 {tries} {tries === 1 ? 'try' : 'tries'} · par {par}
           </span>
         ) : null}
       </div>
@@ -134,9 +141,9 @@ export default function Results({
           </strong>
           <span>
             You: {won ? formatDuration(state.elapsedMs) : 'lost'} ·{' '}
-            {state.mistakes}✗ — {ghost.name}:{' '}
+            {state.mistakes}✗ · 🎧{tries} — {ghost.name}:{' '}
             {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'lost'} ·{' '}
-            {ghost.ghost.mistakes}✗
+            {ghost.ghost.mistakes}✗ · 🎧{ghost.ghost.tries}
           </span>
         </div>
       )}

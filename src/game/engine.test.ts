@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  hasHeard,
+  hear,
+  parFor,
+  rowPlayKey,
+  seamKey,
+  triesOf,
   decodeGhost,
   encodeGhost,
   raceResult,
@@ -267,7 +273,7 @@ describe('ghost race', () => {
     status: 'won',
     mistakes: 1,
     elapsedMs: 161_000,
-    listens: 31,
+    heard: Array.from({ length: 31 }, (_, i) => `s:${i}`),
     attempts: [
       {
         marks: ['correct', 'misplaced', 'miss', 'correct'],
@@ -290,7 +296,7 @@ describe('ghost race', () => {
       won: true,
       elapsedMs: 161_000,
       mistakes: 1,
-      listens: 31,
+      tries: 31,
       attempts: run.attempts,
     });
   });
@@ -314,5 +320,31 @@ describe('ghost race', () => {
     const def = makeDef();
     const s = { ...newGame(def, 9), elapsedMs: 12_345 };
     expect(submitRow(s, def, 0).state.attempts[0].atMs).toBe(12_345);
+  });
+});
+
+describe('tries + par', () => {
+  it('counts each new seam or row order once; replays are free', () => {
+    let s = boardState(['a', 'b']);
+    s = hear(s, seamKey('a', 'b'));
+    s = hear(s, seamKey('a', 'b'));
+    s = hear(s, seamKey('b', 'a'));
+    s = hear(s, rowPlayKey(['a', 'b']));
+    expect(triesOf(s)).toBe(3);
+    expect(hasHeard(s, seamKey('b', 'a'))).toBe(true);
+    expect(hear({ ...s, status: 'won' }, 'x').heard).toHaveLength(3);
+  });
+
+  it('sets par from the board size and shows it in the share', () => {
+    const def = makeDef(4, 4, 4);
+    expect(parFor(def)).toBe(24);
+    const s: GameState = {
+      ...boardState([]),
+      status: 'won',
+      heard: ['s:a>b', 'r:a,b'],
+    };
+    expect(shareText('S', s, def).split('\n')[0]).toBe(
+      'S · Perfect mix 🎚️ · 🎧 2 tries (par 24)'
+    );
   });
 });
