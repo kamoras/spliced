@@ -498,7 +498,7 @@ export function encodeGhost(state: GameState, puzzle: number): string {
     .map(
       (a) =>
         a.marks.map((m) => MARK_DIGIT[m]).join('') +
-        (a.solved ? 's' : 'x') +
+        (a.solved ? 's' : a.era ? 'e' : 'x') +
         ds36(a.atMs ?? 0)
     )
     .join('_');
@@ -530,13 +530,14 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
   if (w !== 'w' && w !== 'l') return null;
   const attempts: Attempt[] = [];
   for (const chunk of att ? att.split('_') : []) {
-    const match = /^([012]{2,8})([sx])([0-9a-z]+)$/.exec(chunk);
+    const match = /^([012]{2,8})([sxe])([0-9a-z]+)$/.exec(chunk);
     if (!match) return null;
     const atMs = parseInt(match[3], 36) * 100;
     if (!Number.isFinite(atMs) || atMs > 24 * 3600 * 1000) return null;
     attempts.push({
       marks: [...match[1]].map((d) => DIGIT_MARK[d]),
       solved: match[2] === 's',
+      ...(match[2] === 'e' ? { era: true } : {}),
       atMs,
     });
   }

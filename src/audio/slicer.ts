@@ -203,11 +203,12 @@ export function samplePieces({
   );
   const span = clipDuration * clipsPerTrack;
   const slack = Math.max(0, duration - span);
-  const start = snap(slack * mulberry32(seed)());
-  const maxOffset = Math.max(0, duration - clipDuration);
+  // Round down so the last clip never runs past the end of the buffer.
+  const start =
+    Math.floor((slack * mulberry32(seed)()) / OFFSET_STEP) * OFFSET_STEP;
 
   return Array.from({ length: clipsPerTrack }, (_, i) => {
-    const offset = snap(Math.min(maxOffset, start + i * clipDuration));
+    const offset = snap(start + i * clipDuration);
     return {
       id: `${trackId}-piece-${i}`,
       trackId,

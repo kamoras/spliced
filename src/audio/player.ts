@@ -40,6 +40,22 @@ export class Player {
   private _clip: ActiveClip | null = null;
   // Context time when the scheduled audio ends (keeps the meters awake).
   private busyUntil = 0;
+  private lastState: AudioContextState;
+  // Called when the context can't start (or is interrupted mid-take), so the
+  // UI can drop its "playing" state; no other callback will fire.
+  onHalt: (() => void) | null = null;
+  private disposed = false;
+
+  // An interruption (phone call, Siri, lock screen) freezes the context while
+  // wall-clock timers keep firing: end the take so audio and UI stay in step.
+  private _onState = () => {
+    const was = this.lastState;
+    this.lastState = this.ctx.state;
+    if (was === 'running' && this.ctx.state !== 'running' && this.isActive()) {
+      this.stop();
+      this.onHalt?.();
+    }
+  };
 
   constructor(ctx: AudioContext, buffer: AudioBuffer | null = null) {
     this.ctx = ctx;
@@ -56,6 +72,12 @@ export class Player {
     this.deck.connect(this.output);
     this.analyser.connect(ctx.destination);
     this.output.gain.value = DEFAULT_VOLUME;
+    this.lastState = ctx.state;
+    ctx.addEventListener('statechange', this._onState);
+  }
+
+  private isActive(): boolean {
+    return this.sources.length > 0 || this.timers.length > 0;
   }
 
   // Fraction (0..1) through the currently playing clip, or null when that clip
@@ -74,7 +96,7 @@ export class Player {
   // Current output loudness as a 0..1 level (RMS of the master bus, scaled so
   // typical music roughly fills the meter). Returns 0 when nothing is playing.
   getLevel(): number {
-    if (this.sources.length === 0) return 0;
+    if (!this.isBusy()) return 0;
     this.analyser.getByteTimeDomainData(this._timeData);
     let sum = 0;
     for (let i = 0; i < this._timeData.length; i++) {
@@ -87,7 +109,10 @@ export class Player {
 
   // Is scheduled audio still to come (or sounding)?
   isBusy(): boolean {
-    return this.ctx.currentTime < this.busyUntil;
+    // A suspended or interrupted context freezes currentTime: nothing sounds.
+    return (
+      this.ctx.state === 'running' && this.ctx.currentTime < this.busyUntil
+    );
   }
 
   setVolume(value: number): void {
@@ -100,42 +125,59 @@ export class Player {
   }
 
   // Stop everything. With `tapeStop`, the take winds down like a tape
-  // machine (pitch drop + fade over ~250ms) instead of cutting dead.
+  // machine (pitch drop + fade over ~250ms); otherwise it fades out over a
+  // few milliseconds so a cut never clicks.
   stop(tapeStop = false): void {
-    if (tapeStop && this.sources.length) {
-      const now = this.ctx.currentTime;
-      const old = this.deck;
-      this.sources.forEach((s) => {
-        try {
-          s.onended = null;
-          s.playbackRate.setValueAtTime(s.playbackRate.value, now);
-          s.playbackRate.linearRampToValueAtTime(0.3, now + 0.25);
-          s.stop(now + 0.26);
-        } catch {
-          /* already stopped */
-        }
-      });
-      old.gain.setValueAtTime(old.gain.value, now);
-      old.gain.linearRampToValueAtTime(0, now + 0.25);
-      setTimeout(() => old.disconnect(), 400);
-      this.deck = this.ctx.createGain();
-      this.deck.connect(this.output);
-      this.sources = [];
-    }
     this.token++;
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
+    this._clip = null;
+    this.busyUntil = 0;
+    if (!this.sources.length) return;
+    const now = this.ctx.currentTime;
+    const tail = tapeStop ? 0.25 : 0.008;
+    const old = this.deck;
     this.sources.forEach((s) => {
       try {
         s.onended = null;
-        s.stop();
+        if (tapeStop) {
+          s.playbackRate.setValueAtTime(s.playbackRate.value, now);
+          s.playbackRate.linearRampToValueAtTime(0.3, now + tail);
+        }
+        s.stop(now + tail + 0.01);
       } catch {
         /* already stopped */
       }
     });
-    this.timers.forEach((t) => clearTimeout(t));
+    old.gain.cancelScheduledValues(now);
+    old.gain.setValueAtTime(old.gain.value, now);
+    old.gain.linearRampToValueAtTime(0, now + tail);
+    setTimeout(() => old.disconnect(), (tail + 0.15) * 1000);
+    this.deck = this.ctx.createGain();
+    this.deck.connect(this.output);
     this.sources = [];
-    this.timers = [];
-    this._clip = null;
-    this.busyUntil = 0;
+    // Keep the meters moving while the wind-down is audible.
+    if (tapeStop) this.busyUntil = now + tail;
+  }
+
+  // Detach from the speakers (the board unmounted) so the graph can be
+  // collected. Reattaches on the next play, which keeps React's dev-mode
+  // double mount working.
+  dispose(): void {
+    this.stop();
+    if (this.disposed) return;
+    this.disposed = true;
+    this.ctx.removeEventListener('statechange', this._onState);
+    const analyser = this.analyser;
+    setTimeout(() => this.disposed && analyser.disconnect(), 200);
+  }
+
+  private _attach(): void {
+    if (!this.disposed) return;
+    this.disposed = false;
+    this.analyser.disconnect();
+    this.analyser.connect(this.ctx.destination);
+    this.ctx.addEventListener('statechange', this._onState);
   }
 
   // Stop what's playing, then make sure the context is running. Returns the
@@ -143,15 +185,23 @@ export class Player {
   // waited (or the context couldn't start).
   private async _begin(): Promise<number | null> {
     this.stop();
+    this._attach();
     const myToken = this.token;
     try {
       // 'suspended' before a gesture; iOS also uses 'interrupted' after a
       // call, Siri or backgrounding.
       if (this.ctx.state !== 'running') await this.ctx.resume();
     } catch {
+      if (myToken === this.token) this.onHalt?.();
       return null;
     }
-    return myToken === this.token ? myToken : null;
+    if (myToken !== this.token) return null;
+    if (this.ctx.state !== 'running') {
+      this.onHalt?.();
+      return null;
+    }
+    this.lastState = this.ctx.state;
+    return myToken;
   }
 
   // Schedule `len` seconds of a piece's audio from buffer time `offset`,
@@ -383,7 +433,13 @@ export class Player {
       gain.gain.setValueAtTime(first ? 1 : 0, t);
       if (!first) gain.gain.setValueCurveAtTime(fadeIn, t, fade);
       if (!last) gain.gain.setValueCurveAtTime(fadeOut, t + len - fade, fade);
-      this._run(pieces, t, gain);
+      const { end } = this._run(pieces, t, gain);
+      this.timers.push(
+        setTimeout(
+          () => gain.disconnect(),
+          Math.max(0, (end - this.ctx.currentTime) * 1000) + 200
+        )
+      );
 
       const startMs = Math.max(0, (t - this.ctx.currentTime) * 1000);
       this.timers.push(

@@ -47,6 +47,9 @@ describe('saveResult / getResult', () => {
     saveProgress(4, { ...base, status: 'lost' });
     saveProgress(4, { ...base, status: 'playing' });
     expect(getProgress(4)?.status).toBe('lost');
+    // A second tab's different ending can't replace the first.
+    saveProgress(4, { ...base, status: 'won' });
+    expect(getProgress(4)?.status).toBe('lost');
   });
 
   it('returns null for unknown puzzles', () => {

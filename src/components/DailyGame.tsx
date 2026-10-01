@@ -12,6 +12,8 @@ import {
   addToCrate,
   getProgress,
   getResult,
+  getGhost,
+  saveGhost,
   saveProgress,
   saveResult,
 } from '../daily/storage.js';
@@ -28,19 +30,29 @@ import { track as trackEvent } from '../analytics.js';
 
 type Status = 'loading' | 'ready' | 'error';
 
-// Read (once) a ghost from ?g=…&n=… and clean the URL.
-function readGhostParam(): { ghost: Ghost; name: string } | null {
+// Read (once) a ghost from ?g=…&n=… and clean the URL. Without one, fall back
+// to the ghost saved from an earlier visit today (a reload mid-race).
+function readGhostParam(): {
+  ghost: Ghost;
+  name: string;
+  saved?: boolean;
+} | null {
   if (typeof location === 'undefined') return null;
   const params = new URLSearchParams(location.search);
-  const ghost = decodeGhost(params.get('g'));
-  if (params.has('g')) {
-    history.replaceState(null, '', location.pathname + location.hash);
+  if (!params.has('g')) {
+    const saved = getGhost();
+    const ghost = decodeGhost(saved?.code);
+    return saved && ghost ? { ghost, name: saved.name, saved: true } : null;
   }
-  if (!ghost) return null;
+  const code = params.get('g');
+  const ghost = decodeGhost(code);
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (!ghost || !code) return null;
   const name =
     (params.get('n') || 'A friend')
       .replace(/[^\p{L}\p{N} '._-]/gu, '')
       .slice(0, 16) || 'A friend';
+  saveGhost({ code, name });
   return { ghost, name };
 }
 
@@ -106,15 +118,19 @@ export default function DailyGame({
 
       if (ghostParam) {
         if (ghostParam.ghost.puzzle !== d.puzzleNumber) {
-          setStaleGhost(
-            `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle}. Here’s today’s mix instead.`
-          );
+          // A saved ghost from another day is just stale: ignore it quietly.
+          if (!ghostParam.saved)
+            setStaleGhost(
+              `${ghostParam.name}’s link was for Spliced #${ghostParam.ghost.puzzle}. Here’s today’s mix instead.`
+            );
         } else if (!start || start.status === 'playing') {
           setGhost(ghostParam);
         } else {
-          setStaleGhost(
-            `You’ve already played today. Compare with ${ghostParam.name} below.`
-          );
+          if (!ghostParam.saved) {
+            setStaleGhost(
+              `You’ve already played today. Compare with ${ghostParam.name} below.`
+            );
+          }
           setGhost(ghostParam);
         }
       }

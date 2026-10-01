@@ -25,6 +25,8 @@ vi.mock('../audio/player.js', () => ({
     isBusy() {
       return false;
     }
+    dispose() {}
+    onHalt = null;
   },
 }));
 

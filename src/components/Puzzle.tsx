@@ -166,8 +166,11 @@ export default function Puzzle({
   const runningSince = useRef<number | null>(null);
   const started = useRef(accumulated.current > 0);
   const over = state.status !== 'playing';
+  // Set at the winning lock, before the splice animation commits the win, so
+  // a re-render in between can't restart the clock.
+  const finishing = useRef(false);
   const blockers = useRef({ over, paused, hidden: false });
-  blockers.current.over = over;
+  blockers.current.over = over || finishing.current;
   blockers.current.paused = paused;
 
   const elapsedNow = useCallback(
@@ -246,7 +249,6 @@ export default function Puzzle({
     },
     [fx]
   );
-  useEffect(() => () => player.stop(), [player]);
   useEffect(() => {
     player.setVolume(volume);
     fx.setVolume(volume);
@@ -289,6 +291,15 @@ export default function Puzzle({
   const [chase, setChase] = useState(false);
 
   const [playing, setPlaying] = useState<Playing>(null);
+  useEffect(() => {
+    // Nothing else will clear "playing" if the context can't start or an
+    // interruption ends the take.
+    player.onHalt = () => setPlaying(null);
+    return () => {
+      player.onHalt = null;
+      player.dispose();
+    };
+  }, [player]);
   const progressGetters = useMemo(() => {
     const map = new Map<string, () => number | null>();
     pieceById.forEach((_, id) => map.set(id, () => player.getClipProgress(id)));
@@ -360,11 +371,13 @@ export default function Puzzle({
         ghostIdx.current++;
         const locks = g.attempts
           .slice(0, ghostIdx.current)
-          .filter((a) => a.solved).length;
+          .filter((a) => a.solved || a.era).length;
         setMessage(
           next.solved
             ? `👻 ${ghost.name} locked a song (${locks}/${def.tracks.length}).`
-            : `👻 ${ghost.name} slipped up!`
+            : next.era
+              ? `👻 ${ghost.name} locked a song in the wrong year (${locks}/${def.tracks.length}).`
+              : `👻 ${ghost.name} slipped up!`
         );
       } else if (!next && g.won && now > g.elapsedMs && ghostIdx.current >= 0) {
         ghostIdx.current = -1;
@@ -601,8 +614,9 @@ export default function Puzzle({
       vibrate(20);
       if (outcome.won) {
         // Stop the clock at the winning lock, not after the animation.
-        bank();
+        finishing.current = true;
         blockers.current.over = true;
+        bank();
       }
       // Stage 1: light the marks and splice the tiles together in place…
       setSplicing(row);
@@ -665,8 +679,9 @@ export default function Puzzle({
     }
     setState(next);
     if (outcome.won) {
-      bank();
+      finishing.current = true;
       blockers.current.over = true;
+      bank();
       celebrate(next);
     } else if (outcome.lost) {
       bank();

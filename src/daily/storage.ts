@@ -8,6 +8,7 @@ const KEY = 'spliced:daily';
 // describe a different board and don't apply.
 const PROGRESS_KEY = 'spliced:progress:v5';
 const PREFS_KEY = 'spliced:prefs';
+const GHOST_KEY = 'spliced:ghost';
 
 type ResultMap = Record<number, GameResult>;
 
@@ -66,7 +67,11 @@ export function saveProgress(puzzleNumber: number, state: GameState): void {
   const all = readProgress();
   // Never reopen a finished game (e.g. from a second tab still playing).
   const prev = all[puzzleNumber];
-  if (prev && prev.status !== 'playing' && state.status === 'playing') return;
+  // A finished game is final: never reopen it, and never let a second tab's
+  // different ending replace it.
+  if (prev && prev.status !== 'playing' && state.status !== prev.status) {
+    return;
+  }
   all[puzzleNumber] = state;
   const keep = Object.keys(all)
     .map(Number)
@@ -290,4 +295,25 @@ export function addToCrate(entries: Omit<CrateEntry, 'ts'>[]): CrateEntry[] {
     /* storage unavailable — non-fatal */
   }
   return next;
+}
+
+// The friend's ghost you're racing today, so a reload mid-game keeps the race.
+export interface SavedGhost {
+  code: string;
+  name: string;
+}
+
+export function saveGhost(g: SavedGhost): void {
+  try {
+    localStorage.setItem(GHOST_KEY, JSON.stringify(g));
+  } catch {
+    /* storage unavailable: non-fatal */
+  }
+}
+
+export function getGhost(): SavedGhost | null {
+  const g = readObject<Partial<SavedGhost>>(GHOST_KEY);
+  return typeof g.code === 'string' && typeof g.name === 'string'
+    ? { code: g.code, name: g.name }
+    : null;
 }

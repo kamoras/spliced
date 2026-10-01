@@ -395,6 +395,17 @@ describe('ghost race', () => {
     });
   });
 
+  it('keeps wrong-year locks in the code', () => {
+    const eraRun: GameState = {
+      ...run,
+      attempts: [{ ...run.attempts[1], solved: false, era: true }],
+    };
+    expect(decodeGhost(encodeGhost(eraRun, 2))!.attempts[0]).toMatchObject({
+      solved: false,
+      era: true,
+    });
+  });
+
   it('rejects junk', () => {
     expect(decodeGhost(null)).toBeNull();
     expect(decodeGhost('hello')).toBeNull();

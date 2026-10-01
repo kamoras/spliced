@@ -151,7 +151,7 @@ export default function PracticeGame({
                     artwork: t.answer?.artwork,
                     previewUrl: t.previewUrl,
                     solved: true,
-                    named: false,
+                    named: Boolean(s.named?.[t.id]),
                     practice: true,
                   }))
               );
