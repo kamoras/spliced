@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`pinned schedule > keeps the songs for known puzzle numbers 1`] = `
+[
+  [
+    6769700144,
+    1440879576,
+    1875871980,
+  ],
+  [
+    310505569,
+    1604630329,
+    1838810951,
+  ],
+  [
+    190780833,
+    1434372043,
+    1445144527,
+  ],
+]
+`;

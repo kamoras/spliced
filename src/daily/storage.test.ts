@@ -168,3 +168,17 @@ describe('crate', () => {
     expect(crate[0]).toMatchObject({ solved: true, named: true });
   });
 });
+
+describe('corrupted storage', () => {
+  it('ignores junk instead of crashing', () => {
+    localStorage.setItem('spliced:daily', '"oops"');
+    expect(getResult(1)).toBeNull();
+    localStorage.setItem(
+      'spliced:crate',
+      '[null, 3, {"title":"A","artist":"B"}]'
+    );
+    expect(getCrate()).toHaveLength(1);
+    localStorage.setItem('spliced:prefs', '{"volume":"loud","sfx":"no"}');
+    expect(getPrefs()).toMatchObject({ volume: 0.85, sfx: true });
+  });
+});

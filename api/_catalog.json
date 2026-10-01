@@ -1248,42 +1248,6 @@
     "beatConf": 1
   },
   {
-    "trackId": 6763656876,
-    "title": "hate that i made you love me",
-    "artist": "Ariana Grande",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/7e/e6/82/7ee682bd-1b17-6adc-be63-b5af1bdff369/26UMGIM51126.rgb.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/68/a3/cc/68a3ccc1-ae45-0765-3cf7-27e904992cca/mzaf_17533803917179118555.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Pop",
-    "bpm": 96.01,
-    "beat": 0.07,
-    "beatConf": 1
-  },
-  {
-    "trackId": 6774384256,
-    "title": "hate that i made you love me (a cappella)",
-    "artist": "Ariana Grande",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/4c/cd/de/4ccdde87-57b5-15c9-47e4-b14523be9bb6/26UMGIM66898.rgb.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/cc/08/51/cc0851a1-ecb1-de18-92e4-5af6311a3023/mzaf_14777798929383780094.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Pop",
-    "bpm": 96.07,
-    "beat": 0.511,
-    "beatConf": 0.44
-  },
-  {
-    "trackId": 6774370960,
-    "title": "hate that i made you love me (instrumental)",
-    "artist": "Ariana Grande",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/7b/8b/db/7b8bdb64-05f6-9864-b6bd-8bbc6be75bad/26UMGIM66899.rgb.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0c/d5/d2/0cd5d2a7-ca11-fd90-64c6-4e1b3526898b/mzaf_8012278795891924823.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Pop",
-    "bpm": 96,
-    "beat": 0.302,
-    "beatConf": 1
-  },
-  {
     "trackId": 1866732800,
     "title": "I Just Might",
     "artist": "Bruno Mars",
@@ -2160,18 +2124,6 @@
     "beatConf": 1
   },
   {
-    "trackId": 159294429,
-    "title": "The Way You Make Me Feel (Single Version)",
-    "artist": "Michael Jackson",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/3d/9d/38/3d9d3811-71f0-3a0e-1ada-3004e56ff852/827969428726.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4a/a3/f4/4aa3f498-09e2-110c-7e40-dd4605741d5a/mzaf_12531787839569979821.plus.aac.p.m4a",
-    "year": 1987,
-    "genre": "Pop",
-    "bpm": 114.58,
-    "beat": 0.499,
-    "beatConf": 1
-  },
-  {
     "trackId": 1820264147,
     "title": "Soda Pop",
     "artist": "Saja Boys, Andrew Choi, Neckwav, Danny Chung, Kevin Woo, samUIL Lee & KPop Demon Hunters Cast",
@@ -2748,18 +2700,6 @@
     "beatConf": 0.49
   },
   {
-    "trackId": 169003415,
-    "title": "Don't Stop Believin' (2024 Remaster)",
-    "artist": "Journey",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/71/2d/61/712d617d-f4a4-5904-1b11-d4b4b45c47c5/828768588925.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/5c/72/97/5c72974f-6022-f760-ad82-35964fb636b5/mzaf_12752096049347330756.plus.aac.p.m4a",
-    "year": 1981,
-    "genre": "Rock",
-    "bpm": 117.66,
-    "beat": 0.447,
-    "beatConf": 0.6
-  },
-  {
     "trackId": 6770568779,
     "title": "Starless",
     "artist": "A Perfect Circle",
@@ -2974,18 +2914,6 @@
     "bpm": 91.02,
     "beat": 0.128,
     "beatConf": 0.46
-  },
-  {
-    "trackId": 1440735264,
-    "title": "Zombie",
-    "artist": "The Cranberries",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/b6/c8/85/b6c885de-fde6-d40d-c95a-d89ede4270ae/06UMGIM09433.rgb.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/be/f9/10/bef910c9-c5cd-9351-ce67-de721aa30da0/mzaf_11094219977761275404.plus.aac.p.m4a",
-    "year": 1994,
-    "genre": "Rock",
-    "bpm": 81.86,
-    "beat": 0.36,
-    "beatConf": 0.66
   },
   {
     "trackId": 1440650733,
@@ -5364,18 +5292,6 @@
     "beatConf": 0.93
   },
   {
-    "trackId": 1440920610,
-    "title": "Never Grow Up",
-    "artist": "Taylor Swift",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/d4/23/57/d423579f-24f7-5c82-ed10-fbfd21ceef25/10UMDIM00487.rgb.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/31/7a/5d/317a5d66-fe71-9210-2675-3ba6e6c12047/mzaf_7866003496496977324.plus.aac.p.m4a",
-    "year": 2010,
-    "genre": "Country",
-    "bpm": 124.96,
-    "beat": 0.099,
-    "beatConf": 0.53
-  },
-  {
     "trackId": 1773342229,
     "title": "Love Somebody",
     "artist": "Morgan Wallen",
@@ -5964,18 +5880,6 @@
     "beatConf": 1
   },
   {
-    "trackId": 1728548345,
-    "title": "The Sound of Silence (CYRIL Remix)",
-    "artist": "Disturbed",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/94/70/8a/94708ae0-6c8b-a56c-23c9-02b7c84798df/054391308696.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/f3/81/f9/f381f922-c6ca-7c4d-ccab-ed1e89a5c8ca/mzaf_2319969434426541984.plus.aac.p.m4a",
-    "year": 2024,
-    "genre": "Electronic",
-    "bpm": 126.01,
-    "beat": 0.354,
-    "beatConf": 0.94
-  },
-  {
     "trackId": 1440829549,
     "title": "The Nights",
     "artist": "Avicii",
@@ -6070,18 +5974,6 @@
     "bpm": 114.64,
     "beat": 0.226,
     "beatConf": 1
-  },
-  {
-    "trackId": 1241328655,
-    "title": "Came Here For Love",
-    "artist": "Sigala & Ella Eyre",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music117/v4/88/ea/53/88ea53d7-25cf-06a9-5c99-bff117e44cbe/886446525259.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/6e/e2/97/6ee297f3-c6b8-7fd8-1657-66a9d6b3da18/mzaf_8020275841672926853.plus.aac.p.m4a",
-    "year": 2017,
-    "genre": "Electronic",
-    "bpm": 83.37,
-    "beat": 0.488,
-    "beatConf": 0.87
   },
   {
     "trackId": 6771142569,
@@ -6408,18 +6300,6 @@
     "beatConf": 0.91
   },
   {
-    "trackId": 6773878300,
-    "title": "LEMONADE (Zedd Remix)",
-    "artist": "aespa",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/48/19/3c/48193c20-a6eb-0d02-165e-30f72f7c56f4/888735955808_Cover.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/b7/c2/c6/b7c2c643-0bf7-5017-ea71-36cbfb218773/mzaf_16503108042481288923.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Electronic",
-    "bpm": 127.98,
-    "beat": 0.255,
-    "beatConf": 0.52
-  },
-  {
     "trackId": 1216951257,
     "title": "Call on Me",
     "artist": "Eric Prydz",
@@ -6430,18 +6310,6 @@
     "bpm": 126.28,
     "beat": 0.186,
     "beatConf": 1
-  },
-  {
-    "trackId": 6773877807,
-    "title": "LEMONADE (Marlon Hoffstadt Remix)",
-    "artist": "aespa",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8e/13/03/8e13037b-6d11-ffe7-caac-06d8f7a560e8/888735955839_Cover.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/f6/c5/8a/f6c58ae4-7615-55d1-13ba-eb0dc6d9ad09/mzaf_75667222666969279.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Electronic",
-    "bpm": 144.98,
-    "beat": 0.099,
-    "beatConf": 0.89
   },
   {
     "trackId": 1418145097,
@@ -6574,18 +6442,6 @@
     "bpm": 127.99,
     "beat": 0.064,
     "beatConf": 1
-  },
-  {
-    "trackId": 1216951255,
-    "title": "Call on Me (Radio Mix)",
-    "artist": "Eric Prydz",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e1/b2/85/e1b285a1-1482-e555-fea4-7ec1c2ed856e/5051823143257.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/70/9a/91/709a913e-a21c-da91-e161-825f04712267/mzaf_593028250009040308.plus.aac.p.m4a",
-    "year": 2004,
-    "genre": "Electronic",
-    "bpm": 126.28,
-    "beat": 0.006,
-    "beatConf": 0.92
   },
   {
     "trackId": 1893731273,
@@ -6826,18 +6682,6 @@
     "bpm": 132.04,
     "beat": 0.215,
     "beatConf": 0.86
-  },
-  {
-    "trackId": 6768255805,
-    "title": "What If? (Extended Mix)",
-    "artist": "Neptunica",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/29/c6/e3/29c6e3a3-ec5f-a405-4e90-e136d13a60cc/8718522597015.png/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/c7/77/0d/c7770dda-5a06-8f26-3982-30fe53dfbc62/mzaf_291316776173861200.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Electronic",
-    "bpm": 134.96,
-    "beat": 0.325,
-    "beatConf": 0.81
   },
   {
     "trackId": 1604630329,
@@ -7270,18 +7114,6 @@
     "bpm": 89.02,
     "beat": 0.197,
     "beatConf": 1
-  },
-  {
-    "trackId": 6773878063,
-    "title": "LEMONADE (2Spade Remix)",
-    "artist": "aespa",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/f8/f0/c4/f8f0c454-b632-f29c-3f59-30682eaeaed3/888735955860_Cover.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/59/ee/9c/59ee9c23-9d68-c29a-eefa-4beee4e18438/mzaf_2886282831258021531.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Electronic",
-    "bpm": 140,
-    "beat": 0.424,
-    "beatConf": 0.75
   },
   {
     "trackId": 1812101816,
@@ -9564,18 +9396,6 @@
     "beatConf": 0.98
   },
   {
-    "trackId": 1482520559,
-    "title": "Take Me Home, Country Roads",
-    "artist": "John Denver",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/10/a9/dd/10a9ddc8-df99-9877-ab58-b4e675fa0f0b/cover.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/c5/5b/82/c55b8284-e0b1-3c8a-cb44-41d657b876d1/mzaf_12070198330112291174.plus.aac.p.m4a",
-    "year": 1971,
-    "genre": "Folk",
-    "bpm": 83.35,
-    "beat": 0.592,
-    "beatConf": 0.52
-  },
-  {
     "trackId": 1671902795,
     "title": "Find Your People",
     "artist": "Drew Holcomb & The Neighbors",
@@ -10474,18 +10294,6 @@
     "bpm": 95.18,
     "beat": 0.168,
     "beatConf": 0.6
-  },
-  {
-    "trackId": 258647542,
-    "title": "Macarena (Original Version)",
-    "artist": "Los del Río",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/a1/2d/6a/a12d6a7b-6173-ed2e-9682-a30d245ed7fe/mzi.ndplymif.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/e8/56/fe/e856fefa-4f3c-af1b-e139-d24f9a4393d4/mzaf_14984303703611477855.plus.aac.p.m4a",
-    "year": 1995,
-    "genre": "Latin",
-    "bpm": 102.99,
-    "beat": 0.424,
-    "beatConf": 0.71
   },
   {
     "trackId": 6763660843,
@@ -15936,18 +15744,6 @@
     "beatConf": 0.58
   },
   {
-    "trackId": 1888767688,
-    "title": "You Just Lost Me (feat. Pamela) [Alternate Version]",
-    "artist": "SOUL ARCHIVE ROOM",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/cf/e2/68/cfe2687b-1b68-5ac2-2b83-bb123c504218/artwork.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/34/b2/ee/34b2eeb3-a448-d5d4-794b-d5fce4e51c39/mzaf_12369347404057350110.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Blues",
-    "bpm": 80.99,
-    "beat": 0.708,
-    "beatConf": 1
-  },
-  {
     "trackId": 1893396082,
     "title": "Just Chill",
     "artist": "JAG NATION",
@@ -17280,18 +17076,6 @@
     "beatConf": 1
   },
   {
-    "trackId": 423931491,
-    "title": "Stomp",
-    "artist": "God's Property & Kirk Franklin",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/e1/ab/09e1abb1-9125-ac30-f301-7eb19ce7642d/mzi.onsooyhs.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/4b/71/bf/4b71bf36-85b1-b526-7060-9bc3dc0c1f9a/mzaf_2321499726741974664.plus.aac.p.m4a",
-    "year": 1997,
-    "genre": "Gospel",
-    "bpm": 105.75,
-    "beat": 0.522,
-    "beatConf": 0.77
-  },
-  {
     "trackId": 1889792269,
     "title": "Live Because It Is Done",
     "artist": "RUWA Music",
@@ -17302,18 +17086,6 @@
     "bpm": 96.64,
     "beat": 0.017,
     "beatConf": 0.65
-  },
-  {
-    "trackId": 6773948900,
-    "title": "JESUS IS ALIVE",
-    "artist": "Forrest Frank",
-    "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ef/71/d1/ef71d1d4-ec03-202d-16d7-b5044ffd82e8/075679573131.jpg/200x200bb.jpg",
-    "previewUrl": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/52/06/24/5206249c-9964-e347-628c-4431b5e88104/mzaf_14788533982064658531.plus.aac.p.m4a",
-    "year": 2026,
-    "genre": "Gospel",
-    "bpm": 121.46,
-    "beat": 0.232,
-    "beatConf": 0.14
   },
   {
     "trackId": 1733885419,

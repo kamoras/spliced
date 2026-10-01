@@ -389,6 +389,8 @@ describe('ghost race', () => {
     expect(decodeGhost('g1.4h.w.zz.1.v.2103x1')).toBeNull();
     expect(decodeGhost('g1.4h.q.zz.1.v.')).toBeNull();
     expect(decodeGhost('g1.4h.w.zz.1.v.')).toMatchObject({ attempts: [] });
+    expect(decodeGhost('g1.1.w.10.3abc.5.')).toBeNull();
+    expect(decodeGhost('g1.1.w.10.3.5.22s' + 'z'.repeat(300))).toBeNull();
   });
 
   it('ranks a win, then fewer mistakes, then time', () => {

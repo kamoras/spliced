@@ -85,12 +85,17 @@ describe('practicePool', () => {
     expect(pool.every((s) => past.has(s.trackId))).toBe(true);
   });
 
-  it('never includes today’s songs, even when falling back', () => {
+  it('never includes today’s or the next month’s songs when falling back', () => {
     const now = LAUNCH_UTC + 2 * DAY;
-    const today = new Set(selectDaily(now, real).songs.map((s) => s.trackId));
+    const soon = new Set<number>();
+    for (let d = 2; d <= 32; d++) {
+      selectDaily(LAUNCH_UTC + d * DAY, real).songs.forEach((s) =>
+        soon.add(s.trackId)
+      );
+    }
     const pool = practicePool(now, real);
-    expect(pool.length).toBe(real.length - DAILY_TRACKS);
-    expect(pool.some((s) => today.has(s.trackId))).toBe(false);
+    expect(pool.length).toBeGreaterThan(real.length / 2);
+    expect(pool.some((s) => soon.has(s.trackId))).toBe(false);
   });
 });
 
@@ -174,6 +179,21 @@ describe('catalog', () => {
   });
 });
 
+describe('catalog uniqueness', () => {
+  it('lists each song once, even across remasters / live versions', () => {
+    const base = (t: string) =>
+      norm(t.replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, ''));
+    const keys = catalog.map((c) => `${base(c.title)}|${norm(c.artist)}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('serves previews over https only', () => {
+    expect(catalog.every((c) => c.previewUrl.startsWith('https://'))).toBe(
+      true
+    );
+  });
+});
+
 describe('beatGrid', () => {
   const song = fakeCatalog[0];
   it('passes a confident beat grid through, and drops a shaky one', () => {
@@ -230,5 +250,16 @@ describe('norm', () => {
     expect(norm("Guns N' Roses")).toBe('gunsnroses');
     expect(norm('Earth, Wind & Fire')).toBe('earthwindfire');
     expect(norm(null)).toBe('');
+  });
+});
+
+describe('pinned schedule', () => {
+  // Guards against an accidental catalog rebuild silently changing which
+  // songs every past (and today's) puzzle used. Update deliberately.
+  it('keeps the songs for known puzzle numbers', () => {
+    const real = catalog as NonNullable<Parameters<typeof selectDaily>[1]>;
+    const ids = (n: number) =>
+      selectDaily(LAUNCH_UTC + n * DAY, real).songs.map((s) => s.trackId);
+    expect([ids(0), ids(100), ids(273)]).toMatchSnapshot();
   });
 });

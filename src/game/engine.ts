@@ -501,7 +501,7 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
     /^[0-9a-z]+$/.test(v) ? parseInt(v, radix) : NaN;
   const puzzle = num(p);
   const elapsed = num(t);
-  const mistakes = num(m, 10);
+  const mistakes = /^\d{1,2}$/.test(m) ? Number(m) : NaN;
   const takes = num(l);
   if ([puzzle, elapsed, mistakes, takes].some((n) => !Number.isFinite(n))) {
     return null;
@@ -511,10 +511,12 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
   for (const chunk of att ? att.split('_') : []) {
     const match = /^([012]{2,8})([sx])([0-9a-z]+)$/.exec(chunk);
     if (!match) return null;
+    const atMs = parseInt(match[3], 36) * 100;
+    if (!Number.isFinite(atMs) || atMs > 24 * 3600 * 1000) return null;
     attempts.push({
       marks: [...match[1]].map((d) => DIGIT_MARK[d]),
       solved: match[2] === 's',
-      atMs: parseInt(match[3], 36) * 100,
+      atMs,
     });
   }
   if (attempts.length > 20) return null;

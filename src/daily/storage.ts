@@ -11,16 +11,23 @@ const PREFS_KEY = 'spliced:prefs';
 
 type ResultMap = Record<number, GameResult>;
 
-function readAll(): ResultMap {
+// Parse a stored JSON object, ignoring anything that isn't a plain object.
+function readObject<T extends object>(key: string): T {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+    const v = JSON.parse(localStorage.getItem(key) || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : ({} as T);
   } catch {
-    return {};
+    return {} as T;
   }
 }
 
+function readAll(): ResultMap {
+  return readObject<ResultMap>(KEY);
+}
+
 export function getResult(puzzleNumber: number): GameResult | null {
-  return readAll()[puzzleNumber] || null;
+  const r = readAll()[puzzleNumber];
+  return r && typeof r === 'object' && typeof r.solved === 'boolean' ? r : null;
 }
 
 // Record the outcome for a given puzzle. Won't overwrite a prior solve with a
@@ -47,11 +54,7 @@ export function saveResult(
 type ProgressMap = Record<number, GameState>;
 
 function readProgress(): ProgressMap {
-  try {
-    return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}') || {};
-  } catch {
-    return {};
-  }
+  return readObject<ProgressMap>(PROGRESS_KEY);
 }
 
 export function getProgress(puzzleNumber: number): GameState | null {
@@ -92,14 +95,18 @@ export function getPrefs(): Prefs {
     volume: 0.85,
     muted: false,
   };
-  try {
-    return {
-      ...defaults,
-      ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'),
-    };
-  } catch {
-    return defaults;
-  }
+  const raw = readObject<Partial<Prefs>>(PREFS_KEY);
+  return {
+    sfx: typeof raw.sfx === 'boolean' ? raw.sfx : defaults.sfx,
+    seenHelp:
+      typeof raw.seenHelp === 'boolean' ? raw.seenHelp : defaults.seenHelp,
+    volume:
+      typeof raw.volume === 'number' && raw.volume >= 0 && raw.volume <= 1
+        ? raw.volume
+        : defaults.volume,
+    muted: typeof raw.muted === 'boolean' ? raw.muted : defaults.muted,
+    ...(typeof raw.name === 'string' ? { name: raw.name.slice(0, 16) } : {}),
+  };
 }
 
 export function setPrefs(patch: Partial<Prefs>): Prefs {
@@ -234,7 +241,15 @@ export interface CrateEntry {
 export function getCrate(): CrateEntry[] {
   try {
     const list = JSON.parse(localStorage.getItem(CRATE_KEY) || '[]');
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list)
+      ? list.filter(
+          (e) =>
+            e &&
+            typeof e === 'object' &&
+            typeof e.title === 'string' &&
+            typeof e.artist === 'string'
+        )
+      : [];
   } catch {
     return [];
   }

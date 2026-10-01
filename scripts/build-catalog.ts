@@ -17,7 +17,7 @@ import { readFile } from 'node:fs/promises';
 const STORE = 'us';
 const UA = { 'User-Agent': 'Spliced/0.1 (music puzzle)' };
 const OUT = fileURLToPath(new URL('../api/_catalog.json', import.meta.url));
-const TARGET = 1460; // ~4 tracks * 365 days
+const TARGET = 1460; // > a year of 3-song dailies
 const PER_GENRE = 100;
 // iTunes music genre ids: Pop, Hip-Hop, Rock, R&B/Soul, Country, Dance,
 // Electronic, Alternative, Singer/Songwriter, Latino, Soundtrack, Jazz,
@@ -146,7 +146,12 @@ async function main(): Promise<void> {
   for (const id of orderedIds) {
     const t = records.get(Number(id));
     if (!t) continue;
-    const key = `${norm(t.trackName)}|${norm(t.artistName)}`;
+    // Same song under another id ("(Remastered)", "- Live", deluxe
+    // reissues…) counts as a duplicate.
+    const base = (t.trackName ?? '')
+      .replace(/\s*[([].*?[)\]]/g, '')
+      .replace(/\s+-\s+.*$/, '');
+    const key = `${norm(base)}|${norm(t.artistName)}`;
     if (seenKey.has(key)) continue;
     seenKey.add(key);
     catalog.push(toEntry(t));

@@ -1,7 +1,7 @@
 {
   "name": "Spliced: a daily music puzzle",
   "short_name": "Spliced",
-  "description": "Four mystery songs, spliced and shuffled across an 80s mixing desk. Rebuild them by ear.",
+  "description": "Three mystery songs, spliced and shuffled across an 80s mixing desk. Rebuild them by ear.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

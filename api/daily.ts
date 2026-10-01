@@ -182,10 +182,18 @@ export function practicePool(
   const perEpoch = Math.max(1, Math.floor(catalog.length / DAILY_TRACKS));
   const epoch = Math.floor(puzzleNumber / perEpoch);
   const played = (puzzleNumber % perEpoch) * DAILY_TRACKS;
-  const past = seededShuffle(catalog, epoch).slice(0, played);
+  const order = seededShuffle(catalog, epoch);
+  const past = order.slice(0, played);
   const todayIds = new Set(today.map((s) => s.trackId));
-  const pool = past.length >= 40 ? past : catalog;
-  return pool.filter((s) => !todayIds.has(s.trackId));
+  if (past.length >= 40) return past.filter((s) => !todayIds.has(s.trackId));
+  // Early in an epoch: use the whole catalog, minus today and the next 30
+  // days of this epoch, so practice can't spoil an upcoming daily.
+  const upcoming = new Set(
+    order.slice(played, played + 31 * DAILY_TRACKS).map((s) => s.trackId)
+  );
+  return catalog.filter(
+    (s) => !todayIds.has(s.trackId) && !upcoming.has(s.trackId)
+  );
 }
 
 export default async function handler(
@@ -194,10 +202,16 @@ export default async function handler(
 ) {
   const url = new URL(req.url ?? '/', 'http://localhost');
 
-  // ?date=YYYY-MM-DD lets us preview a specific day; default is "now".
+  // ?date=YYYY-MM-DD picks a day (the client always sends its UTC date, so
+  // each day is its own cache entry and nobody gets yesterday's puzzle from
+  // cache after midnight). Future days are refused: no peeking ahead.
   const dateParam = url.searchParams.get('date');
-  const nowMs = dateParam ? Date.parse(dateParam) : Date.now();
+  const realNow = Date.now();
+  const nowMs = dateParam ? Date.parse(dateParam) : realNow;
   if (Number.isNaN(nowMs)) return json(res, 400, { error: 'bad_date' });
+  if (Math.floor(nowMs / DAY_MS) > Math.floor(realNow / DAY_MS)) {
+    return json(res, 404, { error: 'not_yet' });
+  }
 
   if (CATALOG.length < DAILY_TRACKS) {
     return json(res, 502, { error: 'catalog_unavailable' });
@@ -208,12 +222,15 @@ export default async function handler(
     mulberry32(puzzleNumber * 977 + idx)
   );
 
-  // The puzzle is fixed for the whole UTC day, so let the CDN hold it until the
-  // next midnight flip.
+  // A dated request never changes, so it can be cached for a long time. An
+  // undated one is "today": cache only until the midnight flip, never stale.
   const secondsLeft = Math.max(
-    60,
-    Math.ceil((DAY_MS - (nowMs % DAY_MS)) / 1000)
+    1,
+    Math.ceil((DAY_MS - (realNow % DAY_MS)) / 1000)
   );
+  const cache = dateParam
+    ? 'public, max-age=86400, s-maxage=31536000, immutable'
+    : `public, max-age=${Math.min(300, secondsLeft)}, s-maxage=${secondsLeft}`;
 
   return json(
     res,
@@ -227,6 +244,6 @@ export default async function handler(
       tracks,
       answers: tracks.map((track) => track.answer),
     },
-    `public, max-age=300, s-maxage=${secondsLeft}, stale-while-revalidate=86400`
+    cache
   );
 }

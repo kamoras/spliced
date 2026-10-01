@@ -34,8 +34,18 @@ function devApi(): PluginOption {
 function siteUrl(): string {
   const explicit = process.env.SITE_URL;
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const url = explicit || (vercel ? `https://${vercel}` : '');
-  return url.replace(/\/+$/, '');
+  const url = (explicit || (vercel ? `https://${vercel}` : '')).replace(
+    /\/+$/,
+    ''
+  );
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) throw new Error('scheme');
+  } catch {
+    throw new Error(`SITE_URL must be an absolute http(s) URL, got "${url}"`);
+  }
+  return url;
 }
 
 // Fills %SITE_URL% in index.html and emits robots.txt + sitemap.xml.
@@ -44,6 +54,13 @@ function seo(): PluginOption {
   return {
     name: 'spliced-seo',
     transformIndexHtml(html) {
+      if (!url) {
+        // No public URL: drop tags that need an absolute address rather than
+        // emit relative ones that scrapers ignore.
+        html = html
+          .replace(/\s*<link rel="canonical"[^>]*>/, '')
+          .replace(/\s*<meta property="og:url"[^>]*>/, '');
+      }
       return html.replaceAll('%SITE_URL%', url);
     },
     generateBundle() {
