@@ -98,6 +98,21 @@ describe('beat-aligned cutting', () => {
     ).toEqual(pieces.map((p) => p.offset));
   });
 
+  it('keeps the clips inside the audible window when it fits', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const pieces = cut(seed, {
+        beat: { bpm: 120, offset: 0 },
+        audible: [6, 24],
+      });
+      expect(pieces[0].offset).toBeGreaterThanOrEqual(6);
+      const last = pieces[pieces.length - 1];
+      expect(last.offset + last.duration).toBeLessThanOrEqual(24 + 1e-6);
+    }
+    // Too narrow a window to hold four clips: the whole preview is used.
+    const wide = cut(3, { beat: { bpm: 120, offset: 0 }, audible: [10, 14] });
+    expect(wide[0].offset).toBeLessThan(10 + 8);
+  });
+
   it('falls back to fixed cuts when the grid would not fit', () => {
     const pieces = cut(3, { duration: 5, beat: { bpm: 60, offset: 0 } });
     expect(pieces[0].duration).toBeCloseTo(5 / 4, 6);

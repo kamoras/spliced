@@ -52,6 +52,8 @@ export interface TrackDef {
   choices?: Choice[];
   // The song's beat grid, when known: clips are cut on it.
   beat?: { bpm: number; offset: number };
+  // The audible part of the preview, [from, to] seconds, when measured.
+  audible?: [number, number];
   // Timeline clue for this track's row.
   clue?: Clue;
 }

@@ -105,6 +105,7 @@ export async function loadAndSliceTracks(
         seed: seed + trackIndex * 101,
         clipSeconds,
         beat: track.beat,
+        audible: track.audible,
       });
 
       return {
@@ -139,6 +140,8 @@ interface SampleArgs {
   clipSeconds: number;
   // The song's beat grid (bpm + time of a beat), when analysed.
   beat?: { bpm: number; offset: number };
+  // The audible part of the preview, [from, to] seconds, when measured.
+  audible?: [number, number];
 }
 
 // How many beats one clip spans: about a bar (4 beats) when that's a
@@ -168,6 +171,7 @@ export function samplePieces({
   seed,
   clipSeconds,
   beat,
+  audible,
 }: SampleArgs): Piece[] {
   // On the beat: every clip is a whole number of beats and starts on a beat,
   // so any join keeps the groove; only melody and harmony give a wrong
@@ -181,9 +185,21 @@ export function samplePieces({
     // decoder difference between browsers can't change the window, and so
     // the seeded start beat — everyone's puzzle.
     const nominal = Math.min(29, Math.floor(duration * 2) / 2);
-    const lastStartBeat = Math.floor((nominal - span - first) / period);
+    // Keep the whole window inside the audible part of the preview (a quiet
+    // intro or a faded tail makes a clip that says nothing), when that
+    // leaves room; otherwise use the whole preview.
+    const [from, to] = audible ?? [0, nominal];
+    const end = Math.min(nominal, to);
+    let firstStartBeat = Math.max(0, Math.ceil((from - first) / period));
+    let lastStartBeat = Math.floor((end - span - first) / period);
+    if (lastStartBeat < firstStartBeat) {
+      firstStartBeat = 0;
+      lastStartBeat = Math.floor((nominal - span - first) / period);
+    }
     if (lastStartBeat >= 0) {
-      const k = Math.floor(mulberry32(seed)() * (lastStartBeat + 1));
+      const k =
+        firstStartBeat +
+        Math.floor(mulberry32(seed)() * (lastStartBeat - firstStartBeat + 1));
       const start = first + k * period;
       return Array.from({ length: clipsPerTrack }, (_, i) => {
         const offset = start + i * clipDuration;

@@ -319,6 +319,8 @@ export function timelineTracks(
       previewUrl: song.previewUrl,
       clue: { year: song.year, genre: song.genre, showGenre: collides },
       beat: beatGrid(song),
+      // Where the preview is audible, so clips skip a quiet intro or tail.
+      ...(song.loud ? { audible: song.loud } : {}),
     };
   });
 }

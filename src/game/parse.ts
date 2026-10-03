@@ -27,6 +27,13 @@ export function parseTrackDef(v: unknown): TrackDef | null {
   ) {
     track.beat = { bpm: v.beat.bpm, offset: v.beat.offset };
   }
+  if (
+    Array.isArray(v.audible) &&
+    v.audible.length === 2 &&
+    v.audible.every((n) => typeof n === 'number')
+  ) {
+    track.audible = [v.audible[0], v.audible[1]];
+  }
   return track;
 }
 
