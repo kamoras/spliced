@@ -44,8 +44,24 @@ interface ResultsProps {
   onArchive?: (date: string | null) => void;
 }
 
-// Same glyphs as the board: ✓ right slot, ⤨ right song (wrong slot).
-const GLYPH: Record<Mark, string> = { correct: '✓', misplaced: '⤨', miss: '' };
+// One cell per splice: ✓ a true join, ✗ a wrong one, ↪ the join that finished
+// a song on the wrong year's row.
+const GLYPH: Record<Mark, string> = { correct: '✓', misplaced: '⤨', miss: '✗' };
+
+// The splices grouped into lines, one per finished song (plus any left over).
+function spliceLines(attempts: GameState['attempts']) {
+  const lines: GameState['attempts'][] = [];
+  let line: GameState['attempts'] = [];
+  attempts.forEach((a) => {
+    line.push(a);
+    if (a.solved) {
+      lines.push(line);
+      line = [];
+    }
+  });
+  if (line.length) lines.push(line);
+  return lines;
+}
 
 export default function Results({
   state,
@@ -199,26 +215,34 @@ export default function Results({
         <div
           className="attempt-grid"
           role="img"
-          aria-label={`Your lock-ins: ${state.attempts
+          aria-label={`Your splices: ${state.attempts
             .map((a) =>
               a.era
-                ? 'right song, wrong year'
+                ? 'finished a song on the wrong year'
                 : a.solved
-                  ? 'locked'
-                  : `${a.marks.filter((m) => m === 'correct').length} in place, ${a.marks.filter((m) => m === 'misplaced').length} close`
+                  ? 'finished a song'
+                  : a.marks[0] === 'correct'
+                    ? 'a true join'
+                    : 'not a join'
             )
             .join('; ')}`}
         >
-          {state.attempts.map((a, i) => (
+          {spliceLines(state.attempts).map((line, i) => (
             <div className="attempt-row" key={i}>
-              {a.marks.map((m, j) => (
+              {line.map((a, j) => (
                 <span
                   key={j}
-                  className={`attempt-cell is-${a.era ? 'era' : m}`}
+                  className={`attempt-cell is-${a.era ? 'era' : a.marks[0]}`}
                 >
-                  {a.era ? '↪' : GLYPH[m]}
+                  {a.era ? '↪' : GLYPH[a.marks[0]]}
                 </span>
               ))}
+              {line[line.length - 1]?.trackId &&
+                state.named?.[line[line.length - 1].trackId!] && (
+                  <span className="attempt-cell is-named" aria-hidden="true">
+                    🎵
+                  </span>
+                )}
             </div>
           ))}
         </div>

@@ -25,27 +25,28 @@ flips at UTC midnight), so times and scores are shareable.
 
 ## How to play
 
-1. **Tap a clip to hear it.** That also _cues_ it — every other clip then shows
-   a ⇄ button: tap one to swap the two clips. (Or press-and-drag one clip onto
-   another; every move is a swap.) Tap two year tapes to swap whole channels.
-2. **Listen for the seams.** Clips were cut back-to-back, so true neighbours
-   flow seamlessly. Turn the knob between two clips to hear just their join, or
-   press **PLAY** to hear a whole channel. Replays are always free.
-3. **LOCK** rolls the tape: the channel plays through in its current
-   arrangement (unless you already heard it that way), then it grades
-   against that channel's song. Hear a bad join? Press STOP before the end
-   and nothing is charged. The marks: ✓ right song, right slot; ⤨ right song,
-   wrong slot; blank: another song. A wrong lock-in
-   lights one of **4 PEAK lamps** (and adds the genre to that channel's tape as
-   a consolation clue); re-checking an arrangement you already tried is free.
-   Lock a whole song on the wrong year and it slides home for free: the year
-   is a hint, not the test.
-4. A correct channel **opens**: the clips splice together, the title is
-   written onto the tape, and the song plays in full. Pick its title from four
-   same-genre, same-era choices to **name that tune** (🎵 bonus, no penalty).
+1. **Tap a clip to hear it.** That also _cues_ it (with anything it's
+   already spliced to); every spot the run can land on then shows a ⇄
+   button: tap one to swap. (Or press-and-drag a lone clip onto another.)
+   Tap two year tapes to swap whole channels.
+2. **Turn the knob between two clips to hear their join.** Clips were cut
+   back-to-back, so true neighbours flow seamlessly. Press **PLAY** to hear a
+   whole channel. Listening is always free.
+3. **Sounds right? SPLICE it.** A true join tapes the two clips together, and
+   they move as one from then on. A wrong one lights one of **4 PEAK lamps**
+   (and adds the genre to that channel's tape as a consolation clue); a join
+   already known to be wrong can't be spliced again. There are no per-slot
+   marks to deduce from: the only way to find the nine true joins among 132
+   possible ones is to listen.
+4. Splice all four clips of a song and it **locks onto its year**: the title
+   is written onto the tape and the song plays in full. If it was sitting on
+   the wrong year, it slides home for free (the year is a hint, not the
+   test). Pick its title from four same-genre, same-era choices to **name
+   that tune** (🎵 bonus, no penalty).
 5. Finish to get your score: **mistakes**, with time and songs named as the
-   tie-breaks, and a Wordle-style share grid (a 🎵 on each row you named; a
-   loss shows the songs you did find). Sharp ears can also chase fewer
+   tie-breaks, and a Wordle-style share grid: one line of splices per song
+   (🟩 a true join, ⬛ a wrong one, 🟦 a song that slid home, a 🎵 if you
+   named it; a loss shows the songs you did find). Sharp ears can also chase fewer
    **listens** (every clip, join and channel order heard for the first time,
    plus each LOCK), shown live on the display and against par afterwards. The
    share link carries a spoiler-free **ghost** of your run that friends race

@@ -19,7 +19,6 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSwappingStrategy } from '@dnd-kit/sortable';
 
 import SongCard from './SongCard.jsx';
-import Icon from './Icon.jsx';
 import ChannelStrip from './puzzle/ChannelStrip.jsx';
 import { Display } from './puzzle/Display.jsx';
 import { useGameClock } from './puzzle/useGameClock.js';
@@ -42,15 +41,18 @@ import {
   isRowLocked,
   swapRows,
   moveClip,
+  canMove,
+  chainOf,
+  isBadJoin,
+  isLinked,
   nameTrack,
   newGame,
   rowsOf,
-  submitRow,
+  spliceJoin,
   takesOf,
-  triedMarks,
-  wrongHint,
 } from '../game/engine.js';
-import type { GameState, Ghost, Mark } from '../game/engine.js';
+import type { GameState, Ghost } from '../game/engine.js';
+import type { SeamState } from './puzzle/ChannelStrip.jsx';
 import type { Choice, Piece, Song, Track } from '../types.js';
 
 export { puzzleDef } from '../game/def.js';
@@ -111,7 +113,7 @@ export interface PuzzleProps {
 const COACH = [
   'Tap any clip to hear it.',
   'Then tap ⇄ on another clip to swap them, or drag one onto another.',
-  'Turn a knob to hear a join. LOCK rolls the tape through the channel, then grades it.',
+  'Turn a knob to hear a join. Sounds right? Press SPLICE under it.',
 ];
 
 export default function Puzzle({
@@ -237,17 +239,9 @@ export default function Puzzle({
   const [shake, setShake] = useState<{ row: number; n: number } | null>(null);
   const [freshCard, setFreshCard] = useState<string | null>(null);
   const [ledPop, setLedPop] = useState<number | null>(null);
-  // The row you're working on (last changed or played): its Lock in lights up.
-  const [activeRow, setActiveRow] = useState<number | null>(null);
   // A row whose year label was tapped, waiting for a second label to swap.
   const [rowCue, setRowCue] = useState<number | null>(null);
   const [chase, setChase] = useState(false);
-  // LOCK rolls the tape first: the channel plays through in its current
-  // arrangement before it grades, unless you've already heard it that way.
-  // Stopping the tape costs nothing.
-  const [rolling, setRolling] = useState<number | null>(null);
-  const rollingRef = useRef<number | null>(null);
-  rollingRef.current = rolling;
   const justDragged = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
@@ -360,29 +354,16 @@ export default function Puzzle({
       setMessage(null);
     }
     setCued(over ? null : piece.id);
-    setRolling(null);
     if (fraction == null) listen(clipKey(piece.id));
     else beginTiming();
     playPiece(piece, fraction ?? 0);
   }
 
-  function afterMove(targetId: string) {
+  function afterMove() {
     beginTiming();
     cue('swap');
     if (coach <= 1) setCoach(2);
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
-    setRolling(null);
-    setActiveRow(rowOfId(targetId));
-  }
-
-  // Has this channel been heard as it sits now (played through, or every
-  // join in turn)?
-  function heardArrangement(ids: string[]): boolean {
-    if (hasHeard(state, rowPlayKey(ids))) return true;
-    return ids.every(
-      (id, i) =>
-        i === ids.length - 1 || hasHeard(state, seamKey(id, ids[i + 1]))
-    );
   }
 
   function swapWith(targetId: string) {
@@ -390,7 +371,7 @@ export default function Puzzle({
     const next = moveClip(state, def, cued, targetId);
     setCued(null);
     if (next === state) return;
-    afterMove(targetId);
+    afterMove();
     setFlash([cued, targetId]);
     later(() => setFlash([]), 260);
     note(`Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`);
@@ -410,7 +391,7 @@ export default function Puzzle({
     if (!target || busy || active.id === target.id) return;
     const next = moveClip(state, def, String(active.id), String(target.id));
     if (next === state) return;
-    afterMove(String(target.id));
+    afterMove();
     setCued(null);
     setMessage(null);
     setState(next);
@@ -436,8 +417,6 @@ export default function Puzzle({
     beginTiming();
     cue('swap');
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
-    setRolling(null);
-    setActiveRow(row);
     setState(next);
   }
 
@@ -453,7 +432,6 @@ export default function Puzzle({
     const b = pieceById.get(rows[row][seam + 1]);
     if (!a || !b) return;
     cue('detent');
-    setRolling(null);
     listen(seamKey(a.id, b.id));
     setPlaying({ kind: 'seam', row, seam });
     player.playSeam(a, b, () =>
@@ -466,9 +444,7 @@ export default function Puzzle({
   function playRow(row: number) {
     cue('click');
     if (playing?.kind === 'row' && playing.row === row) return stopAll(true);
-    setRolling(null);
     listen(rowPlayKey(rows[row]));
-    setActiveRow(row);
     const seq = rows[row].flatMap((id) => pieceById.get(id) ?? []);
     setPlaying({ kind: 'row', row, id: null });
     player.playSequence(seq, {
@@ -528,7 +504,6 @@ export default function Puzzle({
 
   function toggleSong(trackId: string) {
     cue('click');
-    setRolling(null);
     if (playing?.kind === 'song' && playing.trackId === trackId) stopAll(true);
     else playSong(trackId);
   }
@@ -611,147 +586,105 @@ export default function Puzzle({
     later(playMixtape, 900);
   }
 
-  function lockIn(row: number) {
+  // SPLICE the join at `seam` (between clips seam and seam+1) on `row`.
+  function splice(row: number, seam: number) {
     if (busy || over) return;
+    const ids = rows[row];
+    const a = ids[seam];
+    const b = ids[seam + 1];
+    if (!a || !b) return;
+    // Hear it first: a splice is a judgement, not a guess.
+    if (!hasHeard(state, seamKey(a, b))) return playSeam(row, seam);
     cue('click');
     beginTiming();
     setCued(null);
-    if (rolling === row) {
-      // Pulled the tape before the end: no grade, nothing charged.
-      stopAll(true);
-      setRolling(null);
-      rollingRef.current = null;
-      note('Tape pulled. Nothing charged.', 2200);
-      return;
-    }
-    const ids = rows[row];
-    if (!heardArrangement(ids) && !triedMarks(state, row, ids)) {
-      // Roll the tape: hear the whole channel, then grade. The grade waits
-      // for the end so a wrong join can still be caught and the tape pulled.
-      if (rolling != null) stopAll();
-      listen(rowPlayKey(ids));
-      setActiveRow(row);
-      setRolling(row);
-      // The end callback can fire before the next render (instant stubs).
-      rollingRef.current = row;
-      setMessage(
-        `Rolling tape on ${labelFor(row)}. If a join sounds wrong, press STOP before the end.`
-      );
-      const seq = ids.flatMap((id) => pieceById.get(id) ?? []);
-      setPlaying({ kind: 'row', row, id: null });
-      player.playSequence(seq, {
-        onPiece: (i) =>
-          setPlaying({ kind: 'row', row, id: seq[i]?.id ?? null }),
-        onEnd: () => {
-          setPlaying(null);
-          if (rollingRef.current === row) {
-            setRolling(null);
-            commitLock(row);
-          }
-        },
-      });
-      return;
-    }
-    commitLock(row);
-  }
-
-  function commitLock(row: number) {
-    // Read through the ref: this can run at the end of the tape roll, after
-    // the listen it recorded has already landed in state.
-    const cur = stateRef.current;
-    const { state: next, outcome } = submitRow(
-      { ...cur, elapsedMs: elapsedNow() },
+    const { state: next, outcome } = spliceJoin(
+      { ...state, elapsedMs: elapsedNow() },
       def,
-      row
+      a,
+      b
     );
     if (outcome.kind === 'ignored') return;
     stopAll();
     setCoach(3);
-
     if (outcome.kind === 'repeat') {
-      setShake({ row, n: Date.now() });
-      setMessage('Already tried that exact mix. No mistake charged.');
+      setMessage(
+        `${letterOf(a)} and ${letterOf(b)} already proved not to join.`
+      );
       return;
     }
 
-    if (outcome.kind === 'solved') {
-      const trackId = outcome.trackId ?? def.tracks[row].id;
-      cue(outcome.won ? 'win' : 'open');
+    if (outcome.kind === 'fused') {
       vibrate(20);
-      // Stop the clock at the winning lock, not after the animation.
+      setFlash([a, b]);
+      later(() => setFlash([]), 420);
+      const completed = outcome.completed;
+      if (!completed) {
+        cue('slide');
+        const chain = chainOf(next, def, a);
+        const left = def.clipsPerTrack - chain.length;
+        setMessage(
+          `Spliced ${letterOf(a)} and ${letterOf(b)}. ${left} more ${left === 1 ? 'join' : 'joins'} finishes this song.`
+        );
+        setState(next);
+        return;
+      }
+      cue(outcome.won ? 'win' : 'open');
       if (outcome.won) clock.finish();
-      // Stage 1: light the marks and splice the tiles together in place…
+      const home = def.tracks.findIndex((t) => t.id === completed);
+      // Stage 1: the whole channel fuses in place…
       setSplicing(row);
-      const left = def.tracks.length - next.solved.length;
+      const songsLeft = def.tracks.length - next.solved.length;
       const togo = outcome.won
         ? ''
-        : left === 1
+        : songsLeft === 1
           ? ' Last one!'
-          : ` ${left} to go.`;
+          : ` ${songsLeft} to go.`;
+      const moved = outcome.movedHome
+        ? ` Right song, wrong year: it slides to ${labelFor(home)}.`
+        : '';
       setMessage(
-        hasQuiz(trackId)
-          ? `Spliced! Name that tune for a bonus 🎵.${togo}`
-          : `Spliced!${togo}`
+        `${hasQuiz(completed) ? 'A whole song! Name that tune for a bonus 🎵.' : 'A whole song!'}${moved}${togo}`
       );
       later(
         () => {
           // …stage 2: commit, open the channel, and take a victory lap.
           setSplicing(null);
-          setFreshCard(trackId);
+          setFreshCard(completed);
           cue('slide');
           // Keep anything that changed during the splice (a quiz answer,
           // a listen) instead of overwriting it with the pre-splice state.
-          focusSong.current = trackId;
+          focusSong.current = completed;
           setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
           if (outcome.won) celebrate(next);
-          else playSong(trackId, 0.15);
+          else playSong(completed, 0.15);
         },
         prefersReducedMotion() ? 150 : 720
       );
       return;
     }
 
-    // Wrong, or a whole song in the wrong year's row (free: it slides home).
-    const home = def.tracks.findIndex((t) => t.id === outcome.trackId);
-    if (outcome.kind === 'wrongEra' && outcome.trackId) {
-      cue('open');
-      vibrate(20);
-      setMessage(
-        outcome.won
-          ? 'Right song, wrong year, and that finishes the mix!'
-          : `Right song, wrong year: that’s ${labelFor(home)}. Moved it home, no charge.`
-      );
-      setFreshCard(outcome.trackId);
-      focusSong.current = outcome.trackId;
-      if (!outcome.won) playSong(outcome.trackId, 0.4);
+    // Not a join.
+    cue(outcome.lost ? 'lose' : 'buzzer');
+    vibrate([30, 40, 30]);
+    setShake({ row, n: Date.now() });
+    setLedPop(next.mistakes);
+    later(() => setLedPop(null), 700);
+    const left = def.maxGuesses - next.mistakes;
+    if (outcome.lost) {
+      setMessage('Tape jam: out of mistakes. Here’s the mix you were hearing.');
     } else {
-      cue(outcome.lost ? 'lose' : 'buzzer');
-      vibrate([30, 40, 30]);
-      setShake({ row, n: Date.now() });
-      setLedPop(next.mistakes);
-      later(() => setLedPop(null), 700);
-      const left = def.maxGuesses - next.mistakes;
       const careful = left === 1 ? ' Careful, last mistake!' : '';
-      if (outcome.lost) {
-        setMessage(
-          'Tape jam: out of mistakes. Here’s the mix you were hearing.'
-        );
-      } else {
-        // The very first lock usually comes back mostly blank: teach why.
-        const firstMiss =
-          cur.attempts.length === 0 && outcome.rightSong < def.clipsPerTrack;
-        setMessage(
-          `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${
-            firstMiss
-              ? ' Blanks belong on other channels: swap them across.'
-              : ''
-          }${careful}`
-        );
-      }
+      const first =
+        state.attempts.length === 0
+          ? ' Listen for the join that flows without a bump.'
+          : '';
+      setMessage(
+        `Not a join: ${letterOf(a)} doesn’t run into ${letterOf(b)}.${first}${careful}`
+      );
     }
     setState(next);
-    if (outcome.won) celebrate(next);
-    else if (outcome.lost) endGame(next);
+    if (outcome.lost) endGame(next);
   }
 
   // ---- render -----------------------------------------------------------------
@@ -769,6 +702,8 @@ export default function Puzzle({
         ? playing.id
         : null;
   const cuedLetter = cued ? letterOf(cued) : null;
+  const cuedIds = cued ? chainOf(state, def, cued) : [];
+  const canSwap = (id: string) => cued != null && canMove(state, def, cued, id);
 
   function clearCue(e: ReactMouseEvent) {
     if (e.target === e.currentTarget) setCued(null);
@@ -793,9 +728,15 @@ export default function Puzzle({
         ? '★ MASTER MIX COMPLETE ★'
         : 'TAPE JAM: EVERY SONG REVEALED'
       : (COACH[coach] ?? ''));
-  const anyMarks = rows.some((ids, r) => triedMarks(state, r, ids));
   const heardClip = (id: string) => over || hasHeardClip(state, id);
-  const heardSeam = (a: string, b: string) => hasHeard(state, seamKey(a, b));
+  const seamState = (a: string, b: string): SeamState =>
+    isLinked(state, a, b)
+      ? 'linked'
+      : isBadJoin(state, a, b)
+        ? 'bad'
+        : hasHeard(state, seamKey(a, b))
+          ? 'heard'
+          : 'open';
   const getProgress = (id: string) => progressGetters.get(id) ?? (() => null);
 
   return (
@@ -897,9 +838,6 @@ export default function Puzzle({
                   </li>
                 );
               }
-              const tried = triedMarks(state, r, ids);
-              const marks: Mark[] | null =
-                splicing === r ? ids.map(() => 'correct') : tried;
               return (
                 <ChannelStrip
                   key={`row-${r}`}
@@ -907,35 +845,32 @@ export default function Puzzle({
                   pieces={ids.flatMap((id) => pieceById.get(id) ?? [])}
                   clue={clueFor(state, def, r)}
                   label={labelFor(r)}
-                  marks={marks}
-                  tried={tried != null}
                   splicing={splicing === r}
                   last={lastRow === r}
                   shakeKey={shake?.row === r ? shake.n : 0}
-                  armed={!tried && (activeRow === r || lastRow === r)}
                   meter={meterRow === r}
                   rowPlaying={playing?.kind === 'row' && playing.row === r}
-                  rolling={rolling === r}
                   seamPlaying={
                     playing?.kind === 'seam' && playing.row === r
                       ? playing.seam
                       : null
                   }
                   activeId={activeId}
-                  cued={cued}
+                  cuedIds={cuedIds}
                   cuedLetter={cuedLetter}
+                  canSwap={canSwap}
                   flash={flash}
                   busy={busy}
                   rowCue={rowCue}
                   letterOf={letterOf}
                   heardClip={heardClip}
-                  heardSeam={heardSeam}
+                  seamState={seamState}
                   getProgress={getProgress}
                   onTapClip={tapClip}
                   onSwap={swapWith}
                   onSeam={(seam) => playSeam(r, seam)}
+                  onSplice={(seam) => splice(r, seam)}
                   onPlay={() => playRow(r)}
-                  onLock={() => lockIn(r)}
                   onTapLabel={() => tapRowLabel(r)}
                 />
               );
@@ -943,18 +878,6 @@ export default function Puzzle({
           </ol>
         </SortableContext>
       </DndContext>
-
-      {anyMarks && !over && (
-        <p className="legend" aria-hidden="true">
-          <span>
-            <Icon name="check" /> right song, right slot
-          </span>
-          <span>
-            <Icon name="shuffle" /> right song, wrong slot
-          </span>
-          <span>blank: another song</span>
-        </p>
-      )}
     </section>
   );
 }

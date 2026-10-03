@@ -9,28 +9,34 @@ import type { Clue } from '../types.js';
 export type Mark = 'correct' | 'misplaced' | 'miss';
 export type Status = 'playing' | 'won' | 'lost';
 
-// One "Lock in" press, kept for the share grid.
+// One SPLICE press, kept for the share grid: a true join ('correct') or a
+// wrong one ('miss').
 export interface Attempt {
   marks: Mark[];
+  // This splice completed a song.
   solved: boolean;
-  // Active play time when this lock-in happened (drives the ghost race).
+  // Active play time when this splice happened (drives the ghost race).
   atMs?: number;
-  // Which row was locked in (drives the consolation genre clue).
+  // Which row it was on (drives the consolation genre clue).
   row?: number;
-  // A whole song locked on the wrong year's row (it moved home).
+  // The completed song sat on the wrong year's row (it moved home).
   era?: boolean;
+  // The song this splice completed.
+  trackId?: string;
 }
 
 export interface GameState {
-  // Piece ids, row-major (row = floor(index / clipsPerTrack)).
+  // Piece ids, row-major (row = floor(index / clipsPerTrack)). Fused clips
+  // are always adjacent, in order, within a row.
   order: string[];
-  // Track ids in the order they were locked (row r is always tracks[r]).
+  // Track ids in the order they were completed (row r is always tracks[r]).
   solved: string[];
   mistakes: number;
   attempts: Attempt[];
-  // Every arrangement already checked (row key -> marks). Re-checking one is
-  // free, and the board re-lights its marks whenever a row matches one again.
-  tried: Record<string, Mark[]>;
+  // Confirmed joins, "a>b": clip b follows clip a, and they move together.
+  links?: string[];
+  // Joins that turned out wrong, "a>b". Free to hear again; can't be spliced.
+  bad?: string[];
   status: Status;
   elapsedMs: number;
   // Name-that-tune bonus: trackId -> named correctly? (absent = not answered).
@@ -54,31 +60,24 @@ export type { Clue } from '../types.js';
 export interface PuzzleDef {
   clipsPerTrack: number;
   maxGuesses: number;
-  // One entry per row, in row order: row r must become tracks[r] — its
+  // One entry per row, in row order: row r must become tracks[r], its
   // pieces listed in the right order.
   tracks: { id: string; pieces: EnginePiece[]; clue?: Clue }[];
 }
 
-export interface GradedOutcome {
-  // 'wrongEra': a complete, in-order song — but it belongs to another row.
-  kind: 'solved' | 'wrong' | 'wrongEra';
-  marks: Mark[];
-  // The song that locked (for 'solved' / 'wrongEra'), else the row's song.
-  trackId: string | null;
-  // Clips in this row from the row's song, and how many are in their slot.
-  rightSong: number;
-  inPlace: number;
+export interface SpliceOutcome {
+  // 'fused': a true join. 'wrong': not a join (a mistake). 'repeat': a join
+  // already known to be wrong (free). 'ignored': not a legal splice.
+  kind: 'fused' | 'wrong' | 'repeat' | 'ignored';
+  // The song this splice completed, if it did.
+  completed?: string;
+  // The completed song sat on the wrong year's row and slid home.
+  movedHome?: boolean;
   won: boolean;
   lost: boolean;
 }
 
-export type SubmitOutcome =
-  { kind: 'ignored' } | { kind: 'repeat'; marks: Mark[] } | GradedOutcome;
-
-// Tried arrangements are per row: the same clips grade differently on a
-// different channel (each row has its own song).
-export const rowKey = (row: number, ids: string[]): string =>
-  `${row}:${ids.join('|')}`;
+export const joinKey = (a: string, b: string): string => `${a}>${b}`;
 
 function pieceMap(def: PuzzleDef): Map<string, EnginePiece> {
   const map = new Map<string, EnginePiece>();
@@ -92,7 +91,6 @@ export function newGame(def: PuzzleDef, seed?: number): GameState {
     solved: [],
     mistakes: 0,
     attempts: [],
-    tried: {},
     status: 'playing',
     elapsedMs: 0,
   };
@@ -112,7 +110,43 @@ export function isRowLocked(
   return id != null && state.solved.includes(id);
 }
 
-// Swap the contents of two unlocked rows (free — just rearranging).
+export function isLinked(state: GameState, a: string, b: string): boolean {
+  return Boolean(state.links?.includes(joinKey(a, b)));
+}
+
+export function isBadJoin(state: GameState, a: string, b: string): boolean {
+  return Boolean(state.bad?.includes(joinKey(a, b)));
+}
+
+// The fused run a clip belongs to, in board order (just the clip if it isn't
+// spliced to anything).
+export function chainOf(
+  state: GameState,
+  def: PuzzleDef,
+  id: string
+): string[] {
+  const i = state.order.indexOf(id);
+  if (i < 0) return [];
+  const cpt = def.clipsPerTrack;
+  const row = Math.floor(i / cpt);
+  let lo = i;
+  while (
+    lo > row * cpt &&
+    isLinked(state, state.order[lo - 1], state.order[lo])
+  ) {
+    lo--;
+  }
+  let hi = i;
+  while (
+    hi < (row + 1) * cpt - 1 &&
+    isLinked(state, state.order[hi], state.order[hi + 1])
+  ) {
+    hi++;
+  }
+  return state.order.slice(lo, hi + 1);
+}
+
+// Swap the contents of two unlocked rows (free, just rearranging).
 export function swapRows(
   state: GameState,
   def: PuzzleDef,
@@ -129,7 +163,7 @@ export function swapRows(
 }
 
 // What a row's clue shows right now: always the year; the genre too when the
-// day has a year collision, or as a consolation after a wrong lock-in there.
+// day has a year collision, or as a consolation after a wrong splice there.
 export function clueFor(
   state: GameState,
   def: PuzzleDef,
@@ -137,7 +171,9 @@ export function clueFor(
 ): { year?: number; genre?: string } {
   const clue = def.tracks[rowIndex]?.clue;
   if (!clue) return {};
-  const missed = state.attempts.some((a) => a.row === rowIndex && !a.solved);
+  const missed = state.attempts.some(
+    (a) => a.row === rowIndex && a.marks[0] === 'miss'
+  );
   return {
     year: clue.year,
     genre: clue.showGenre || missed ? clue.genre : undefined,
@@ -151,9 +187,11 @@ export function clueLabel(
   return clue.year ? String(clue.year) : `track ${rowIndex + 1}`;
 }
 
-// Swap two clips. Every move is a swap — within a row or across rows — so a
-// move never disturbs any other clip, and any order is at most a few swaps
-// away.
+// Move a clip (with everything it's spliced to) onto another spot. Within a
+// row the run slides there and the clips in between shift over; across rows
+// the two runs of equal length swap places (the target run is the clips
+// starting at `toId`, nudged left so it fits, and it can't cut through a
+// spliced run of its own). Rows stay full, joins stay joined.
 export function moveClip(
   state: GameState,
   def: PuzzleDef,
@@ -161,153 +199,160 @@ export function moveClip(
   toId: string
 ): GameState {
   if (state.status !== 'playing' || fromId === toId) return state;
-  const from = state.order.indexOf(fromId);
-  const to = state.order.indexOf(toId);
-  if (from < 0 || to < 0) return state;
   const cpt = def.clipsPerTrack;
-  const fromRow = Math.floor(from / cpt);
+  const chain = chainOf(state, def, fromId);
+  if (!chain.length || chain.includes(toId)) return state;
+  const len = chain.length;
+  const fromStart = state.order.indexOf(chain[0]);
+  const to = state.order.indexOf(toId);
+  if (to < 0) return state;
+  const fromRow = Math.floor(fromStart / cpt);
   const toRow = Math.floor(to / cpt);
   if (isRowLocked(state, def, fromRow) || isRowLocked(state, def, toRow)) {
     return state;
   }
-
   const order = [...state.order];
-  [order[from], order[to]] = [order[to], order[from]];
+
+  if (fromRow === toRow) {
+    // Slide: lift the run out of the row and drop it back in at the target,
+    // so that the target clip ends up just past (or before) the run.
+    const row = order.slice(toRow * cpt, (toRow + 1) * cpt);
+    const rest = row.filter((id) => !chain.includes(id));
+    const localTo = rest.indexOf(toId);
+    const localFrom = fromStart - toRow * cpt;
+    // Moving right: land after the target clip; moving left: before it.
+    const at = to > fromStart ? localTo + 1 : localTo;
+    rest.splice(at, 0, ...chain);
+    if (rest.indexOf(chain[0]) === localFrom) return state;
+    order.splice(toRow * cpt, cpt, ...rest);
+    return { ...state, order };
+  }
+
+  const start = Math.min(to, (toRow + 1) * cpt - len);
+  if (start < toRow * cpt) return state;
+  const target = order.slice(start, start + len);
+  // A cut chain is not allowed.
+  if (
+    target.some((id) =>
+      chainOf(state, def, id).some((member) => !target.includes(member))
+    )
+  ) {
+    return state;
+  }
+  for (let k = 0; k < len; k++) {
+    order[fromStart + k] = target[k];
+    order[start + k] = chain[k];
+  }
   return { ...state, order };
 }
 
-// Grade a row against the song assigned to it: right song + right slot,
-// right song + wrong slot, or a clip from another song.
-export function gradeAssigned(
-  rowIds: string[],
-  trackId: string,
-  pieces: Map<string, EnginePiece>
-): { marks: Mark[]; rightSong: number; inPlace: number } {
-  const marks: Mark[] = rowIds.map((id, slot) => {
-    const p = pieces.get(id);
-    if (p?.trackId !== trackId) return 'miss';
-    return p.correctIndex === slot ? 'correct' : 'misplaced';
-  });
-  const inPlace = marks.filter((m) => m === 'correct').length;
-  const rightSong = inPlace + marks.filter((m) => m === 'misplaced').length;
-  return { marks, rightSong, inPlace };
-}
-
-// The track a row spells out completely and in order, if any.
-function completeSong(
-  rowIds: string[],
-  pieces: Map<string, EnginePiece>
-): string | null {
-  const first = pieces.get(rowIds[0])?.trackId;
-  if (!first) return null;
-  return rowIds.every((id, slot) => {
-    const p = pieces.get(id);
-    return p?.trackId === first && p.correctIndex === slot;
-  })
-    ? first
-    : null;
-}
-
-// Lock in one row: grade it against the row's song. Correct locks the song in
-// place. Wrong spends a mistake — and if the row was a different song,
-// complete and in order ("right song, wrong year"), that song locks too and
-// slides into its own row. Running out of mistakes reveals everything.
-export function submitRow(
+// Could this clip's run land on that spot? (For lighting the ⇄ targets.)
+export function canMove(
   state: GameState,
   def: PuzzleDef,
-  rowIndex: number
-): { state: GameState; outcome: SubmitOutcome } {
-  if (isRowLocked(state, def, rowIndex)) {
-    return { state, outcome: { kind: 'ignored' } };
-  }
-  const cpt = def.clipsPerTrack;
-  const rowIds = state.order.slice(rowIndex * cpt, rowIndex * cpt + cpt);
-  if (rowIds.length !== cpt) return { state, outcome: { kind: 'ignored' } };
+  fromId: string,
+  toId: string
+): boolean {
+  return moveClip(state, def, fromId, toId) !== state;
+}
 
-  const key = rowKey(rowIndex, rowIds);
-  if (state.tried[key]) {
-    return { state, outcome: { kind: 'repeat', marks: state.tried[key] } };
+// SPLICE the join between two adjacent clips. A true join fuses them (they
+// move together from now on); the fourth clip of a song completes it, and it
+// locks onto its year's row (sliding home for free if it sat elsewhere). A
+// wrong join spends a mistake. Running out of mistakes reveals everything.
+export function spliceJoin(
+  state: GameState,
+  def: PuzzleDef,
+  a: string,
+  b: string
+): { state: GameState; outcome: SpliceOutcome } {
+  const none = (kind: SpliceOutcome['kind']) => ({
+    state,
+    outcome: { kind, won: false, lost: false },
+  });
+  if (state.status !== 'playing') return none('ignored');
+  const cpt = def.clipsPerTrack;
+  const i = state.order.indexOf(a);
+  const row = Math.floor(i / cpt);
+  if (i < 0 || state.order[i + 1] !== b || (i + 1) % cpt === 0) {
+    return none('ignored');
   }
+  if (isRowLocked(state, def, row) || isLinked(state, a, b)) {
+    return none('ignored');
+  }
+  if (isBadJoin(state, a, b)) return none('repeat');
 
   const pieces = pieceMap(def);
-  const trackId = def.tracks[rowIndex].id;
-  const grade = gradeAssigned(rowIds, trackId, pieces);
-  const solved = grade.inPlace === cpt;
-  const attempts = [
-    ...state.attempts,
-    {
-      marks: grade.marks,
-      solved,
-      atMs: Math.round(state.elapsedMs),
-      row: rowIndex,
-    },
-  ];
-  const tried = { ...state.tried, [key]: grade.marks };
+  const pa = pieces.get(a);
+  const pb = pieces.get(b);
+  if (!pa || !pb) return none('ignored');
+  const atMs = Math.round(state.elapsedMs);
+  const key = joinKey(a, b);
 
-  if (solved) {
-    const nextSolved = [...state.solved, trackId];
-    const won = nextSolved.length === def.tracks.length;
+  if (pa.trackId !== pb.trackId || pb.correctIndex !== pa.correctIndex + 1) {
+    const mistakes = state.mistakes + 1;
+    const lost = mistakes >= def.maxGuesses;
+    const next: GameState = {
+      ...state,
+      mistakes,
+      bad: [...(state.bad ?? []), key],
+      attempts: [
+        ...state.attempts,
+        { marks: ['miss'], solved: false, atMs, row },
+      ],
+    };
     return {
-      state: {
-        ...state,
-        solved: nextSolved,
-        attempts,
-        tried,
-        status: won ? 'won' : 'playing',
-      },
-      outcome: { kind: 'solved', ...grade, trackId, won, lost: false },
+      state: lost ? revealAll(next, def, 'lost') : next,
+      outcome: { kind: 'wrong', won: false, lost },
     };
   }
 
-  const other = completeSong(rowIds, pieces);
-  const otherRow = def.tracks.findIndex((t) => t.id === other);
-  const wrongEra =
-    other != null && otherRow >= 0 && !state.solved.includes(other);
-  // Right song, wrong year is progress, not a listening mistake: the song
-  // locks and slides home for free. (Release years are a hint, not the test.)
-  const mistakes = wrongEra ? state.mistakes : state.mistakes + 1;
-  const lost = mistakes >= def.maxGuesses;
-  let next: GameState = { ...state, mistakes, attempts, tried };
-  let kind: GradedOutcome['kind'] = 'wrong';
-  let outcomeTrack: string = trackId;
-
-  if (wrongEra) {
-    // Move it home and lock it.
-    next = swapRows(next, def, rowIndex, otherRow);
-    // If the song that came back from its row completes this one, it locks
-    // too: no need to spend another lock-in on an already-correct row.
-    const back = completeSong(
-      next.order.slice(rowIndex * cpt, rowIndex * cpt + cpt),
-      pieces
-    );
-    const alsoHere =
-      back === trackId && !next.solved.includes(trackId) ? [trackId] : [];
-    next = {
-      ...next,
-      solved: [...next.solved, other!, ...alsoHere],
-      attempts: next.attempts.map((a, i) =>
-        i === next.attempts.length - 1 ? { ...a, era: true } : a
-      ),
-    };
-    kind = 'wrongEra';
-    outcomeTrack = other;
-    if (next.solved.length === def.tracks.length) {
-      next = { ...next, status: 'won' };
+  let next: GameState = { ...state, links: [...(state.links ?? []), key] };
+  const chain = chainOf(next, def, a);
+  const trackId = pa.trackId;
+  const completed = chain.length === cpt && trackId != null;
+  let movedHome = false;
+  if (completed) {
+    const home = def.tracks.findIndex((t) => t.id === trackId);
+    if (home >= 0 && home !== row) {
+      next = swapRows(next, def, row, home);
+      movedHome = true;
     }
+    next = { ...next, solved: [...next.solved, trackId] };
   }
-
-  // Completing every song wins, even on the last mistake.
-  const lostNow = lost && next.status !== 'won';
+  const won = next.solved.length === def.tracks.length;
+  next = {
+    ...next,
+    attempts: [
+      ...next.attempts,
+      {
+        marks: ['correct'],
+        solved: completed,
+        atMs,
+        row,
+        ...(movedHome ? { era: true } : {}),
+        ...(completed ? { trackId } : {}),
+      },
+    ],
+    status: won ? 'won' : 'playing',
+  };
   return {
-    state: lostNow ? revealAll(next, def, 'lost') : next,
+    state: next,
     outcome: {
-      kind,
-      ...grade,
-      trackId: outcomeTrack,
-      won: next.status === 'won',
-      lost: lostNow,
+      kind: 'fused',
+      ...(completed ? { completed: trackId } : {}),
+      movedHome,
+      won,
+      lost: false,
     },
   };
+}
+
+// Every true join on the board, for revealing a finished game fused.
+function allLinks(def: PuzzleDef): string[] {
+  return def.tracks.flatMap((t) =>
+    t.pieces.slice(1).map((p, i) => joinKey(t.pieces[i].id, p.id))
+  );
 }
 
 // End the game with every song shown in its own row, in order.
@@ -317,7 +362,7 @@ export function revealAll(
   status: Status = 'lost'
 ): GameState {
   const order = def.tracks.flatMap((t) => t.pieces.map((p) => p.id));
-  return { ...state, order, status };
+  return { ...state, order, links: allLinks(def), status };
 }
 
 // A finished board for a result saved before progress was persisted (or when
@@ -331,7 +376,6 @@ export function finishedFromResult(
     solved: result.solved ? def.tracks.map((t) => t.id) : [],
     mistakes: result.mistakes ?? 0,
     attempts: [],
-    tried: {},
     status: result.solved ? 'won' : 'lost',
     elapsedMs: result.elapsedMs ?? 0,
     // The songs were already shown when this result was saved: no quiz.
@@ -348,8 +392,9 @@ export function isValidState(state: unknown, def: PuzzleDef): boolean {
   if (!Array.isArray(s.order) || !Array.isArray(s.solved)) return false;
   if (!Array.isArray(s.attempts) || typeof s.mistakes !== 'number')
     return false;
-  if (!s.tried || typeof s.tried !== 'object') return false;
   if (s.heard != null && !Array.isArray(s.heard)) return false;
+  if (s.links != null && !Array.isArray(s.links)) return false;
+  if (s.bad != null && !Array.isArray(s.bad)) return false;
   if (s.named != null && typeof s.named !== 'object') return false;
   if (s.status !== 'playing' && s.status !== 'won' && s.status !== 'lost') {
     return false;
@@ -396,25 +441,6 @@ export function headline(state: GameState): { title: string; sub: string } {
       sub: 'Clutch! Every song found.',
     }
   );
-}
-
-// Short hint after a wrong lock-in, phrased around the row's clue ("1984").
-export function wrongHint(
-  outcome: Pick<GradedOutcome, 'rightSong' | 'inPlace'>,
-  clipsPerTrack: number,
-  label = 'this track'
-): string {
-  const { rightSong, inPlace } = outcome;
-  if (rightSong === clipsPerTrack) {
-    return inPlace === 0
-      ? `All ${label}! Now find the order. Listen for the seams.`
-      : `All ${label}! ${inPlace} in place. Fix the order.`;
-  }
-  if (rightSong === clipsPerTrack - 1) {
-    return `So close! One clip isn’t from ${label}.`;
-  }
-  if (rightSong === 0) return `Nothing here is from ${label}.`;
-  return `${rightSong} ${rightSong === 1 ? 'clip is' : 'clips are'} from ${label} (${inPlace} in place).`;
 }
 
 // The Wordle-style share card: one emoji row per lock-in.
@@ -511,7 +537,7 @@ export function encodeGhost(state: GameState, puzzle: number): string {
     .map(
       (a) =>
         a.marks.map((m) => MARK_DIGIT[m]).join('') +
-        (a.solved ? 's' : a.era ? 'e' : 'x') +
+        (a.solved ? (a.era ? 'e' : 's') : 'x') +
         ds36(a.atMs ?? 0)
     )
     .join('_');
@@ -547,13 +573,13 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
   if (w !== 'w' && w !== 'l') return null;
   const attempts: Attempt[] = [];
   for (const chunk of att ? att.split('_') : []) {
-    const match = /^([012]{2,8})([sxe])([0-9a-z]+)$/.exec(chunk);
+    const match = /^([012]{1,8})([sxe])([0-9a-z]+)$/.exec(chunk);
     if (!match) return null;
     const atMs = parseInt(match[3], 36) * 100;
     if (!Number.isFinite(atMs) || atMs > 24 * 3600 * 1000) return null;
     attempts.push({
       marks: [...match[1]].map((d) => DIGIT_MARK[d]),
-      solved: match[2] === 's',
+      solved: match[2] !== 'x',
       ...(match[2] === 'e' ? { era: true } : {}),
       atMs,
     });
@@ -596,25 +622,20 @@ export function shareText(
     : `${state.solved.length}/${def.tracks.length} songs · X/${def.maxGuesses}`;
   const time =
     won && state.elapsedMs ? ` · ⏱ ${formatDuration(state.elapsedMs)}` : '';
-  // A right-song-wrong-year lock shows as 🟦 (the song still locked); a row
-  // whose song you then named gets a 🎵.
-  const grid = state.attempts.map((a) => {
-    const cells = a.era
-      ? a.marks.map(() => '🟦').join('')
-      : a.marks.map((m) => EMOJI[m]).join('');
-    const id = a.solved && a.row != null ? def.tracks[a.row]?.id : undefined;
-    return id && state.named?.[id] ? `${cells} 🎵` : cells;
+  // One line per song: its splices in order, 🟩 a true join, ⬛ a wrong one,
+  // 🟦 the join that completed a song on the wrong year's row (it slid home),
+  // and a 🎵 if you then named the song.
+  const grid: string[] = [];
+  let line = '';
+  state.attempts.forEach((a) => {
+    line += a.era ? '🟦' : a.marks.map((m) => EMOJI[m]).join('');
+    if (a.solved) {
+      grid.push(a.trackId && state.named?.[a.trackId] ? `${line} 🎵` : line);
+      line = '';
+    }
   });
+  if (line) grid.push(line);
   return [`${title} · ${score}${time}`, ...grid, extra, url]
     .filter(Boolean)
     .join('\n');
-}
-
-// Re-grade an arbitrary row (for lighting marks on the board).
-export function triedMarks(
-  state: GameState,
-  row: number,
-  rowIds: string[]
-): Mark[] | null {
-  return state.tried[rowKey(row, rowIds)] ?? null;
 }

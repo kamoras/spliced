@@ -39,9 +39,9 @@ export function useGhostTicker({
         idx.current++;
         sayRef.current(
           next.solved
-            ? `👻 ${ghost.name} locked a song.`
-            : next.era
-              ? `👻 ${ghost.name} locked a song in the wrong year.`
+            ? `👻 ${ghost.name} finished a song.`
+            : next.marks[0] === 'correct'
+              ? `👻 ${ghost.name} spliced a join.`
               : `👻 ${ghost.name} slipped up!`
         );
       } else if (!next && g.won && now > g.elapsedMs && idx.current >= 0) {

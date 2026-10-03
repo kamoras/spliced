@@ -227,7 +227,7 @@ describe('DailyGame', () => {
       elapsedMs: 12000,
     };
     localStorage.setItem(
-      'spliced:progress:v6',
+      'spliced:progress:v7',
       JSON.stringify({ [PUZZLE]: saved })
     );
     const DailyGame = await loadDailyGame();
@@ -258,7 +258,7 @@ describe('DailyGame', () => {
     const stale = { ...newGame(def, PUZZLE), mistakes: 3 };
     stale.order = stale.order.map((id) => `old-${id}`);
     localStorage.setItem(
-      'spliced:progress:v6',
+      'spliced:progress:v7',
       JSON.stringify({ [PUZZLE]: stale })
     );
     const DailyGame = await loadDailyGame();

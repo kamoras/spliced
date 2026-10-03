@@ -5,8 +5,9 @@ import type { GameState } from '../game/engine.js';
 import { DAY_MS } from '../../shared/game.js';
 
 const KEY = 'spliced:daily';
-// v6: opaque clip ids; older saves describe a different board and don't apply.
-const PROGRESS_KEY = 'spliced:progress:v6';
+// v7: spliced joins instead of row locks; older saves describe a different
+// game and don't apply.
+const PROGRESS_KEY = 'spliced:progress:v7';
 const PREFS_KEY = 'spliced:prefs';
 const GHOST_KEY = 'spliced:ghost';
 

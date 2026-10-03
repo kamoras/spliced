@@ -1,44 +1,45 @@
-// One open channel on the board: the year tape, VU, PLAY and LOCK keys, and
-// the row of clips with seam knobs between them.
+// One open channel on the board: the year tape, VU and PLAY key, and the row
+// of clips with a seam between each pair. A seam has a knob (hear the join)
+// and, once the join has been heard, a SPLICE key. A spliced join shows as a
+// strip of tape holding the two clips together.
 
 import { Fragment, memo } from 'react';
 import type { CSSProperties } from 'react';
 import PieceTile from '../PieceTile.jsx';
 import VuNeedle from '../VuNeedle.jsx';
-import type { Mark } from '../../game/engine.js';
 import type { Piece } from '../../types.js';
+
+export type SeamState = 'open' | 'heard' | 'linked' | 'bad';
 
 export interface ChannelStripProps {
   row: number;
   pieces: Piece[];
   clue: { year?: number; genre?: string };
   label: string;
-  marks: Mark[] | null;
-  tried: boolean;
   splicing: boolean;
   last: boolean;
   shakeKey: number;
-  armed: boolean;
   meter: boolean;
   rowPlaying: boolean;
-  // LOCK is rolling the tape on this row (press again to stop, uncharged).
-  rolling: boolean;
   seamPlaying: number | null;
   activeId: string | null;
-  cued: string | null;
+  // The cued run (the clip you tapped and everything spliced to it).
+  cuedIds: string[];
   cuedLetter: string | null;
+  // Where the cued run can land.
+  canSwap: (id: string) => boolean;
   flash: string[];
   busy: boolean;
   rowCue: number | null;
   letterOf: (id: string) => string;
   heardClip: (id: string) => boolean;
-  heardSeam: (a: string, b: string) => boolean;
+  seamState: (a: string, b: string) => SeamState;
   getProgress: (id: string) => () => number | null;
   onTapClip: (piece: Piece, fraction: number | null) => void;
   onSwap: (id: string) => void;
   onSeam: (seam: number) => void;
+  onSplice: (seam: number) => void;
   onPlay: () => void;
-  onLock: () => void;
   onTapLabel: () => void;
 }
 
@@ -47,31 +48,28 @@ function ChannelStrip({
   pieces,
   clue,
   label,
-  marks,
-  tried,
   splicing,
   last,
   shakeKey,
-  armed,
   meter,
   rowPlaying,
-  rolling,
   seamPlaying,
   activeId,
-  cued,
+  cuedIds,
   cuedLetter,
+  canSwap,
   flash,
   busy,
   rowCue,
   letterOf,
   heardClip,
-  heardSeam,
+  seamState,
   getProgress,
   onTapClip,
   onSwap,
   onSeam,
+  onSplice,
   onPlay,
-  onLock,
   onTapLabel,
 }: ChannelStripProps) {
   return (
@@ -109,30 +107,6 @@ function ChannelStrip({
           <span className="lamp" aria-hidden="true" />
           {rowPlaying ? 'Stop' : 'Play'}
         </button>
-        <button
-          type="button"
-          className={[
-            'cbtn',
-            'cbtn--rec',
-            (armed || rolling) && 'is-armed',
-            rolling && 'is-on',
-            tried && 'is-tried',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={onLock}
-          disabled={busy}
-          aria-label={
-            rolling
-              ? `Channel ${r + 1}: tape rolling, press to stop without locking`
-              : tried
-                ? `Channel ${r + 1}: this exact mix was already tried`
-                : `Lock in channel ${r + 1}`
-          }
-        >
-          <span className="lamp" aria-hidden="true" />
-          {rolling ? 'Stop' : tried ? 'Tried' : 'Lock'}
-        </button>
       </div>
       <div
         className={`lane-tiles${shakeKey ? ' is-shaking' : ''}`}
@@ -141,7 +115,10 @@ function ChannelStrip({
         {pieces.map((piece, slot) => {
           const id = piece.id;
           const next = pieces[slot + 1]?.id;
-          const heard = next != null && heardSeam(id, next);
+          const seam = next != null ? seamState(id, next) : null;
+          const inCue = cuedIds.includes(id);
+          const fusedLeft =
+            slot > 0 && seamState(pieces[slot - 1].id, id) === 'linked';
           return (
             <Fragment key={id}>
               <PieceTile
@@ -149,10 +126,15 @@ function ChannelStrip({
                 slot={slot}
                 row={r}
                 letter={letterOf(id)}
-                mark={marks?.[slot] ?? null}
                 playing={activeId === id}
-                cued={cued === id}
-                swapWith={cued && cued !== id && !busy ? cuedLetter : null}
+                cued={inCue}
+                fusedLeft={fusedLeft}
+                fusedRight={seam === 'linked'}
+                swapWith={
+                  cuedLetter && !inCue && !busy && canSwap(id)
+                    ? cuedLetter
+                    : null
+                }
                 flash={flash.includes(id)}
                 disabled={busy}
                 heard={heardClip(id)}
@@ -161,24 +143,60 @@ function ChannelStrip({
                 getProgress={getProgress(id)}
               />
               {/* The join to the next clip sits between them in focus order
-                  too. */}
-              {next != null && (
-                <button
-                  type="button"
-                  className={[
-                    'seam',
-                    seamPlaying === slot && 'is-playing',
-                    heard && 'is-heard',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+                  too: hear it, then splice it. */}
+              {next != null && seam != null && (
+                <div
+                  className={`seam-col is-${seam}`}
                   style={{ '--k': slot + 1 } as CSSProperties}
-                  onClick={() => onSeam(slot)}
-                  disabled={busy}
-                  aria-label={`Hear the join between clips ${letterOf(id)} and ${letterOf(next)}${heard ? ' (heard, free replay)' : ''}`}
                 >
-                  <span className="knob" aria-hidden="true" />
-                </button>
+                  {seam === 'linked' ? (
+                    <span
+                      className="splice-mark"
+                      role="img"
+                      aria-label={`Clips ${letterOf(id)} and ${letterOf(next)} are spliced`}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={[
+                          'seam',
+                          seamPlaying === slot && 'is-playing',
+                          seam !== 'open' && 'is-heard',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => onSeam(slot)}
+                        disabled={busy}
+                        aria-label={`Hear the join between clips ${letterOf(id)} and ${letterOf(next)}${seam === 'bad' ? ' (not a join)' : seam === 'heard' ? ' (heard, free replay)' : ''}`}
+                      >
+                        <span className="knob" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`splice-key${seam === 'heard' ? ' is-ready' : ''}${seam === 'bad' ? ' is-bad' : ''}`}
+                        onClick={() => onSplice(slot)}
+                        disabled={busy || seam !== 'heard'}
+                        aria-label={
+                          seam === 'bad'
+                            ? `Clips ${letterOf(id)} and ${letterOf(next)}: not a join`
+                            : seam === 'heard'
+                              ? `Splice clips ${letterOf(id)} and ${letterOf(next)}`
+                              : `Splice clips ${letterOf(id)} and ${letterOf(next)}: hear the join first`
+                        }
+                        title={
+                          seam === 'bad'
+                            ? 'Not a join'
+                            : seam === 'open'
+                              ? 'Hear the join first'
+                              : undefined
+                        }
+                      >
+                        {seam === 'bad' ? '✗' : 'Splice'}
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </Fragment>
           );

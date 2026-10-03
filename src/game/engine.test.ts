@@ -22,8 +22,9 @@ import {
   revealAll,
   rowsOf,
   shareText,
-  submitRow,
-  wrongHint,
+  spliceJoin,
+  chainOf,
+  canMove,
 } from './engine.js';
 import type { GameState, PuzzleDef } from './engine.js';
 
@@ -49,7 +50,6 @@ function boardState(order: string[]): GameState {
     solved: [],
     mistakes: 0,
     attempts: [],
-    tried: {},
     status: 'playing',
     elapsedMs: 0,
   };
@@ -75,9 +75,11 @@ describe('moveClip', () => {
     't0-2', 't1-2', 't2-2',
   ]); // prettier-ignore
 
-  it('swaps within a row', () => {
+  it('slides within a row, shifting the clips in between', () => {
     const s = moveClip(start, def, 't0-0', 't2-0');
-    expect(rowsOf(s, def)[0]).toEqual(['t2-0', 't1-0', 't0-0']);
+    expect(rowsOf(s, def)[0]).toEqual(['t1-0', 't2-0', 't0-0']);
+    const back = moveClip(s, def, 't0-0', 't1-0');
+    expect(rowsOf(back, def)[0]).toEqual(['t0-0', 't1-0', 't2-0']);
   });
 
   it('swaps across rows', () => {
@@ -94,131 +96,144 @@ describe('moveClip', () => {
   });
 });
 
-describe('submitRow', () => {
+describe('moveClip with spliced runs', () => {
+  const def = makeDef();
+  // Row 0 holds a spliced pair t1-0>t1-1 in slots 1-2.
+  const base: GameState = {
+    ...boardState([
+      't0-0', 't1-0', 't1-1',
+      't0-1', 't2-0', 't2-1',
+      't0-2', 't1-2', 't2-2',
+    ]), // prettier-ignore
+    links: ['t1-0>t1-1'],
+  };
+
+  it('reads a clip’s run from its links', () => {
+    expect(chainOf(base, def, 't1-1')).toEqual(['t1-0', 't1-1']);
+    expect(chainOf(base, def, 't0-0')).toEqual(['t0-0']);
+  });
+
+  it('moves a run as one block, nudged to fit its target row', () => {
+    const s = moveClip(base, def, 't1-0', 't2-1');
+    // The pair lands in slots 1-2 of row 1 (nudged left from slot 2) and the
+    // two clips it displaced take its old place.
+    expect(rowsOf(s, def)[1]).toEqual(['t0-1', 't1-0', 't1-1']);
+    expect(rowsOf(s, def)[0]).toEqual(['t0-0', 't2-0', 't2-1']);
+    expect(canMove(base, def, 't1-0', 't2-1')).toBe(true);
+  });
+
+  it('never cuts a spliced run', () => {
+    // Moving a lone clip from another row onto a member of the pair would
+    // split it.
+    expect(moveClip(base, def, 't0-2', 't1-1')).toBe(base);
+    expect(canMove(base, def, 't0-2', 't1-0')).toBe(false);
+    // Nor can the pair land on itself.
+    expect(moveClip(base, def, 't1-0', 't1-1')).toBe(base);
+  });
+
+  it('slides a run within its row past a lone clip', () => {
+    // [t0-0, (t1-0 t1-1)] -> the pair slides to the front.
+    const s = moveClip(base, def, 't1-1', 't0-0');
+    expect(rowsOf(s, def)[0]).toEqual(['t1-0', 't1-1', 't0-0']);
+    // And a lone clip can hop over the pair.
+    const hop = moveClip(base, def, 't0-0', 't1-1');
+    expect(rowsOf(hop, def)[0]).toEqual(['t1-0', 't1-1', 't0-0']);
+  });
+});
+
+describe('spliceJoin', () => {
   const def = makeDef();
 
-  it('locks a row that spells its own song, in place', () => {
-    const ready = boardState([
-      't2-0', 't0-0', 't2-1',
+  it('fuses a true join without charging anything', () => {
+    const s = boardState([
+      't2-0', 't0-0', 't0-1',
       't1-0', 't1-1', 't1-2',
-      't0-1', 't2-2', 't0-2',
+      't2-1', 't2-2', 't0-2',
     ]); // prettier-ignore
-    const { state, outcome } = submitRow(ready, def, 1);
-    expect(outcome).toMatchObject({
-      kind: 'solved',
-      trackId: 't1',
-      won: false,
-    });
-    expect(state.solved).toEqual(['t1']);
-    expect(rowsOf(state, def)[1]).toEqual(['t1-0', 't1-1', 't1-2']);
+    const { state, outcome } = spliceJoin(s, def, 't0-0', 't0-1');
+    expect(outcome).toMatchObject({ kind: 'fused', won: false, lost: false });
+    expect(outcome.completed).toBeUndefined();
+    expect(state.links).toEqual(['t0-0>t0-1']);
     expect(state.mistakes).toBe(0);
     expect(state.attempts).toEqual([
-      {
-        marks: ['correct', 'correct', 'correct'],
-        solved: true,
-        atMs: 0,
-        row: 1,
-      },
+      { marks: ['correct'], solved: false, atMs: 0, row: 0 },
     ]);
   });
 
-  it('grades against the row’s assigned song', () => {
+  it('charges a mistake for a wrong join and remembers it', () => {
     const s = boardState([
-      't1-0', 't0-1', 't0-0',
-      't0-2', 't1-1', 't2-1',
-      't2-0', 't1-2', 't2-2',
+      't0-0', 't1-0', 't0-1',
+      't1-1', 't1-2', 't2-0',
+      't2-1', 't2-2', 't0-2',
     ]); // prettier-ignore
-    const { outcome } = submitRow(s, def, 0);
+    const first = spliceJoin(s, def, 't0-0', 't1-0');
+    expect(first.outcome.kind).toBe('wrong');
+    expect(first.state.mistakes).toBe(1);
+    expect(first.state.bad).toEqual(['t0-0>t1-0']);
+    // The same join can't be charged twice.
+    const again = spliceJoin(first.state, def, 't0-0', 't1-0');
+    expect(again.outcome.kind).toBe('repeat');
+    expect(again.state).toBe(first.state);
+    // Right clips, wrong way round, is still not a join.
+    expect(spliceJoin(s, def, 't1-0', 't0-1').outcome.kind).toBe('wrong');
+  });
+
+  it('only splices adjacent clips in the same row', () => {
+    const s = boardState([
+      't0-0', 't1-0', 't0-1',
+      't1-1', 't1-2', 't2-0',
+      't2-1', 't2-2', 't0-2',
+    ]); // prettier-ignore
+    expect(spliceJoin(s, def, 't0-0', 't0-1').outcome.kind).toBe('ignored');
+    expect(spliceJoin(s, def, 't0-1', 't1-1').outcome.kind).toBe('ignored');
+  });
+
+  it('completes a song on the fourth clip and locks its row', () => {
+    const s: GameState = {
+      ...boardState([
+        't1-0', 't1-1', 't1-2',
+        't0-0', 't2-0', 't0-1',
+        't2-1', 't2-2', 't0-2',
+      ]), // prettier-ignore
+      links: ['t1-0>t1-1'],
+    };
+    // The song sits on row 0 but belongs on row 1: it slides home, free.
+    const { state, outcome } = spliceJoin(s, def, 't1-1', 't1-2');
     expect(outcome).toMatchObject({
-      kind: 'wrong',
-      trackId: 't0',
-      marks: ['miss', 'correct', 'misplaced'],
-      rightSong: 2,
-      inPlace: 1,
+      kind: 'fused',
+      completed: 't1',
+      movedHome: true,
+    });
+    expect(state.solved).toEqual(['t1']);
+    expect(state.mistakes).toBe(0);
+    expect(rowsOf(state, def)[1]).toEqual(['t1-0', 't1-1', 't1-2']);
+    expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't2-0', 't0-1']);
+    expect(state.attempts.at(-1)).toMatchObject({
+      solved: true,
+      era: true,
+      trackId: 't1',
     });
   });
 
-  it('charges a mistake for a wrong row, but not for re-checking it', () => {
+  it('reveals every song, fused, when the last mistake is spent', () => {
     const s = boardState([
       't0-1', 't0-0', 't1-0',
       't1-1', 't1-2', 't2-0',
       't2-1', 't2-2', 't0-2',
     ]); // prettier-ignore
-    const first = submitRow(s, def, 0);
-    expect(first.state.mistakes).toBe(1);
-    const again = submitRow(first.state, def, 0);
-    expect(again.outcome.kind).toBe('repeat');
-    expect(again.state).toBe(first.state);
-  });
-
-  it('moves a right-song-wrong-year row home and locks it for free', () => {
-    const s = boardState([
-      't2-0', 't2-1', 't2-2',
-      't1-0', 't0-1', 't1-2',
-      't0-0', 't1-1', 't0-2',
-    ]); // prettier-ignore
-    const { state, outcome } = submitRow(s, def, 0);
-    expect(outcome).toMatchObject({ kind: 'wrongEra', trackId: 't2' });
-    expect(state.mistakes).toBe(0);
-    expect(state.solved).toEqual(['t2']);
-    expect(rowsOf(state, def)[2]).toEqual(['t2-0', 't2-1', 't2-2']);
-    expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't1-1', 't0-2']);
-  });
-
-  it('re-grades the same clips on a different row (tried is per row)', () => {
-    const s = boardState([
-      't1-0', 't0-1', 't0-0',
-      't0-2', 't1-1', 't2-1',
-      't2-0', 't1-2', 't2-2',
-    ]); // prettier-ignore
-    const first = submitRow(s, def, 0).state;
-    const swapped = swapRows(first, def, 0, 1);
-    expect(submitRow(swapped, def, 1).outcome.kind).toBe('wrong');
-    // …but re-checking the very same row is still free.
-    expect(submitRow(first, def, 0).outcome.kind).toBe('repeat');
-  });
-
-  it('marks a wrong-year lock so the share grid can show it', () => {
-    const s = boardState([
-      't2-0', 't2-1', 't2-2',
-      't1-0', 't0-1', 't1-2',
-      't0-0', 't1-1', 't0-2',
-    ]); // prettier-ignore
-    const { state } = submitRow(s, def, 0);
-    expect(state.attempts.at(-1)).toMatchObject({ era: true, row: 0 });
-    const won = { ...state, status: 'won' as const };
-    expect(shareText('S', won, def).split('\n')).toContain('🟦🟦🟦');
-  });
-
-  it('locks both rows when moving a song home completes this row too', () => {
-    const s = boardState([
-      't1-0', 't1-1', 't1-2',
-      't0-0', 't0-1', 't0-2',
-      't2-1', 't2-0', 't2-2',
-    ]); // prettier-ignore
-    const { state, outcome } = submitRow(s, def, 0);
-    expect(outcome.kind).toBe('wrongEra');
-    expect(state.solved).toEqual(['t1', 't0']);
-    expect(state.mistakes).toBe(0);
-  });
-
-  it('reveals every song when the last mistake is spent', () => {
-    let s = boardState([
-      't0-1', 't0-0', 't1-0',
-      't1-1', 't1-2', 't2-0',
-      't2-1', 't2-2', 't0-2',
-    ]); // prettier-ignore
-    s = submitRow(s, def, 0).state;
-    s = submitRow(s, def, 1).state;
-    const last = submitRow(s, def, 2);
+    let cur = s;
+    cur = spliceJoin(cur, def, 't0-1', 't0-0').state;
+    cur = spliceJoin(cur, def, 't0-0', 't1-0').state;
+    const last = spliceJoin(cur, def, 't1-2', 't2-0');
     expect(last.outcome).toMatchObject({ kind: 'wrong', lost: true });
     expect(last.state.status).toBe('lost');
     expect(last.state.order).toEqual(
       def.tracks.flatMap((t) => t.pieces.map((p) => p.id))
     );
+    expect(last.state.links).toContain('t2-0>t2-1');
   });
 
-  it('wins when the final song locks', () => {
+  it('wins when the final song fuses', () => {
     const s: GameState = {
       ...boardState([
         't0-0', 't0-1', 't0-2',
@@ -226,15 +241,21 @@ describe('submitRow', () => {
         't2-0', 't2-1', 't2-2',
       ]), // prettier-ignore
       solved: ['t2', 't0'],
+      links: ['t1-0>t1-1'],
     };
-    const { state, outcome } = submitRow(s, def, 1);
-    expect(outcome).toMatchObject({ kind: 'solved', won: true });
+    const { state, outcome } = spliceJoin(s, def, 't1-1', 't1-2');
+    expect(outcome).toMatchObject({ kind: 'fused', won: true });
     expect(state.status).toBe('won');
   });
 
-  it('ignores locked rows', () => {
-    const s = { ...boardState(newGame(def, 1).order), solved: ['t0'] };
-    expect(submitRow(s, def, 0).outcome.kind).toBe('ignored');
+  it('ignores locked rows and finished games', () => {
+    const s: GameState = {
+      ...boardState(def.tracks.flatMap((t) => t.pieces.map((p) => p.id))),
+      solved: ['t0'],
+    };
+    expect(spliceJoin(s, def, 't0-0', 't0-1').outcome.kind).toBe('ignored');
+    const over = { ...s, status: 'won' as const };
+    expect(spliceJoin(over, def, 't1-0', 't1-1').outcome.kind).toBe('ignored');
   });
 });
 
@@ -259,7 +280,7 @@ describe('swapRows / clueFor', () => {
     expect(clueFor(s, def, 2)).toEqual({ year: 1982, genre: 'Pop' });
     const missed = {
       ...s,
-      attempts: [{ marks: [], solved: false, row: 0 }],
+      attempts: [{ marks: ['miss' as const], solved: false, row: 0 }],
     };
     expect(clueFor(missed, def, 0).genre).toBe('Pop');
   });
@@ -295,20 +316,6 @@ describe('isValidState', () => {
   });
 });
 
-describe('wrongHint', () => {
-  it('calls out the "one away" moments', () => {
-    expect(wrongHint({ rightSong: 4, inPlace: 1 }, 4, '1984')).toMatch(
-      /all 1984/i
-    );
-    expect(wrongHint({ rightSong: 3, inPlace: 1 }, 4, '1984')).toMatch(
-      /isn’t from 1984/
-    );
-    expect(wrongHint({ rightSong: 0, inPlace: 0 }, 4, '1984')).toBe(
-      'Nothing here is from 1984.'
-    );
-  });
-});
-
 describe('nameTrack / headline', () => {
   it('records one answer per locked song only', () => {
     const s: GameState = { ...boardState([]), solved: ['t0'] };
@@ -335,29 +342,34 @@ describe('shareText', () => {
       mistakes: 1,
       elapsedMs: 95_000,
       attempts: [
-        { marks: ['correct', 'misplaced', 'miss'], solved: false },
-        { marks: ['correct', 'correct', 'correct'], solved: true },
+        { marks: ['correct'], solved: false },
+        { marks: ['miss'], solved: false },
+        { marks: ['correct'], solved: true, trackId: 't0' },
+        { marks: ['correct'], solved: false },
+        { marks: ['correct'], solved: true, trackId: 't1' },
       ],
     };
     expect(shareText('Spliced #12', s, def, 'https://x.test')).toBe(
-      'Spliced #12 · 1/4 mistakes · ⏱ 1:35\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
+      'Spliced #12 · 1/4 mistakes · ⏱ 1:35\n🟩⬛🟩\n🟩🟩\nhttps://x.test'
     );
   });
 
-  it('marks a named song on its row of the grid', () => {
+  it('marks a named song on its line of the grid, and a slide home', () => {
     const s: GameState = {
       ...boardState([]),
       status: 'won',
       solved: ['t0', 't1'],
       named: { t0: true, t1: false },
       attempts: [
-        { marks: ['correct', 'correct', 'correct'], solved: true, row: 0 },
-        { marks: ['correct', 'correct', 'correct'], solved: true, row: 1 },
+        { marks: ['correct'], solved: false },
+        { marks: ['correct'], solved: true, trackId: 't0' },
+        { marks: ['correct'], solved: false },
+        { marks: ['correct'], solved: true, trackId: 't1', era: true },
       ],
     };
     expect(shareText('S', s, def).split('\n').slice(1)).toEqual([
-      '🟩🟩🟩 🎵',
-      '🟩🟩🟩',
+      '🟩🟩 🎵',
+      '🟩🟦',
     ]);
   });
 
@@ -411,10 +423,10 @@ describe('ghost race', () => {
   it('keeps wrong-year locks in the code', () => {
     const eraRun: GameState = {
       ...run,
-      attempts: [{ ...run.attempts[1], solved: false, era: true }],
+      attempts: [{ ...run.attempts[1], solved: true, era: true }],
     };
     expect(decodeGhost(encodeGhost(eraRun, 2))!.attempts[0]).toMatchObject({
-      solved: false,
+      solved: true,
       era: true,
     });
   });
@@ -441,10 +453,15 @@ describe('ghost race', () => {
     expect(raceResult({ ...run, status: 'lost' }, ghost)).toBeLessThan(0);
   });
 
-  it('stamps lock-ins with the play time', () => {
+  it('stamps splices with the play time', () => {
     const def = makeDef();
-    const s = { ...newGame(def, 9), elapsedMs: 12_345 };
-    expect(submitRow(s, def, 0).state.attempts[0].atMs).toBe(12_345);
+    const s = {
+      ...boardState(def.tracks.flatMap((t) => t.pieces.map((p) => p.id))),
+      elapsedMs: 12_345,
+    };
+    expect(spliceJoin(s, def, 't0-0', 't0-1').state.attempts[0].atMs).toBe(
+      12_345
+    );
   });
 });
 

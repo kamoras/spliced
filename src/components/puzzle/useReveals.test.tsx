@@ -35,7 +35,6 @@ function state(order: string[], patch: Partial<GameState> = {}): GameState {
     solved: [],
     mistakes: 0,
     attempts: [],
-    tried: {},
     status: 'playing',
     elapsedMs: 0,
     ...patch,
