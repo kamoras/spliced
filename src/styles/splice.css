@@ -71,10 +71,12 @@
   animation: none;
 }
 .splice-key.is-bad {
-  color: var(--bad, #c0392b);
-  border-color: color-mix(in srgb, var(--bad, #c0392b) 60%, transparent);
-  opacity: 0.9;
-  font-size: 11px;
+  /* The board remembers a wrong splice for you. */
+  color: #fff;
+  background: var(--bad, #c0392b);
+  border-color: var(--bad, #c0392b);
+  opacity: 1;
+  font-size: 12px;
 }
 @keyframes splice-ready {
   from {
@@ -168,6 +170,12 @@
   .splice-mark {
     background: CanvasText;
   }
+}
+
+/* The help sheet's swap bubble sits over the mini tiles, not behind them. */
+.howto-swap {
+  position: relative;
+  z-index: 1;
 }
 
 /* The help sheet's SPLICE key. */

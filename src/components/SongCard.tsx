@@ -114,7 +114,7 @@ export default function SongCard({
             )}
             <Icon name={discovered ? 'check' : 'eye'} />
             <span className="song-tag-text">
-              {discovered ? 'Spliced' : 'Answer'}
+              {discovered ? 'Spliced' : 'Missed'}
             </span>
           </span>
         )}

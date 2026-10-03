@@ -132,8 +132,9 @@ export default function PracticeGame({
           >
             <strong>{l.label}</strong>
             <span>
-              {l.songs} songs × {l.clips} · {l.lamps} lamps
+              {l.songs} songs × {l.clips}
             </span>
+            <span>{l.lamps} lamps</span>
           </button>
         ))}
       </div>

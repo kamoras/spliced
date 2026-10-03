@@ -402,9 +402,24 @@ export default function Puzzle({
     setCued(null);
     if (next === state) return;
     afterMove();
-    setFlash([cued, targetId]);
+    // Say what actually moved: a taped run travels as one, and a move
+    // across rows trades it for an equal-length run on the other side.
+    const moved = chainOf(state, def, cued);
+    const target = chainOf(state, def, targetId);
+    const rowOf = (id: string) => rows.findIndex((r) => r.includes(id));
+    const sameRow = rowOf(cued) === rowOf(targetId);
+    const run = (ids: string[]) => ids.map(letterOf).join('+');
+    setFlash(sameRow ? [...moved, targetId] : [...moved, ...target]);
     later(() => setFlash([]), 260);
-    note(`Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`);
+    note(
+      sameRow
+        ? moved.length > 1
+          ? `Moved ${run(moved)} next to ${letterOf(targetId)}.`
+          : `Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`
+        : moved.length > 1 || target.length > 1
+          ? `Swapped ${run(moved)} with ${run(target)}.`
+          : `Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`
+    );
     setState(next);
     // Keep keyboard focus on the board: the ⇄ button that was pressed is gone.
     focusTile(targetId);
@@ -466,6 +481,8 @@ export default function Puzzle({
     if (!a || !b) return;
     cue('detent');
     listen(seamKey(a.id, b.id));
+    if (coach === 1) setCoach(2);
+    note(`Hearing ${letterOf(a.id)} into ${letterOf(b.id)}. Does it carry on?`);
     setPlaying({ kind: 'seam', row, seam });
     player.playSeam(a, b, () =>
       setPlaying((p) =>
