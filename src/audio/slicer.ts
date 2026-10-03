@@ -76,7 +76,7 @@ export function computePeaks(
   return peaks.map((p) => p / ceiling);
 }
 
-export async function loadAndSampleTracks(
+export async function loadAndSliceTracks(
   trackDefs: TrackDef[],
   clipsPerTrack: number,
   {
@@ -227,5 +227,3 @@ export function samplePieces({
     };
   });
 }
-
-export { loadAndSampleTracks as loadAndSliceTracks };

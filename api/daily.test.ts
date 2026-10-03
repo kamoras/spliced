@@ -13,6 +13,7 @@ import {
   trioOk,
 } from './daily.js';
 import { featureFor, inFeature } from './_features.js';
+import { dedupeKey } from './_catalog-keys.js';
 import { puzzleDate } from '../shared/game.js';
 import { mulberry32 } from '../shared/prng.js';
 import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
@@ -198,9 +199,7 @@ describe('catalog', () => {
 
 describe('catalog uniqueness', () => {
   it('lists each song once, even across remasters / live versions', () => {
-    const base = (t: string) =>
-      norm(t.replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, ''));
-    const keys = catalog.map((c) => `${base(c.title)}|${norm(c.artist)}`);
+    const keys = catalog.map(dedupeKey);
     expect(new Set(keys).size).toBe(keys.length);
   });
 

@@ -18,11 +18,11 @@ function devApi(): PluginOption {
     configureServer(server) {
       server.middlewares.use(
         (req: Connect.IncomingMessage, res: ServerResponse, next) => {
-          const url = req.url ?? '';
-          if (url.startsWith('/api/daily')) return dailyHandler(req, res);
-          if (url.startsWith('/api/practice')) return practiceHandler(req, res);
-          if (url.startsWith('/api/reveal')) return revealHandler(req, res);
-          if (url.startsWith('/api/audio')) return audioHandler(req, res);
+          const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+          if (path === '/api/daily') return dailyHandler(req, res);
+          if (path === '/api/practice') return practiceHandler(req, res);
+          if (path === '/api/reveal') return revealHandler(req, res);
+          if (path === '/api/audio') return audioHandler(req, res);
           next();
         }
       );

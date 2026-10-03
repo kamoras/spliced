@@ -12,6 +12,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { norm } from '../api/daily.js';
+import { baseTitle } from '../api/_catalog-keys.js';
+import { delay, getJson } from './_itunes.js';
 import { genreBucket } from '../api/_genres.js';
 import type { CatalogEntry } from '../api/_types.js';
 
@@ -25,27 +27,11 @@ interface MetaResult {
   kind?: string;
 }
 
-const UA = { 'User-Agent': 'Spliced/0.1 (music puzzle)' };
 const COMPILATION =
   /remaster|deluxe|greatest|hits|best of|anniversary|live|edition|collection|essential|anthology|gold|ultimate|playlist|now that|karaoke/i;
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function getJson<T>(url: string, attempt = 0): Promise<T> {
-  const r = await fetch(url, { headers: UA });
-  if ((r.status === 429 || r.status >= 500) && attempt < 6) {
-    await delay(2000 * (attempt + 1));
-    return getJson<T>(url, attempt + 1);
-  }
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json() as Promise<T>;
-}
 
 const yearOf = (r: MetaResult) =>
   r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : NaN;
-
-// Strip "(feat. …)", "- 2011 Remaster" and the like before comparing titles.
-const baseTitle = (t?: string) =>
-  norm((t ?? '').replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, ''));
 
 async function earliestYear(entry: CatalogEntry): Promise<number> {
   const url =

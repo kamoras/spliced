@@ -64,24 +64,6 @@ export interface Track extends TrackDef {
   pieces: Piece[];
 }
 
-// Per-clip grade within a submitted row.
-export interface CellGrade {
-  id: string;
-  correct: boolean;
-  sameTrack: boolean;
-}
-
-// Result of grading one mixer row against the track it claims.
-export interface RowGrade {
-  solved: boolean;
-  trackId: string | null;
-  sameTrack: boolean;
-  correctPositions: number;
-  rightRowCount: number;
-  alreadySolved: boolean;
-  cells: CellGrade[];
-}
-
 // A finished game's outcome, persisted per daily puzzle. Only `solved` is
 // guaranteed; the rest are optional so older stored results (and the UI's
 // nullish-coalescing reads) stay valid.
