@@ -175,7 +175,7 @@ export default function Results({
             You: {won ? formatDuration(state.elapsedMs) : 'lost'} ·{' '}
             {state.mistakes}✗ · 🎧{takes} vs. {ghost.name}:{' '}
             {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'lost'} ·{' '}
-            {ghost.ghost.mistakes}✗ · 🎧{ghost.ghost.takes}
+            {ghost.ghost.mistakes}✗ · 🎵{ghost.ghost.named}
           </span>
         </div>
       )}

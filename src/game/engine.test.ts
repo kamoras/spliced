@@ -3,6 +3,7 @@ import {
   clueFor,
   swapRows,
   hasHeard,
+  hasHeardClip,
   hear,
   parFor,
   relToPar,
@@ -150,7 +151,7 @@ describe('submitRow', () => {
     expect(again.state).toBe(first.state);
   });
 
-  it('moves a right-song-wrong-year row home, locks it, and charges a mistake', () => {
+  it('moves a right-song-wrong-year row home and locks it for free', () => {
     const s = boardState([
       't2-0', 't2-1', 't2-2',
       't1-0', 't0-1', 't1-2',
@@ -158,7 +159,7 @@ describe('submitRow', () => {
     ]); // prettier-ignore
     const { state, outcome } = submitRow(s, def, 0);
     expect(outcome).toMatchObject({ kind: 'wrongEra', trackId: 't2' });
-    expect(state.mistakes).toBe(1);
+    expect(state.mistakes).toBe(0);
     expect(state.solved).toEqual(['t2']);
     expect(rowsOf(state, def)[2]).toEqual(['t2-0', 't2-1', 't2-2']);
     expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't1-1', 't0-2']);
@@ -198,7 +199,7 @@ describe('submitRow', () => {
     const { state, outcome } = submitRow(s, def, 0);
     expect(outcome.kind).toBe('wrongEra');
     expect(state.solved).toEqual(['t1', 't0']);
-    expect(state.mistakes).toBe(1);
+    expect(state.mistakes).toBe(0);
   });
 
   it('reveals every song when the last mistake is spent', () => {
@@ -339,25 +340,37 @@ describe('shareText', () => {
       ],
     };
     expect(shareText('Spliced #12', s, def, 'https://x.test')).toBe(
-      'Spliced #12 · 1/4 mistakes · ⏱ 1:35 · 🎧 2 takes (14 under par)\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
+      'Spliced #12 · 1/4 mistakes · ⏱ 1:35\n🟩🟨⬛\n🟩🟩🟩\nhttps://x.test'
     );
   });
 
-  it('adds a name-that-tune line once songs are locked', () => {
+  it('marks a named song on its row of the grid', () => {
     const s: GameState = {
       ...boardState([]),
       status: 'won',
       solved: ['t0', 't1'],
       named: { t0: true, t1: false },
+      attempts: [
+        { marks: ['correct', 'correct', 'correct'], solved: true, row: 0 },
+        { marks: ['correct', 'correct', 'correct'], solved: true, row: 1 },
+      ],
     };
-    expect(shareText('S', s, def).split('\n')[1]).toBe('Named 1/2 🎵🔇');
+    expect(shareText('S', s, def).split('\n').slice(1)).toEqual([
+      '🟩🟩🟩 🎵',
+      '🟩🟩🟩',
+    ]);
   });
 
   it('marks a perfect solve and a loss', () => {
     const won = { ...boardState([]), status: 'won' as const };
     expect(shareText('S', won, def)).toMatch(/Perfect mix/);
-    const lost = { ...boardState([]), status: 'lost' as const, mistakes: 4 };
-    expect(shareText('S', lost, def)).toBe('S · X/4');
+    const lost = {
+      ...boardState([]),
+      status: 'lost' as const,
+      mistakes: 4,
+      solved: ['t0'],
+    };
+    expect(shareText('S', lost, def)).toBe('S · 1/2 songs · X/4');
   });
 });
 
@@ -390,7 +403,7 @@ describe('ghost race', () => {
       won: true,
       elapsedMs: 161_000,
       mistakes: 1,
-      takes: 33,
+      named: 0,
       attempts: run.attempts,
     });
   });
@@ -416,9 +429,14 @@ describe('ghost race', () => {
     expect(decodeGhost('g1.1.w.10.3.5.22s' + 'z'.repeat(300))).toBeNull();
   });
 
-  it('ranks a win, then fewer mistakes, then time', () => {
+  it('ranks a win, then fewer mistakes, then names, then time', () => {
     const ghost = decodeGhost(encodeGhost(run, 1))!;
     expect(raceResult({ ...run, mistakes: 0 }, ghost)).toBeGreaterThan(0);
+    expect(raceResult({ ...run, named: { t0: true } }, ghost)).toBeGreaterThan(
+      0
+    );
+    // Old g1 links still decode (their listens count is ignored).
+    expect(decodeGhost('g1.4h.w.zz.1.v.')).toMatchObject({ named: 0 });
     expect(raceResult({ ...run, elapsedMs: 200_000 }, ghost)).toBeLessThan(0);
     expect(raceResult({ ...run, status: 'lost' }, ghost)).toBeLessThan(0);
   });
@@ -452,7 +470,15 @@ describe('takes + par', () => {
     expect(hear({ ...s, status: 'won' }, 'x').heard).toHaveLength(3);
   });
 
-  it('sets par from the board size and shows it in the share', () => {
+  it('counts listens that live inside joins and channel plays', () => {
+    const s = { ...boardState([]), heard: ['s:a>b', 'r:c,d', 'c:e'] };
+    ['a', 'b', 'c', 'd', 'e'].forEach((id) =>
+      expect(hasHeardClip(s, id)).toBe(true)
+    );
+    expect(hasHeardClip(s, 'f')).toBe(false);
+  });
+
+  it('sets par from the board size and keeps it out of the share', () => {
     const def = makeDef(4, 4, 4);
     expect(parFor(def)).toBe(40);
     expect(relToPar(22, 28)).toBe('6 under par');
@@ -464,8 +490,7 @@ describe('takes + par', () => {
       heard: ['s:a>b', 'r:a,b'],
       attempts: [{ marks: ['correct'], solved: true }],
     };
-    expect(shareText('S', s, def).split('\n')[0]).toBe(
-      'S · Perfect mix 🎚️ · 🎧 3 takes (37 under par)'
-    );
+    expect(takesOf(s)).toBe(3);
+    expect(shareText('S', s, def).split('\n')[0]).toBe('S · Perfect mix 🎚️');
   });
 });

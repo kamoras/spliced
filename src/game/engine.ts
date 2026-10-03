@@ -34,9 +34,11 @@ export interface GameState {
   elapsedMs: number;
   // Name-that-tune bonus: trackId -> named correctly? (absent = not answered).
   named?: Record<string, boolean>;
-  // Every distinct seam or row arrangement you've listened to. Replays of
-  // anything already heard are free; only new ideas count as "tries".
+  // Every clip, seam and row arrangement you've listened to (see "Listens
+  // + par" below). Replays of anything already heard are free.
   heard?: string[];
+  // Played with the hard-mode mistake cap (recorded with the game).
+  hard?: boolean;
 }
 
 // The minimal piece shape the engine needs.
@@ -262,16 +264,20 @@ export function submitRow(
     };
   }
 
-  const mistakes = state.mistakes + 1;
+  const other = completeSong(rowIds, pieces);
+  const otherRow = def.tracks.findIndex((t) => t.id === other);
+  const wrongEra =
+    other != null && otherRow >= 0 && !state.solved.includes(other);
+  // Right song, wrong year is progress, not a listening mistake: the song
+  // locks and slides home for free. (Release years are a hint, not the test.)
+  const mistakes = wrongEra ? state.mistakes : state.mistakes + 1;
   const lost = mistakes >= def.maxGuesses;
   let next: GameState = { ...state, mistakes, attempts, tried };
   let kind: GradedOutcome['kind'] = 'wrong';
   let outcomeTrack: string = trackId;
 
-  const other = completeSong(rowIds, pieces);
-  const otherRow = def.tracks.findIndex((t) => t.id === other);
-  if (other && otherRow >= 0 && !state.solved.includes(other)) {
-    // Right song, wrong year: move it home and lock it.
+  if (wrongEra) {
+    // Move it home and lock it.
     next = swapRows(next, def, rowIndex, otherRow);
     // If the song that came back from its row completes this one, it locks
     // too: no need to spend another lock-in on an already-correct row.
@@ -283,7 +289,7 @@ export function submitRow(
       back === trackId && !next.solved.includes(trackId) ? [trackId] : [];
     next = {
       ...next,
-      solved: [...next.solved, other, ...alsoHere],
+      solved: [...next.solved, other!, ...alsoHere],
       attempts: next.attempts.map((a, i) =>
         i === next.attempts.length - 1 ? { ...a, era: true } : a
       ),
@@ -388,7 +394,7 @@ export function headline(state: GameState): { title: string; sub: string } {
   return (
     [
       { title: 'Perfect mix!', sub: 'Not one bad splice.' },
-      { title: 'Studio quality.', sub: 'Clean cuts all round.' },
+      { title: 'One rough splice.', sub: 'Clean everywhere else.' },
       { title: 'Solid take.', sub: 'Every song found.' },
     ][state.mistakes] ?? {
       title: 'Saved in the final mix!',
@@ -423,11 +429,11 @@ const EMOJI: Record<Mark, string> = {
   miss: '⬛',
 };
 
-// ---- Takes + par ---------------------------------------------------------------
-// Listening is never limited. What's scored is how many "takes" you needed:
-// each NEW seam (clip A into clip B) or row order you play, each lock-in, and
-// two extra per wrong lock-in. Replays and clip auditions are always free, and
-// knowing the music means fewer takes — so blind guessing can't score well.
+// ---- Listens + par -------------------------------------------------------------
+// Listening is never limited. A side stat for good ears counts "listens": each
+// clip, join and channel order heard for the first time, plus each lock-in.
+// Replays are free. It's shown after the game (and live on the display), but
+// mistakes are the score.
 
 export const seamKey = (a: string, b: string) => `s:${a}>${b}`;
 export const rowPlayKey = (ids: string[]) => `r:${ids.join(',')}`;
@@ -441,8 +447,19 @@ export function hasHeard(state: GameState, key: string): boolean {
   return Boolean(state.heard?.includes(key));
 }
 
-// Takes: everything you hear for the first time (each clip, each join, each
-// channel order) plus each LOCK. Mistakes are scored separately.
+// Has this clip sounded at all: on its own, in a join, or in a channel play?
+export function hasHeardClip(state: GameState, id: string): boolean {
+  return Boolean(
+    state.heard?.some(
+      (k) =>
+        k === clipKey(id) ||
+        (k.startsWith('s:') && k.slice(2).split('>').includes(id)) ||
+        (k.startsWith('r:') && k.slice(2).split(',').includes(id))
+    )
+  );
+}
+
+// Listens: everything heard for the first time plus each LOCK.
 export function takesOf(state: GameState): number {
   return (state.heard?.length ?? 0) + state.attempts.length;
 }
@@ -477,7 +494,8 @@ export interface Ghost {
   won: boolean;
   elapsedMs: number;
   mistakes: number;
-  takes: number;
+  // Songs named in the bonus (0 for links made before it counted).
+  named: number;
   attempts: Attempt[];
 }
 
@@ -503,12 +521,12 @@ export function encodeGhost(state: GameState, puzzle: number): string {
     )
     .join('_');
   return [
-    'g1',
+    'g2',
     puzzle.toString(36),
     state.status === 'won' ? 'w' : 'l',
     ds36(state.elapsedMs),
     state.mistakes,
-    takesOf(state).toString(36),
+    namedCount(state).toString(36),
     attempts,
   ].join('.');
 }
@@ -516,15 +534,19 @@ export function encodeGhost(state: GameState, puzzle: number): string {
 export function decodeGhost(code: string | null | undefined): Ghost | null {
   if (!code || code.length > 400) return null;
   const parts = code.split('.');
-  if (parts.length !== 7 || parts[0] !== 'g1') return null;
-  const [, p, w, t, m, l, att] = parts;
+  // g1 links carried a listens count in the fifth slot instead of names.
+  if (parts.length !== 7 || (parts[0] !== 'g1' && parts[0] !== 'g2')) {
+    return null;
+  }
+  const [v, p, w, t, m, l, att] = parts;
   const num = (v: string, radix = 36) =>
     /^[0-9a-z]+$/.test(v) ? parseInt(v, radix) : NaN;
   const puzzle = num(p);
   const elapsed = num(t);
   const mistakes = /^\d{1,2}$/.test(m) ? Number(m) : NaN;
-  const takes = num(l);
-  if ([puzzle, elapsed, mistakes, takes].some((n) => !Number.isFinite(n))) {
+  const named = v === 'g2' ? num(l) : 0;
+  if (!Number.isFinite(num(l))) return null;
+  if ([puzzle, elapsed, mistakes, named].some((n) => !Number.isFinite(n))) {
     return null;
   }
   if (w !== 'w' && w !== 'l') return null;
@@ -547,20 +569,19 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
     won: w === 'w',
     elapsedMs: elapsed * 100,
     mistakes,
-    takes,
+    named,
     attempts,
   };
 }
 
 // Compare a finished run against a ghost: a win beats a loss, then fewer
-// mistakes, then the faster time. Positive = you beat them.
+// mistakes, then more songs named, then the faster time. Positive = you beat
+// them.
 export function raceResult(state: GameState, ghost: Ghost): number {
   const won = state.status === 'won';
   if (won !== ghost.won) return won ? 1 : -1;
   if (state.mistakes !== ghost.mistakes) return ghost.mistakes - state.mistakes;
-  if (hasTakes(state) && ghost.takes > 0 && takesOf(state) !== ghost.takes) {
-    return ghost.takes - takesOf(state);
-  }
+  if (namedCount(state) !== ghost.named) return namedCount(state) - ghost.named;
   return ghost.elapsedMs - state.elapsedMs;
 }
 
@@ -572,31 +593,24 @@ export function shareText(
   extra?: string
 ): string {
   const won = state.status === 'won';
+  // One number up front: mistakes on a win, songs found on a loss.
   const score = won
     ? state.mistakes === 0
       ? 'Perfect mix 🎚️'
       : `${state.mistakes}/${def.maxGuesses} mistakes`
-    : `X/${def.maxGuesses}`;
+    : `${state.solved.length}/${def.tracks.length} songs · X/${def.maxGuesses}`;
   const time =
     won && state.elapsedMs ? ` · ⏱ ${formatDuration(state.elapsedMs)}` : '';
-  // A right-song-wrong-year lock shows as 🟦 (the song still locked).
-  const grid = state.attempts.map((a) =>
-    a.era
+  // A right-song-wrong-year lock shows as 🟦 (the song still locked); a row
+  // whose song you then named gets a 🎵.
+  const grid = state.attempts.map((a) => {
+    const cells = a.era
       ? a.marks.map(() => '🟦').join('')
-      : a.marks.map((m) => EMOJI[m]).join('')
-  );
-  // Name-that-tune line: one note per song you locked, 🎵 if you named it.
-  const tunes = state.solved
-    .map((id) => (state.named?.[id] ? '🎵' : '🔇'))
-    .join('');
-  const named =
-    tunes && `Named ${namedCount(state)}/${def.tracks.length} ${tunes}`;
-  const takes = takesOf(state);
-  const ears =
-    won && takes && hasTakes(state)
-      ? ` · 🎧 ${takes} takes (${relToPar(takes, parFor(def))})`
-      : '';
-  return [`${title} · ${score}${time}${ears}`, named, ...grid, extra, url]
+      : a.marks.map((m) => EMOJI[m]).join('');
+    const id = a.solved && a.row != null ? def.tracks[a.row]?.id : undefined;
+    return id && state.named?.[id] ? `${cells} 🎵` : cells;
+  });
+  return [`${title} · ${score}${time}`, ...grid, extra, url]
     .filter(Boolean)
     .join('\n');
 }
