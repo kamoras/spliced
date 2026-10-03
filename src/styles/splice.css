@@ -2,35 +2,40 @@
 /* Each seam between two clips is a small column: the knob (hear the join)
    over the SPLICE key, or a strip of tape once the join is spliced. */
 
+.lane-tiles {
+  /* Room under the clips for the seam controls. */
+  padding-bottom: 30px;
+}
 .seam-col {
   position: absolute;
   z-index: 2;
-  top: 0;
-  bottom: 0;
   left: calc(
     (100% - (var(--cols, 4) - 1) * var(--gap)) / var(--cols, 4) * var(--k) +
       var(--gap) * (var(--k) - 0.5)
   );
-  width: 40px;
+  bottom: 0;
+  height: 28px;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  pointer-events: none;
+  gap: 2px;
 }
-.seam-col > * {
-  pointer-events: auto;
+.seam-col.is-linked {
+  /* The tape sits in the gap, level with the clips. */
+  top: 0;
+  bottom: 30px;
+  height: auto;
+  justify-content: center;
 }
 .seam-col .seam {
   position: static;
   transform: none;
-  height: 30px;
+  width: 26px;
+  height: 28px;
 }
 .splice-key {
-  width: 40px;
-  height: 17px;
+  width: 38px;
+  height: 20px;
   padding: 0;
   font: 700 8px/1 var(--silk-font);
   letter-spacing: 0.08em;
@@ -135,6 +140,17 @@
 }
 .tile.is-fused-right .tile-face::after {
   right: calc(-1 * var(--gap) / 2 - 2px);
+}
+
+@media (max-width: 360px) {
+  .splice-key {
+    width: 32px;
+    font-size: 7px;
+    letter-spacing: 0.04em;
+  }
+  .seam-col .seam {
+    width: 22px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
