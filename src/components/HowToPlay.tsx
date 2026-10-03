@@ -73,9 +73,10 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
             <Mini letter="M" />
           </div>
           <div>
-            <strong>LOCK a channel when it sounds right.</strong> A wrong lock
-            lights a PEAK lamp; four lamps and the tape jams. The marks tell you
-            what was close.
+            <strong>LOCK rolls the tape.</strong> The channel plays through,
+            then it grades. Hear a bad join? Press STOP before the end and
+            nothing is charged. A wrong lock lights a PEAK lamp; four lamps and
+            the tape jams.
           </div>
         </li>
       </ol>

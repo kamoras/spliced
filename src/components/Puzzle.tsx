@@ -111,7 +111,7 @@ export interface PuzzleProps {
 const COACH = [
   'Tap any clip to hear it.',
   'Then tap ⇄ on another clip to swap them, or drag one onto another.',
-  'Turn a knob to hear a join, press PLAY to hear the channel, then LOCK it.',
+  'Turn a knob to hear a join. LOCK rolls the tape through the channel, then grades it.',
 ];
 
 export default function Puzzle({
@@ -242,6 +242,12 @@ export default function Puzzle({
   // A row whose year label was tapped, waiting for a second label to swap.
   const [rowCue, setRowCue] = useState<number | null>(null);
   const [chase, setChase] = useState(false);
+  // LOCK rolls the tape first: the channel plays through in its current
+  // arrangement before it grades, unless you've already heard it that way.
+  // Stopping the tape costs nothing.
+  const [rolling, setRolling] = useState<number | null>(null);
+  const rollingRef = useRef<number | null>(null);
+  rollingRef.current = rolling;
   const justDragged = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
@@ -354,6 +360,7 @@ export default function Puzzle({
       setMessage(null);
     }
     setCued(over ? null : piece.id);
+    setRolling(null);
     if (fraction == null) listen(clipKey(piece.id));
     else beginTiming();
     playPiece(piece, fraction ?? 0);
@@ -364,7 +371,18 @@ export default function Puzzle({
     cue('swap');
     if (coach <= 1) setCoach(2);
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
+    setRolling(null);
     setActiveRow(rowOfId(targetId));
+  }
+
+  // Has this channel been heard as it sits now (played through, or every
+  // join in turn)?
+  function heardArrangement(ids: string[]): boolean {
+    if (hasHeard(state, rowPlayKey(ids))) return true;
+    return ids.every(
+      (id, i) =>
+        i === ids.length - 1 || hasHeard(state, seamKey(id, ids[i + 1]))
+    );
   }
 
   function swapWith(targetId: string) {
@@ -418,6 +436,7 @@ export default function Puzzle({
     beginTiming();
     cue('swap');
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
+    setRolling(null);
     setActiveRow(row);
     setState(next);
   }
@@ -434,6 +453,7 @@ export default function Puzzle({
     const b = pieceById.get(rows[row][seam + 1]);
     if (!a || !b) return;
     cue('detent');
+    setRolling(null);
     listen(seamKey(a.id, b.id));
     setPlaying({ kind: 'seam', row, seam });
     player.playSeam(a, b, () =>
@@ -446,6 +466,7 @@ export default function Puzzle({
   function playRow(row: number) {
     cue('click');
     if (playing?.kind === 'row' && playing.row === row) return stopAll(true);
+    setRolling(null);
     listen(rowPlayKey(rows[row]));
     setActiveRow(row);
     const seq = rows[row].flatMap((id) => pieceById.get(id) ?? []);
@@ -507,6 +528,7 @@ export default function Puzzle({
 
   function toggleSong(trackId: string) {
     cue('click');
+    setRolling(null);
     if (playing?.kind === 'song' && playing.trackId === trackId) stopAll(true);
     else playSong(trackId);
   }
@@ -594,8 +616,51 @@ export default function Puzzle({
     cue('click');
     beginTiming();
     setCued(null);
+    if (rolling === row) {
+      // Pulled the tape before the end: no grade, nothing charged.
+      stopAll(true);
+      setRolling(null);
+      rollingRef.current = null;
+      note('Tape pulled. Nothing charged.', 2200);
+      return;
+    }
+    const ids = rows[row];
+    if (!heardArrangement(ids) && !triedMarks(state, row, ids)) {
+      // Roll the tape: hear the whole channel, then grade. The grade waits
+      // for the end so a wrong join can still be caught and the tape pulled.
+      if (rolling != null) stopAll();
+      listen(rowPlayKey(ids));
+      setActiveRow(row);
+      setRolling(row);
+      // The end callback can fire before the next render (instant stubs).
+      rollingRef.current = row;
+      setMessage(
+        `Rolling tape on ${labelFor(row)}. If a join sounds wrong, press STOP before the end.`
+      );
+      const seq = ids.flatMap((id) => pieceById.get(id) ?? []);
+      setPlaying({ kind: 'row', row, id: null });
+      player.playSequence(seq, {
+        onPiece: (i) =>
+          setPlaying({ kind: 'row', row, id: seq[i]?.id ?? null }),
+        onEnd: () => {
+          setPlaying(null);
+          if (rollingRef.current === row) {
+            setRolling(null);
+            commitLock(row);
+          }
+        },
+      });
+      return;
+    }
+    commitLock(row);
+  }
+
+  function commitLock(row: number) {
+    // Read through the ref: this can run at the end of the tape roll, after
+    // the listen it recorded has already landed in state.
+    const cur = stateRef.current;
     const { state: next, outcome } = submitRow(
-      { ...state, elapsedMs: elapsedNow() },
+      { ...cur, elapsedMs: elapsedNow() },
       def,
       row
     );
@@ -674,7 +739,7 @@ export default function Puzzle({
       } else {
         // The very first lock usually comes back mostly blank: teach why.
         const firstMiss =
-          state.attempts.length === 0 && outcome.rightSong < def.clipsPerTrack;
+          cur.attempts.length === 0 && outcome.rightSong < def.clipsPerTrack;
         setMessage(
           `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${
             firstMiss
@@ -850,6 +915,7 @@ export default function Puzzle({
                   armed={!tried && (activeRow === r || lastRow === r)}
                   meter={meterRow === r}
                   rowPlaying={playing?.kind === 'row' && playing.row === r}
+                  rolling={rolling === r}
                   seamPlaying={
                     playing?.kind === 'seam' && playing.row === r
                       ? playing.seam

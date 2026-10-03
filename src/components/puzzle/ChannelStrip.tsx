@@ -21,6 +21,8 @@ export interface ChannelStripProps {
   armed: boolean;
   meter: boolean;
   rowPlaying: boolean;
+  // LOCK is rolling the tape on this row (press again to stop, uncharged).
+  rolling: boolean;
   seamPlaying: number | null;
   activeId: string | null;
   cued: string | null;
@@ -53,6 +55,7 @@ function ChannelStrip({
   armed,
   meter,
   rowPlaying,
+  rolling,
   seamPlaying,
   activeId,
   cued,
@@ -111,7 +114,8 @@ function ChannelStrip({
           className={[
             'cbtn',
             'cbtn--rec',
-            armed && 'is-armed',
+            (armed || rolling) && 'is-armed',
+            rolling && 'is-on',
             tried && 'is-tried',
           ]
             .filter(Boolean)
@@ -119,13 +123,15 @@ function ChannelStrip({
           onClick={onLock}
           disabled={busy}
           aria-label={
-            tried
-              ? `Channel ${r + 1}: this exact mix was already tried`
-              : `Lock in channel ${r + 1}`
+            rolling
+              ? `Channel ${r + 1}: tape rolling, press to stop without locking`
+              : tried
+                ? `Channel ${r + 1}: this exact mix was already tried`
+                : `Lock in channel ${r + 1}`
           }
         >
           <span className="lamp" aria-hidden="true" />
-          {tried ? 'Tried' : 'Lock'}
+          {rolling ? 'Stop' : tried ? 'Tried' : 'Lock'}
         </button>
       </div>
       <div

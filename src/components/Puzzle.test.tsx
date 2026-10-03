@@ -14,7 +14,10 @@ vi.mock('../audio/player.js', () => ({
     stop() {}
     setVolume() {}
     playPiece() {}
-    playSequence() {}
+    // The stub plays instantly: a rolled tape grades straight away.
+    playSequence(_seq: unknown, opts?: { onEnd?: () => void }) {
+      opts?.onEnd?.();
+    }
     playSeam() {}
     sfx() {}
     getClipProgress() {

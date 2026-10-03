@@ -31,8 +31,11 @@ flips at UTC midnight), so times and scores are shareable.
 2. **Listen for the seams.** Clips were cut back-to-back, so true neighbours
    flow seamlessly. Turn the knob between two clips to hear just their join, or
    press **PLAY** to hear a whole channel. Replays are always free.
-3. **LOCK** a channel to check it against that channel's song: ✓ right song,
-   right slot; ⤨ right song, wrong slot; blank: another song. A wrong lock-in
+3. **LOCK** rolls the tape: the channel plays through in its current
+   arrangement (unless you already heard it that way), then it grades
+   against that channel's song. Hear a bad join? Press STOP before the end
+   and nothing is charged. The marks: ✓ right song, right slot; ⤨ right song,
+   wrong slot; blank: another song. A wrong lock-in
    lights one of **4 PEAK lamps** (and adds the genre to that channel's tape as
    a consolation clue); re-checking an arrangement you already tried is free.
    Lock a whole song on the wrong year and it slides home for free: the year
