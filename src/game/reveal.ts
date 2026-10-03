@@ -16,10 +16,17 @@ function get<T>(
   let p = cache.get(key) as Promise<T> | undefined;
   if (!p) {
     const q = new URLSearchParams({ ref, part, order: order.join(',') });
-    p = fetch(`/api/reveal?${q}`).then((r) => {
-      if (!r.ok) throw new Error(`reveal ${r.status}`);
-      return r.json() as Promise<T>;
-    });
+    p = fetch(`/api/reveal?${q}`).then(
+      (r) => {
+        if (!r.ok) throw new Error(`reveal ${r.status}`);
+        return r.json() as Promise<T>;
+      },
+      (err) => {
+        // Evict before any consumer sees the failure, so a retry refetches.
+        cache.delete(key);
+        throw err;
+      }
+    );
     p.catch(() => cache.delete(key));
     cache.set(key, p);
   }

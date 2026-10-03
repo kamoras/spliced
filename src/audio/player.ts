@@ -346,6 +346,7 @@ export class Player {
         () => {
           if (myToken !== this.token) return;
           this._clip = null;
+          this.sources = [];
           onEnd?.();
         },
         Math.max(0, (end - this.ctx.currentTime) * 1000)

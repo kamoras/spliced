@@ -299,9 +299,7 @@ describe('DailyGame', () => {
     }
     await waitFor(() =>
       expect(
-        fetchMock.mock.calls.filter(([u]) =>
-          String(u).includes('part=answer')
-        )
+        fetchMock.mock.calls.filter(([u]) => String(u).includes('part=answer'))
       ).toHaveLength(3)
     );
     expect(
