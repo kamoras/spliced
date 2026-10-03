@@ -114,11 +114,51 @@ function upcomingFeatures(date: Date, start: Date): Feature[] {
   return FEATURES.filter((f) => {
     let from = Date.UTC(start.getUTCFullYear(), f.from[0] - 1, f.from[1]);
     const to = Date.UTC(start.getUTCFullYear(), f.to[0] - 1, f.to[1]);
-    if (to < start.getTime())
+    if (to < start.getTime()) {
       from = Date.UTC(start.getUTCFullYear() + 1, f.from[0] - 1, f.from[1]);
+    }
     return from > date.getTime();
   });
 }
+
+// A song with everything the day constraints need, computed once per epoch
+// (the greedy walk below compares thousands of pairs).
+interface Keyed {
+  song: CatalogEntry;
+  artist: string;
+  year: number;
+  decade: number;
+  classic: boolean;
+  recent: boolean;
+  features: Set<string>;
+}
+
+function keyed(song: CatalogEntry): Keyed {
+  return {
+    song,
+    artist: artistKey(song),
+    year: song.year ?? 0,
+    decade: decade(song),
+    classic: isClassic(song),
+    recent: isRecent(song),
+    features: new Set(
+      FEATURES.filter((f) => inFeature(song, f)).map((f) => f.id)
+    ),
+  };
+}
+
+const pairFits = (a: Keyed, b: Keyed) =>
+  a.artist !== b.artist && a.year !== b.year;
+const trioFits = (a: Keyed, b: Keyed, c: Keyed) =>
+  pairFits(a, b) &&
+  pairFits(a, c) &&
+  pairFits(b, c) &&
+  (a.classic || b.classic || c.classic) &&
+  Number(a.recent) + Number(b.recent) + Number(c.recent) <= 1 &&
+  !(a.decade === b.decade && b.decade === c.decade);
+
+// How far down the shuffled list a day looks for partners.
+const SEARCH = 80;
 
 // One epoch's days, starting at puzzle number `first`.
 function buildEpoch(
@@ -136,57 +176,57 @@ function buildEpoch(
     }
     return days;
   }
-  const remaining = seededShuffle(eligible, epoch);
+  let remaining = seededShuffle(eligible, epoch).map(keyed);
   const days: CatalogEntry[][] = [];
   const epochStart = puzzleDate(first);
-  // How many leading songs we've given up on this epoch (no partners).
-  let skipped = 0;
-  while (remaining.length - skipped >= DAILY_TRACKS) {
+  // Songs that found no partners this epoch: they wait for the next pass.
+  const parked = new Set<number>();
+  while (remaining.length - parked.size >= DAILY_TRACKS) {
     const date = puzzleDate(first + days.length);
     const feature = featureFor(date);
     // Songs saved for an observance still to come this epoch aren't fillers
     // on ordinary days; after the window they're free again.
-    const reserved = (s: CatalogEntry) =>
-      upcomingFeatures(date, epochStart).some((f) => inFeature(s, f));
-    const pool = feature ? remaining.filter((s) => inFeature(s, feature)) : [];
+    const upcoming = new Set(
+      upcomingFeatures(date, epochStart).map((f) => f.id)
+    );
+    const reserved = (k: Keyed) =>
+      [...k.features].some((id) => upcoming.has(id));
+    const pool = feature
+      ? remaining.filter((k) => k.features.has(feature.id))
+      : [];
     const usable = pool.length
       ? remaining
-      : remaining.filter((s) => !reserved(s));
+      : remaining.filter((k) => !reserved(k));
     // The day's anchor: a featured song while there are any, else the next
-    // song in line.
-    const anchor = pool[0] ?? usable[skipped];
+    // song in line that hasn't been parked.
+    const anchor = pool[0] ?? usable.find((k) => !parked.has(k.song.trackId));
     if (!anchor) break;
-    const anchorAt = remaining.indexOf(anchor);
-    let trio: CatalogEntry[] | null = null;
     // A featured day takes one song from the pool and fills the rest from
     // outside it, so the pool stretches across the whole window.
-    const rest = pool.length
-      ? remaining.filter((s) => s !== anchor && !inFeature(s, feature!))
-      : usable.filter((s) => s !== anchor);
-    let tries = 0;
-    for (let i = 0; i < rest.length && !trio && tries < 60; i++) {
-      if (!pairOk(anchor, rest[i])) continue;
-      tries++;
+    const rest = (pool.length ? remaining : usable)
+      .filter(
+        (k) =>
+          k !== anchor &&
+          !(feature && pool.length && k.features.has(feature.id))
+      )
+      .slice(0, SEARCH);
+    let trio: Keyed[] | null = null;
+    for (let i = 0; i < rest.length && !trio; i++) {
+      if (!pairFits(anchor, rest[i])) continue;
       for (let j = i + 1; j < rest.length; j++) {
-        const candidate = [anchor, rest[i], rest[j]];
-        if (trioOk(candidate)) {
-          trio = candidate;
+        if (trioFits(anchor, rest[i], rest[j])) {
+          trio = [anchor, rest[i], rest[j]];
           break;
         }
       }
     }
     if (!trio) {
-      // No valid partners: park the anchor at the back so it stops anchoring.
-      remaining.splice(anchorAt, 1);
-      remaining.push(anchor);
-      skipped++;
+      parked.add(anchor.song.trackId);
       continue;
     }
-    const used = new Set(trio.map((s) => s.trackId));
-    for (let i = remaining.length - 1; i >= 0; i--) {
-      if (used.has(remaining[i].trackId)) remaining.splice(i, 1);
-    }
-    days.push(trio);
+    const used = new Set(trio.map((k) => k.song.trackId));
+    remaining = remaining.filter((k) => !used.has(k.song.trackId));
+    days.push(trio.map((k) => k.song));
   }
   return days;
 }

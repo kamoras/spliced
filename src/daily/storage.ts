@@ -219,11 +219,12 @@ export function streakEndingAt(all: ResultMap, end: number): number {
       streak++;
       continue;
     }
-    // A missed day: freeze it, unless one was already used this week or the
-    // streak hasn't started.
-    if (!streak || (lastFreeze != null && lastFreeze - k < FREEZE_WINDOW)) {
-      break;
-    }
+    // A missed day: freeze it, unless one was already used this week. A
+    // leading miss (yesterday, say) only counts if a solved day sits behind
+    // it, so a lone old win can't carry a streak.
+    const behind = all[k - 1];
+    if (lastFreeze != null && lastFreeze - k < FREEZE_WINDOW) break;
+    if (!streak && !(behind && behind.solved && !behind.late)) break;
     lastFreeze = k;
   }
   return streak;

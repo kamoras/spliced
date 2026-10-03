@@ -377,10 +377,13 @@ export default function Puzzle({
     note(`Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`);
     setState(next);
     // Keep keyboard focus on the board: the ⇄ button that was pressed is gone.
-    const focusId = targetId;
+    focusTile(targetId);
+  }
+
+  function focusTile(id: string) {
     requestAnimationFrame(() =>
       boardRef.current
-        ?.querySelector<HTMLElement>(`[data-piece="${focusId}"] .tile-face`)
+        ?.querySelector<HTMLElement>(`[data-piece="${id}"] .tile-face`)
         ?.focus()
     );
   }
@@ -627,6 +630,8 @@ export default function Puzzle({
           `Spliced ${letterOf(a)} and ${letterOf(b)}. ${left} more ${left === 1 ? 'join' : 'joins'} finishes this song.`
         );
         setState(next);
+        // The SPLICE key is gone (it's tape now): keep focus on the board.
+        focusTile(b);
         return;
       }
       cue(outcome.won ? 'win' : 'open');
@@ -668,8 +673,15 @@ export default function Puzzle({
     cue(outcome.lost ? 'lose' : 'buzzer');
     vibrate([30, 40, 30]);
     setShake({ row, n: Date.now() });
+    later(() => setShake(null), 420);
     setLedPop(next.mistakes);
     later(() => setLedPop(null), 700);
+    // The SPLICE key goes dark: hand focus to the knob beside it.
+    requestAnimationFrame(() =>
+      boardRef.current
+        ?.querySelector<HTMLElement>(`[data-seam="${row}-${seam}"] .seam`)
+        ?.focus()
+    );
     const left = def.maxGuesses - next.mistakes;
     if (outcome.lost) {
       setMessage('Tape jam: out of mistakes. Here’s the mix you were hearing.');
@@ -847,7 +859,7 @@ export default function Puzzle({
                   label={labelFor(r)}
                   splicing={splicing === r}
                   last={lastRow === r}
-                  shakeKey={shake?.row === r ? shake.n : 0}
+                  shaking={shake?.row === r}
                   meter={meterRow === r}
                   rowPlaying={playing?.kind === 'row' && playing.row === r}
                   seamPlaying={

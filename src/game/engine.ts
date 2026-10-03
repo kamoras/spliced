@@ -218,9 +218,13 @@ export function moveClip(
     // so that the target clip ends up just past (or before) the run.
     const row = order.slice(toRow * cpt, (toRow + 1) * cpt);
     const rest = row.filter((id) => !chain.includes(id));
-    const localTo = rest.indexOf(toId);
+    // Moving right: land after the target (after its whole run, if it's
+    // spliced); moving left: before it (before its run).
+    const targetRun = chainOf(state, def, toId);
+    const edge =
+      to > fromStart ? targetRun[targetRun.length - 1] : targetRun[0];
+    const localTo = rest.indexOf(edge);
     const localFrom = fromStart - toRow * cpt;
-    // Moving right: land after the target clip; moving left: before it.
     const at = to > fromStart ? localTo + 1 : localTo;
     rest.splice(at, 0, ...chain);
     if (rest.indexOf(chain[0]) === localFrom) return state;

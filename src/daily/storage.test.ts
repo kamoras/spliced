@@ -81,6 +81,8 @@ describe('computeStats', () => {
     expect(computeStats(7).currentStreak).toBe(3);
     // ...and a day not played yet doesn't break it either.
     expect(computeStats(8).currentStreak).toBe(3);
+    // Nor does one missed day: the streak still stands the morning after.
+    expect(computeStats(9).currentStreak).toBe(3);
     // A lost day does.
     saveResult(8, { solved: false, mistakes: 4 });
     expect(computeStats(9).currentStreak).toBe(0);
@@ -200,7 +202,9 @@ describe('liveStreak', () => {
     expect(liveStreak(6)).toBe(2);
     saveResult(6, { solved: true });
     expect(liveStreak(6)).toBe(3);
-    expect(liveStreak(8)).toBe(0);
+    // One missed day (7) is forgiven; two in a row are not.
+    expect(liveStreak(8)).toBe(3);
+    expect(liveStreak(9)).toBe(0);
   });
 });
 

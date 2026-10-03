@@ -10,6 +10,7 @@ import Results from './Results.jsx';
 import Loading from './Loading.jsx';
 import {
   DAILY_CLIPS_PER_TRACK,
+  DAILY_GUESSES,
   DAILY_TRACKS,
   HARD_GUESSES,
   puzzleDate,
@@ -105,6 +106,9 @@ export default function DailyGame({
   const [loaded, setLoaded] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [daily, setDaily] = useState<DailyResponse | null>(null);
+  // The mistake cap this game started with (hard mode halves the API's). A
+  // replay uses the normal cap.
+  const [cap, setCap] = useState(DAILY_GUESSES);
   const [tracks, setTracks] = useState<Track[] | null>(null);
   const [initial, setInitial] = useState<GameState | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
@@ -146,9 +150,15 @@ export default function DailyGame({
       });
       const saved = getProgress(d.puzzleNumber);
       const result = getResult(d.puzzleNumber);
-      // A game already under way keeps the cap it started with.
-      const cap =
-        (saved?.hard ?? result?.hard ?? hard) ? HARD_GUESSES : d.maxGuesses;
+      // A game already under way keeps the cap it started with (a saved
+      // normal game has no `hard` flag at all, so don't fall through to the
+      // current preference).
+      const hardGame = saved
+        ? Boolean(saved.hard)
+        : result
+          ? Boolean(result.hard)
+          : hard;
+      const cap = hardGame ? HARD_GUESSES : d.maxGuesses;
       const def = puzzleDef(sliced, d.clipsPerTrack, cap);
       let start: GameState | null = null;
       if (saved && isValidState(saved, def)) {
@@ -185,7 +195,8 @@ export default function DailyGame({
         }
       }
 
-      setDaily({ ...d, maxGuesses: cap });
+      setDaily(d);
+      setCap(cap);
       setTracks(sliced);
       setInitial(start);
       setLive(start);
@@ -204,10 +215,8 @@ export default function DailyGame({
 
   const def = useMemo(
     () =>
-      daily && tracks
-        ? puzzleDef(tracks, daily.clipsPerTrack, daily.maxGuesses)
-        : null,
-    [daily, tracks]
+      daily && tracks ? puzzleDef(tracks, daily.clipsPerTrack, cap) : null,
+    [daily, tracks, cap]
   );
 
   useCrateSync({
@@ -247,9 +256,7 @@ export default function DailyGame({
 
   if (!daily || !tracks || !def) return null;
 
-  const hardGame = Boolean(
-    live?.hard ?? initial?.hard ?? (replay ? false : hard)
-  );
+  const hardGame = !replay && cap === HARD_GUESSES;
   const num = daily.puzzleNumber;
   const label = replay ? `#${num} · Replay` : `Spliced #${num}`;
   const title = `Spliced #${num}${hardGame ? ' ✦' : ''}${replay ? ' (replay)' : ''}`;
@@ -304,14 +311,14 @@ export default function DailyGame({
         key={replay ? `replay-${replay}` : `daily-${num}`}
         tracks={tracks}
         clipsPerTrack={daily.clipsPerTrack}
-        maxGuesses={replay ? daily.maxGuesses : def.maxGuesses}
+        maxGuesses={replay ? daily.maxGuesses : cap}
         seed={num}
         label={label}
         initialState={replay ? null : initial}
         sfx={sfx}
         volume={volume}
         paused={paused}
-        hard={hardGame && !replay}
+        hard={hardGame}
         focusOnMount={focusOnMount || replay > 0}
         encore={encore}
         onBoardEvent={onBoardEvent}

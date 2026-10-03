@@ -131,6 +131,27 @@ describe('moveClip with spliced runs', () => {
     expect(moveClip(base, def, 't1-0', 't1-1')).toBe(base);
   });
 
+  it('lands beside a spliced run, never inside it', () => {
+    // Row 0: [t0-0, (t1-0 t1-1)]. Sliding t0-0 right onto the run's first
+    // member puts it after the whole run.
+    const right = moveClip(base, def, 't0-0', 't1-0');
+    expect(rowsOf(right, def)[0]).toEqual(['t1-0', 't1-1', 't0-0']);
+    expect(chainOf(right, def, 't1-0')).toEqual(['t1-0', 't1-1']);
+    // And sliding left onto the run's last member lands before the run.
+    const wide = makeDef(3, 4);
+    const s: GameState = {
+      ...boardState([
+        't1-0', 't1-1', 't2-0', 't0-0',
+        't0-1', 't0-2', 't0-3', 't2-1',
+        't1-2', 't1-3', 't2-2', 't2-3',
+      ]), // prettier-ignore
+      links: ['t1-0>t1-1'],
+    };
+    const left = moveClip(s, wide, 't0-0', 't1-1');
+    expect(rowsOf(left, wide)[0]).toEqual(['t0-0', 't1-0', 't1-1', 't2-0']);
+    expect(chainOf(left, wide, 't1-1')).toEqual(['t1-0', 't1-1']);
+  });
+
   it('slides a run within its row past a lone clip', () => {
     // [t0-0, (t1-0 t1-1)] -> the pair slides to the front.
     const s = moveClip(base, def, 't1-1', 't0-0');

@@ -18,7 +18,7 @@ export interface ChannelStripProps {
   label: string;
   splicing: boolean;
   last: boolean;
-  shakeKey: number;
+  shaking: boolean;
   meter: boolean;
   rowPlaying: boolean;
   seamPlaying: number | null;
@@ -50,7 +50,7 @@ function ChannelStrip({
   label,
   splicing,
   last,
-  shakeKey,
+  shaking,
   meter,
   rowPlaying,
   seamPlaying,
@@ -108,10 +108,7 @@ function ChannelStrip({
           {rowPlaying ? 'Stop' : 'Play'}
         </button>
       </div>
-      <div
-        className={`lane-tiles${shakeKey ? ' is-shaking' : ''}`}
-        key={shakeKey}
-      >
+      <div className={`lane-tiles${shaking ? ' is-shaking' : ''}`}>
         {pieces.map((piece, slot) => {
           const id = piece.id;
           const next = pieces[slot + 1]?.id;
@@ -147,6 +144,7 @@ function ChannelStrip({
               {next != null && seam != null && (
                 <div
                   className={`seam-col is-${seam}`}
+                  data-seam={`${r}-${slot}`}
                   style={{ '--k': slot + 1 } as CSSProperties}
                 >
                   {seam === 'linked' ? (
