@@ -26,6 +26,20 @@ export interface Piece {
   peaks: number[];
 }
 
+// A name-that-tune option (the answer or a decoy).
+export interface Choice {
+  title: string;
+  artist: string;
+}
+
+// A row's clue on the Timeline board: the song's release year, plus its genre
+// when the year alone wouldn't tell rows apart.
+export interface Clue {
+  year?: number;
+  genre?: string;
+  showGenre?: boolean;
+}
+
 // A track definition before slicing (as the API/practice flow provides it).
 export interface TrackDef {
   id?: string;
@@ -35,11 +49,11 @@ export interface TrackDef {
   ref?: string;
   answer?: Song;
   // Name-that-tune options (the answer plus decoys), when the API offers them.
-  choices?: { title: string; artist: string }[];
+  choices?: Choice[];
   // The song's beat grid, when known: clips are cut on it.
   beat?: { bpm: number; offset: number };
   // Timeline clue for this track's row.
-  clue?: { year?: number; genre?: string; showGenre?: boolean };
+  clue?: Clue;
 }
 
 // A fully prepared track: its decoded buffer cut into ordered pieces.
@@ -77,6 +91,10 @@ export interface GameResult {
   solvedTracks?: number;
   elapsedMs?: number;
   ts?: number;
+  // Played with the hard-mode mistake cap.
+  hard?: boolean;
+  // Played from the archive, after its day: counts in stats, not the streak.
+  late?: boolean;
 }
 
 // The /api/daily payload.

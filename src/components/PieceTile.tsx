@@ -1,6 +1,7 @@
-// One clip on the board. Tap the tile to hear it — that also "cues" it. While a
-// clip is cued, every other movable tile offers a ⇄ button: tap it to swap the
-// two. (Press-and-drag does the same swap, as a power move.) Grades show as a
+// One clip on the board. Tap the tile to hear it; that also "cues" it. While a
+// clip is cued, every other movable tile offers a ⇄ button in its corner: tap
+// it to swap the two. Tapping the face of another tile just plays that one.
+// (Press-and-drag does the same swap, as a power move.) Grades show as a
 // glyph + border style, never colour alone.
 
 import type { CSSProperties, MouseEvent } from 'react';
@@ -23,8 +24,8 @@ export interface PieceTileProps {
   swapWith: string | null;
   flash?: boolean;
   disabled?: boolean;
-  // Has this clip been heard yet? Unheard clips show a blank scope, so the
-  // waveforms can't give away grouping or order at a glance.
+  // Has this clip been heard yet? Unheard clips show a "tap to hear" scope,
+  // so the waveforms can't give away grouping or order at a glance.
   heard?: boolean;
   onTap: (fraction: number | null) => void;
   onSwap: () => void;
@@ -119,7 +120,7 @@ export default function PieceTile({
           />
         ) : (
           <span className="wave wave--blank" aria-hidden="true">
-            <span>No signal</span>
+            <span>Tap to hear</span>
           </span>
         )}
         {mark && mark !== 'miss' && (

@@ -4,6 +4,7 @@
 
 import { buildMixerOrder, chunkTracks } from '../audio/puzzle.js';
 import { formatDuration } from '../daily/storage.js';
+import type { Clue } from '../types.js';
 
 export type Mark = 'correct' | 'misplaced' | 'miss';
 export type Status = 'playing' | 'won' | 'lost';
@@ -48,13 +49,7 @@ export interface EnginePiece {
   correctIndex: number;
 }
 
-// A row's clue on the Timeline board: the song's release year, plus its genre
-// when the year alone wouldn't tell rows apart.
-export interface Clue {
-  year?: number;
-  genre?: string;
-  showGenre?: boolean;
-}
+export type { Clue } from '../types.js';
 
 export interface PuzzleDef {
   clipsPerTrack: number;

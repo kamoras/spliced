@@ -1,9 +1,10 @@
 // Header sound menu: one tap opens it; inside are a real mute (silences
-// everything), the volume slider, and a sound-effects toggle.
+// everything), the volume slider, a sound-effects toggle and hard mode.
 
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import type { Prefs } from '../daily/storage.js';
+import { HARD_GUESSES } from '../../shared/game.js';
 
 interface SoundControlProps {
   prefs: Prefs;
@@ -87,6 +88,17 @@ export default function SoundControl({ prefs, onChange }: SoundControlProps) {
               onChange={(e) => onChange({ sfx: e.target.checked })}
             />
             <span>Sound effects</span>
+          </label>
+          <label className="sound-row sound-check">
+            <input
+              type="checkbox"
+              checked={prefs.hard}
+              onChange={(e) => onChange({ hard: e.target.checked })}
+            />
+            <span>
+              Hard mode: {HARD_GUESSES} mistakes{' '}
+              <small>(from your next game)</small>
+            </span>
           </label>
         </div>
       )}

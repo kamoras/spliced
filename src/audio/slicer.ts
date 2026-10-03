@@ -1,6 +1,7 @@
 // Loads Apple preview clips and prepares waveform-backed puzzle samples.
 
 import { mulberry32 } from '../../shared/prng.js';
+import { clipIds } from '../../shared/clips.js';
 import type { Piece, Track, TrackDef } from '../types.js';
 
 let _ctx: AudioContext | null = null;
@@ -115,16 +116,10 @@ export async function loadAndSampleTracks(
       };
     })
   );
-  // Opaque clip ids: a seeded shuffle, so nothing in the page (ids, saved
-  // progress) spells out which song or slot a clip belongs to.
+  // Opaque clip ids (shared with /api/reveal, which checks a row's order).
   const all = tracks.flatMap((t) => t.pieces);
-  const rand = mulberry32(seed * 7919 + 17);
-  const order = all.map((_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  all.forEach((p, i) => (p.id = `clip-${order[i].toString(36)}`));
+  const ids = clipIds(all.length, seed);
+  all.forEach((p, i) => (p.id = ids[i]));
   return tracks;
 }
 

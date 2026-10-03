@@ -9,12 +9,8 @@ import type { CSSProperties } from 'react';
 import Icon from './Icon.jsx';
 import ListenLinks from './ListenLinks.jsx';
 import VuNeedle from './VuNeedle.jsx';
-import type { Song } from '../types.js';
-
-export interface Choice {
-  title: string;
-  artist: string;
-}
+import type { Choice, Song } from '../types.js';
+export type { Choice } from '../types.js';
 
 interface SongCardProps {
   ch: number;
@@ -32,6 +28,8 @@ interface SongCardProps {
   fresh?: boolean;
   // The row's Timeline label, printed on the tape ("1984").
   label?: string;
+  // The title couldn't be fetched; offer to try again.
+  onRetry?: () => void;
 }
 
 export default function SongCard({
@@ -48,6 +46,7 @@ export default function SongCard({
   order = 0,
   fresh = false,
   label,
+  onRetry,
 }: SongCardProps) {
   const quiz = Boolean(choices?.length && onName && named == null);
   const title = answer?.title ?? 'Mystery song';
@@ -142,9 +141,13 @@ export default function SongCard({
             Skip
           </button>
         </div>
+      ) : answer?.title ? (
+        <ListenLinks title={answer.title} artist={answer.artist} compact />
       ) : (
-        answer?.title && (
-          <ListenLinks title={answer.title} artist={answer.artist} compact />
+        onRetry && (
+          <button type="button" className="link song-retry" onClick={onRetry}>
+            Couldn’t fetch the title. Try again
+          </button>
         )
       )}
     </div>

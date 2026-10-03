@@ -327,8 +327,13 @@ export function timelineTracks(
 // Practice: the mix's song ids, a decoy seed, and the row (all base 36).
 export const dailyRef = (puzzle: number, idx: number) =>
   `d${puzzle.toString(36)}.${idx}`;
-export const practiceRef = (ids: number[], seed: number, idx: number) =>
-  `p${ids.map((n) => n.toString(36)).join('-')}.${seed.toString(36)}.${idx}`;
+export const practiceRef = (
+  ids: number[],
+  seed: number,
+  clips: number,
+  idx: number
+) =>
+  `p${ids.map((n) => n.toString(36)).join('-')}.${seed.toString(36)}.${clips}.${idx}`;
 
 // Seed for a row's name-that-tune decoys (shared by the daily and practice).
 export const choiceRand = (seed: number, idx: number) =>

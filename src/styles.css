@@ -1278,10 +1278,10 @@ button {
   }
 }
 .tile-swap {
+  /* In the corner, so it never covers the tile's own tap target. */
   position: absolute;
-  left: 50%;
-  bottom: 3px;
-  margin-left: -12px;
+  right: -4px;
+  top: -4px;
   z-index: 3;
   width: 24px;
   height: 24px;
@@ -1300,7 +1300,7 @@ button {
 .tile-swap::after {
   content: '';
   position: absolute;
-  inset: -7px;
+  inset: -5px;
 }
 .tile-swap:hover,
 .tile-swap:focus-visible,
@@ -2759,4 +2759,103 @@ button {
 .level[aria-disabled='true'] {
   opacity: 0.6;
   cursor: progress;
+}
+
+/* ---------- v2.1: display extras, legend, results, archive ---------- */
+.vfd-listens {
+  font: 600 11px/1 var(--silk-font);
+  letter-spacing: 0.06em;
+  color: inherit;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin: 8px 6px 0;
+  font: 600 11px/1.4 var(--silk-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend svg {
+  width: 12px;
+  height: 12px;
+}
+.results-pro {
+  margin: -4px 0 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.stats-line {
+  margin: 8px 0 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.archive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: center;
+  gap: 8px 10px;
+  margin: 14px 0 4px;
+}
+.archive label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.archive input[type='date'] {
+  font: inherit;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color-scheme: light dark;
+}
+.obs-banner .obs-close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+.song-retry {
+  font-size: 12px;
+  padding: 0;
+}
+.howto-more {
+  margin: 4px 0 14px;
+  font-size: 14px;
+}
+.howto-more summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.howto-more ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+.howto-more svg {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+}
+.sound-check small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
 }

@@ -8,7 +8,12 @@ import dailyHandler, {
   sortTimeline,
 } from './daily.js';
 import handler, { resolveRef } from './reveal.js';
-import { LAUNCH_UTC } from './_songs.js';
+import {
+  DAILY_CLIPS_PER_TRACK,
+  DAILY_TRACKS,
+  LAUNCH_UTC,
+} from '../shared/game.js';
+import { clipIds } from '../shared/clips.js';
 
 const DAY = 86400000;
 
@@ -33,15 +38,27 @@ describe('/api/reveal', () => {
     vi.setSystemTime(LAUNCH_UTC + 40 * DAY + 5000);
     const daily = call(dailyHandler, '/api/daily');
     const expected = sortTimeline(selectDaily(Date.now()).songs);
+    const n = daily.body.puzzleNumber as number;
+    const ids = clipIds(DAILY_TRACKS * DAILY_CLIPS_PER_TRACK, n);
     daily.body.tracks.forEach((t: { ref: string }, i: number) => {
-      const answer = call(handler, `/api/reveal?ref=${t.ref}&part=answer`);
+      const order = ids
+        .slice(i * DAILY_CLIPS_PER_TRACK, (i + 1) * DAILY_CLIPS_PER_TRACK)
+        .join(',');
+      // No proof of the row's order, no answer.
+      expect(call(handler, `/api/reveal?ref=${t.ref}&part=answer`).status).toBe(
+        403
+      );
+      const answer = call(
+        handler,
+        `/api/reveal?ref=${t.ref}&part=answer&order=${order}`
+      );
       expect(answer.body).toMatchObject({
         title: expected[i].title,
         artist: expected[i].artist,
       });
       const { choices } = call(
         handler,
-        `/api/reveal?ref=${t.ref}&part=choices`
+        `/api/reveal?ref=${t.ref}&part=choices&order=${order}`
       ).body;
       expect(choices).toHaveLength(4);
       expect(choices).toContainEqual({
@@ -71,8 +88,9 @@ describe('/api/reveal', () => {
 
   it('resolves practice refs from catalog ids only', () => {
     const ids = CATALOG.slice(0, 3).map((s) => s.trackId);
-    const row = resolveRef(practiceRef(ids, 42, 1), Date.now());
+    const row = resolveRef(practiceRef(ids, 42, 3, 1), Date.now());
     expect(row?.songs[row.idx].trackId).toBe(ids[1]);
-    expect(resolveRef(practiceRef([1, 2], 42, 0), Date.now())).toBeNull();
+    expect(row?.order).toEqual(clipIds(9, 42).slice(3, 6));
+    expect(resolveRef(practiceRef([1, 2], 42, 4, 0), Date.now())).toBeNull();
   });
 });
