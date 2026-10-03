@@ -36,9 +36,7 @@
   --warn-badge: #e0a12a;
   --on-warn: #1b1200;
   --bad: #b42318;
-  --bad-bg: rgba(180, 35, 24, 0.1);
   --focus: #005f73;
-  --wave: #3c4245;
   --shadow:
     0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 1px 2px rgba(30, 24, 14, 0.18),
     0 4px 10px rgba(30, 24, 14, 0.1);
@@ -104,9 +102,7 @@
   --warn-badge: #f6b73c;
   --on-warn: #181104;
   --bad: #ff756b;
-  --bad-bg: rgba(255, 117, 107, 0.12);
   --focus: #2dd4bf;
-  --wave: #c9d1d3;
   --shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 1px 2px rgba(0, 0, 0, 0.5),
     0 4px 12px rgba(0, 0, 0, 0.35);
@@ -139,6 +135,32 @@
     drop-shadow(0 0 5px rgba(87, 242, 214, 0.45));
 }
 
+/* Observance theme (set from src/theme/useObservance.ts: <html data-obs> +
+   flag colours). Light first; the dark overrides follow with the other dark
+   tokens below. The dark rules repeat --accent-soft so the observance tint
+   outranks the base dark token at equal specificity. */
+:root[data-obs] {
+  --accent: var(--obs-accent);
+  --accent-hover: color-mix(in srgb, var(--obs-accent) 82%, black);
+  --accent-text: color-mix(in srgb, var(--obs-accent) 68%, black);
+  --accent-soft: color-mix(in srgb, var(--obs-accent) 16%, transparent);
+  --on-accent: var(--obs-on-accent, #fff);
+}
+/* Observance accent with dark text: lighten on hover instead of darkening. */
+:root[data-obs='aanhpi'],
+:root[data-obs='hhm'],
+:root[data-obs='nahm'] {
+  --accent-hover: color-mix(in srgb, var(--obs-accent) 80%, white);
+}
+:root[data-obs][data-theme='dark'] {
+  --accent: color-mix(in srgb, var(--obs-accent) 55%, white);
+  --accent-hover: color-mix(in srgb, var(--obs-accent) 40%, white);
+  --accent-text: color-mix(in srgb, var(--obs-accent) 45%, white);
+  --accent-soft: color-mix(in srgb, var(--obs-accent) 16%, transparent);
+  --on-accent: #111;
+}
+
+/* OS dark preference, unless the user picked Studio Day. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #0d0f11;
@@ -160,9 +182,7 @@
     --warn-badge: #f6b73c;
     --on-warn: #181104;
     --bad: #ff756b;
-    --bad-bg: rgba(255, 117, 107, 0.12);
     --focus: #2dd4bf;
-    --wave: #c9d1d3;
     --shadow:
       0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 1px 2px rgba(0, 0, 0, 0.5),
       0 4px 12px rgba(0, 0, 0, 0.35);
@@ -194,6 +214,13 @@
     --disp-ghost: rgba(87, 242, 214, 0.08);
     --disp-glow: drop-shadow(0 0 1.5px #57f2d6)
       drop-shadow(0 0 5px rgba(87, 242, 214, 0.45));
+  }
+  :root[data-obs]:not([data-theme='light']) {
+    --accent: color-mix(in srgb, var(--obs-accent) 55%, white);
+    --accent-hover: color-mix(in srgb, var(--obs-accent) 40%, white);
+    --accent-text: color-mix(in srgb, var(--obs-accent) 45%, white);
+    --accent-soft: color-mix(in srgb, var(--obs-accent) 16%, transparent);
+    --on-accent: #111;
   }
 }
 
@@ -362,16 +389,17 @@ button {
   font-size: 13px;
   color: var(--muted);
 }
+/* Footer links and Practice's back link sit on the page background: body text. */
 .footer a,
 .link {
-  color: var(--accent-text);
+  color: var(--text);
+  text-decoration: underline;
 }
 .link {
   background: none;
   border: 0;
   padding: 8px;
   font-weight: 600;
-  text-decoration: underline;
   cursor: pointer;
 }
 
@@ -424,6 +452,65 @@ button {
   padding: 24px 16px;
   background: var(--surface);
   border-radius: var(--radius);
+}
+
+/* ---------- sound menu (popover under the speaker icon) ---------- */
+.sound {
+  position: relative;
+}
+.sound-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 45;
+  width: 248px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lift);
+}
+.sound-mute {
+  width: 100%;
+  min-height: 40px;
+}
+.sound-mute[aria-pressed='true'] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: transparent;
+}
+.sound-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sound-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.sound-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 3.5ch;
+  text-align: right;
+}
+.sound-check {
+  grid-template-columns: auto 1fr;
+}
+.sound-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.sound-check small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 /* ---------- logo: console nameplate ---------- */
@@ -508,7 +595,7 @@ button {
 .logo-leds {
   display: flex;
   gap: 2px;
-  height: 4px;
+  height: 5px;
 }
 .logo-leds i {
   flex: 1;
@@ -529,24 +616,6 @@ button {
     filter: brightness(1.5);
   }
 }
-@media (forced-colors: active) {
-  .logo-plate {
-    background: Canvas;
-    color: CanvasText;
-    border: 1px solid CanvasText;
-    text-shadow: none;
-  }
-  .logo-leds i {
-    background: CanvasText;
-    box-shadow: none;
-    opacity: 1;
-  }
-  .logo-cap {
-    background: ButtonFace;
-    border: 1px solid CanvasText;
-  }
-}
-
 /* ---------- the console ---------- */
 .console {
   position: relative;
@@ -593,7 +662,6 @@ button {
     var(--s) 100% 100% / 8px 8px no-repeat;
 }
 
-.silk,
 .ch,
 .peak-label,
 .peak-left,
@@ -647,9 +715,18 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
+  filter: var(--disp-glow);
 }
 .vfd-ghost {
   font: 700 12px/1 var(--mono);
+  white-space: nowrap;
+  filter: var(--disp-glow);
+}
+.vfd-listens {
+  font: 600 11px/1 var(--silk-font);
+  letter-spacing: 0.06em;
+  color: inherit;
+  opacity: 0.85;
   white-space: nowrap;
 }
 .vfd-msg {
@@ -659,12 +736,6 @@ button {
   margin: 4px 0 0;
   font: 600 13px/1.3 var(--mono);
   letter-spacing: 0.02em;
-}
-.vfd-label,
-.vfd-ghost,
-.vfd-msg,
-.sevenseg svg,
-.reels svg {
   filter: var(--disp-glow);
 }
 .sevenseg {
@@ -675,6 +746,7 @@ button {
 .sevenseg svg {
   height: 100%;
   width: auto;
+  filter: var(--disp-glow);
 }
 .seg-on {
   fill: var(--disp-on);
@@ -692,6 +764,7 @@ button {
   fill: none;
   stroke: var(--disp-on);
   stroke-width: 1.2;
+  filter: var(--disp-glow);
 }
 .reels .hub {
   fill: var(--disp-on);
@@ -757,6 +830,28 @@ button {
   60% {
     opacity: 0.2;
   }
+}
+
+/* ---------- legend (grade glyphs under the board) ---------- */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin: 8px 6px 0;
+  font: 600 11px/1.4 var(--silk-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ---------- channel strips ---------- */
@@ -867,6 +962,15 @@ button {
   50% {
     transform: rotate(0.8deg);
   }
+}
+/* Visible focus on the clipped tape label. */
+.tape:focus-visible {
+  outline: none;
+}
+.tape-wrap:has(.tape:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Needle VU. */
@@ -1005,6 +1109,8 @@ button {
     inset 0 0 2px #fff;
 }
 .cbtn--rec {
+  min-width: 70px;
+  justify-content: center;
   color: #fff;
   background: linear-gradient(180deg, #3b6bb5, #2c5aa0);
   box-shadow:
@@ -1176,6 +1282,20 @@ button {
   box-shadow: 0 0 6px var(--lamp);
   opacity: 0;
 }
+/* Unheard clips: a blank scope until you listen. */
+.wave--blank {
+  display: grid;
+  place-items: center;
+}
+.wave--blank span {
+  font: 700 clamp(6px, 1.8vw, 9px) / 1 var(--silk-font);
+  letter-spacing: 0.04em;
+  text-align: center;
+  white-space: nowrap;
+  text-transform: uppercase;
+  color: var(--trace);
+  opacity: 0.45;
+}
 .tile.is-playing .tile-face {
   border-color: var(--lamp);
   box-shadow:
@@ -1185,10 +1305,14 @@ button {
 .tile.is-playing .wave {
   background: #14211d;
 }
+/* Cued outline: darkened so it reads on the gold/light themes. */
 .tile.is-cued .tile-face {
-  outline: 3px solid var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 70%, black);
   outline-offset: 1px;
   transform: translateY(-2px);
+}
+[data-theme='dark'] .tile.is-cued .tile-face {
+  outline-color: var(--accent);
 }
 .tile.is-dragging {
   z-index: 10;
@@ -1581,6 +1705,10 @@ button {
 .song-card .listen-links {
   margin: 5px 0 0 28px;
 }
+.song-retry {
+  font-size: 12px;
+  padding: 0;
+}
 .quiz {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1605,8 +1733,11 @@ button {
     inset 0 0 0 2px var(--accent);
 }
 .quiz-title {
+  /* Two lines before truncating. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   font: 700 13px/1.3 var(--marker-font);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1761,10 +1892,23 @@ button {
   line-height: 1.1;
 }
 .results.is-win .results-head {
-  color: var(--accent-text);
+  color: var(--disp-on);
+}
+.results-head:focus {
+  outline: none;
+}
+.results-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .results-sub {
   margin: -6px 0 0;
+  color: var(--muted);
+}
+.results-pro {
+  margin: -4px 0 10px;
+  text-align: center;
+  font-size: 13px;
   color: var(--muted);
 }
 .results-score {
@@ -1800,6 +1944,10 @@ button {
 .race.is-win {
   background: var(--ok-bg);
 }
+.race-rule {
+  font-size: 12px;
+  opacity: 0.8;
+}
 .attempt-grid {
   display: grid;
   justify-content: center;
@@ -1826,6 +1974,15 @@ button {
 .attempt-cell.is-misplaced {
   background: var(--warn-badge);
   color: var(--on-warn);
+}
+/* Misses stay visible in both themes; wrong-year locks get their own cell. */
+.attempt-cell.is-miss {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent);
+}
+.attempt-cell.is-era {
+  background: #2f62c8;
+  color: #fff;
 }
 .sign {
   display: grid;
@@ -1859,6 +2016,9 @@ button {
 .countdown strong {
   font-family: var(--mono);
   color: var(--text);
+}
+.modal .countdown {
+  margin-top: 12px;
 }
 
 .stats {
@@ -1924,6 +2084,43 @@ button {
   background: var(--accent);
   color: var(--on-accent);
 }
+.stats-details {
+  text-align: left;
+}
+.stats-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 6px 0;
+}
+.stats-line {
+  margin: 8px 0 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.archive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: center;
+  gap: 8px 10px;
+  margin: 14px 0 4px;
+}
+.archive label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.archive input[type='date'] {
+  font: inherit;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color-scheme: light dark;
+}
 
 /* ---------- practice levels ---------- */
 .levels {
@@ -1941,6 +2138,10 @@ button {
 .level span {
   font-size: 11px;
   font-weight: 600;
+}
+.level[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* ---------- loading ---------- */
@@ -2024,17 +2225,6 @@ button {
   margin: 0;
   font-size: 19px;
 }
-@media (min-width: 640px) {
-  .modal-layer {
-    align-items: center;
-    justify-items: center;
-  }
-  .modal {
-    width: min(460px, calc(100vw - 32px));
-    border-radius: 18px;
-  }
-}
-
 .howto-lede {
   margin-top: 0;
 }
@@ -2119,6 +2309,26 @@ button {
   font-size: 14px;
   background: var(--accent-soft);
   border-radius: 10px;
+}
+.howto-more {
+  margin: 4px 0 14px;
+  font-size: 14px;
+}
+.howto-more summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.howto-more ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+.howto-more svg {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
 }
 
 /* ---------- crate ---------- */
@@ -2230,6 +2440,14 @@ button {
   .vu-needle {
     height: 30px;
   }
+  .modal-layer {
+    align-items: center;
+    justify-items: center;
+  }
+  .modal {
+    width: min(460px, calc(100vw - 32px));
+    border-radius: 18px;
+  }
 }
 
 /* ---------- reduced motion ---------- */
@@ -2242,8 +2460,12 @@ button {
     animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
-  .lane-tiles.is-shaking .tile-face {
+  .lane-tiles.is-shaking .tile:not(.is-cued) .tile-face {
     outline: 2px solid var(--clip-on);
+  }
+  /* A cued cart keeps its accent outline, just thinner. */
+  .lane-tiles.is-shaking .tile.is-cued .tile-face {
+    outline-width: 2px;
   }
   .vu[data-sig='true'] .vu-sig {
     opacity: 1;
@@ -2253,38 +2475,9 @@ button {
     background: var(--lamp);
   }
 }
-.stats-details {
-  text-align: left;
-}
-.stats-details summary {
-  cursor: pointer;
-  font-weight: 700;
-  padding: 6px 0;
-}
 
 /* ---------- observance theme (whole game) ---------- */
-/* Active from src/theme/useObservance.ts: <html data-obs> + flag colours. */
-:root[data-obs] {
-  --accent: var(--obs-accent);
-  --accent-hover: color-mix(in srgb, var(--obs-accent) 82%, black);
-  --accent-text: color-mix(in srgb, var(--obs-accent) 68%, black);
-  --accent-soft: color-mix(in srgb, var(--obs-accent) 16%, transparent);
-  --on-accent: var(--obs-on-accent, #fff);
-}
-:root[data-obs][data-theme='dark'] {
-  --accent: color-mix(in srgb, var(--obs-accent) 55%, white);
-  --accent-hover: color-mix(in srgb, var(--obs-accent) 40%, white);
-  --accent-text: color-mix(in srgb, var(--obs-accent) 45%, white);
-  --on-accent: #111;
-}
-@media (prefers-color-scheme: dark) {
-  :root[data-obs]:not([data-theme='light']) {
-    --accent: color-mix(in srgb, var(--obs-accent) 55%, white);
-    --accent-hover: color-mix(in srgb, var(--obs-accent) 40%, white);
-    --accent-text: color-mix(in srgb, var(--obs-accent) 45%, white);
-    --on-accent: #111;
-  }
-}
+/* Tokens are up with the other theme tokens; this is the chrome. */
 
 /* A flag stripe across the top of the page and a soft wash beneath it. */
 :root[data-obs] body {
@@ -2316,6 +2509,15 @@ button {
   margin-left: auto;
   color: var(--accent-text);
   white-space: nowrap;
+}
+:root[data-obs] .obs-banner a {
+  color: var(--text);
+}
+.obs-banner .obs-close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex: none;
 }
 .obs-flag {
   flex: none;
@@ -2368,6 +2570,13 @@ button {
 :root[data-obs] .strip:nth-child(6n + 6) {
   --stripe: var(--obs-6, var(--obs-4, var(--obs-accent)));
 }
+/* Dark flag stripes (e.g. black) stay visible on the dark console. */
+[data-theme='dark'][data-obs] .strip {
+  box-shadow:
+    inset 4px 0 0 var(--stripe, var(--obs-accent)),
+    inset 5px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px var(--groove);
+}
 /* Lit lamps glow in the observance colour (mistake lamps stay red). */
 :root[data-obs] .cbtn.is-on .lamp {
   background: var(--obs-accent);
@@ -2384,6 +2593,18 @@ button {
     0 3px 0 color-mix(in srgb, var(--accent) 55%, black),
     0 4px 6px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+/* Tried stays a quiet cap in observance themes too. */
+:root[data-obs] .cbtn--rec.is-tried {
+  color: var(--cap-ink);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--cap) 85%, white),
+    var(--cap)
+  );
+  box-shadow:
+    0 3px 0 var(--cap-edge),
+    0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Pride: the nameplate letters themselves go rainbow, as the original mark did. */
@@ -2404,35 +2625,6 @@ button {
   text-shadow: none;
   filter: drop-shadow(0 1px 0 #000);
 }
-.logo-leds {
-  height: 5px;
-}
-
-@media (forced-colors: active) {
-  :root[data-obs] .strip {
-    box-shadow: none;
-  }
-  :root[data-obs] .console {
-    border-image: none;
-  }
-  :root[data-pride] .logo-plate > span:not(.logo-slot) {
-    background: none;
-    color: CanvasText;
-    -webkit-text-fill-color: CanvasText;
-    filter: none;
-  }
-}
-
-/* Results grid: misses stay visible in both themes; wrong-year locks get their own cell. */
-.attempt-cell.is-miss {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent);
-}
-.attempt-cell.is-era {
-  background: #3f7bff;
-  color: #fff;
-}
-
 /* ---------- results: the Mixdown panel ---------- */
 .results.console {
   text-align: center;
@@ -2468,9 +2660,6 @@ button {
   color: var(--disp-on);
   opacity: 0.85;
 }
-.results.is-win .results-head {
-  color: var(--disp-on);
-}
 .results.console .results-score,
 .results.console .countdown,
 .results.console .stats-details summary,
@@ -2487,6 +2676,11 @@ button {
   height: 46px;
   font-size: 13px;
 }
+.results-mixtape {
+  justify-self: center;
+  height: 36px;
+  padding: 0 16px;
+}
 .results.console .race {
   background: color-mix(in srgb, var(--silk) 8%, transparent);
 }
@@ -2498,7 +2692,9 @@ button {
   font-family: var(--mono);
 }
 
-/* Phones: give locked channels' tapes room for the title. */
+/* ---------- phones ---------- */
+/* Locked channels' tapes get room for the title; the genre drops under the
+   year instead of truncating. */
 @media (max-width: 520px) {
   .strip--song .vu {
     display: none;
@@ -2514,173 +2710,6 @@ button {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
   }
-}
-.results-mixtape {
-  justify-self: center;
-  height: 36px;
-  padding: 0 16px;
-}
-
-/* ---------- review fixes ---------- */
-
-/* Sound menu (popover under the speaker icon). */
-.sound {
-  position: relative;
-}
-.sound-panel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 45;
-  width: 248px;
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-lift);
-}
-.sound-mute {
-  width: 100%;
-  min-height: 40px;
-}
-.sound-mute[aria-pressed='true'] {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: transparent;
-}
-.sound-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.sound-row input[type='range'] {
-  width: 100%;
-  accent-color: var(--accent);
-}
-.sound-value {
-  font-family: var(--mono);
-  font-size: 12px;
-  min-width: 3.5ch;
-  text-align: right;
-}
-.sound-check {
-  grid-template-columns: auto 1fr;
-}
-.sound-check input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-}
-
-/* Unheard clips: a blank scope until you listen. */
-.wave--blank {
-  display: grid;
-  place-items: center;
-}
-.wave--blank span {
-  font: 700 clamp(6px, 1.8vw, 9px) / 1 var(--silk-font);
-  letter-spacing: 0.04em;
-  text-align: center;
-  white-space: nowrap;
-  text-transform: uppercase;
-  color: var(--trace);
-  opacity: 0.45;
-}
-
-/* Footer link + small text contrast. */
-.footer a {
-  color: var(--text);
-  text-decoration: underline;
-}
-.attempt-cell.is-era {
-  background: #2f62c8;
-}
-
-/* Visible focus on the clipped tape label. */
-.tape:focus-visible {
-  outline: none;
-}
-.tape-wrap:has(.tape:focus-visible) {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* Tried stays a quiet cap in observance themes too. */
-:root[data-obs] .cbtn--rec.is-tried {
-  color: var(--cap-ink);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--cap) 85%, white),
-    var(--cap)
-  );
-  box-shadow:
-    0 3px 0 var(--cap-edge),
-    0 4px 6px rgba(0, 0, 0, 0.3);
-}
-.cbtn--rec {
-  min-width: 70px;
-  justify-content: center;
-}
-
-/* Cued outline readable on the gold/light themes. */
-.tile.is-cued .tile-face {
-  outline-color: color-mix(in srgb, var(--accent) 70%, black);
-}
-[data-theme='dark'] .tile.is-cued .tile-face {
-  outline-color: var(--accent);
-}
-
-/* Observance accent with dark text: lighten on hover instead of darkening. */
-:root[data-obs='aanhpi'],
-:root[data-obs='hhm'],
-:root[data-obs='nahm'] {
-  --accent-hover: color-mix(in srgb, var(--obs-accent) 80%, white);
-}
-:root[data-obs] .footer a,
-:root[data-obs] .obs-banner a {
-  color: var(--text);
-}
-
-/* Dark flag stripes (e.g. black) stay visible on the dark console. */
-[data-theme='dark'][data-obs] .strip {
-  box-shadow:
-    inset 4px 0 0 var(--stripe, var(--obs-accent)),
-    inset 5px 0 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px var(--groove);
-}
-
-/* Quiz choices: two lines before truncating. */
-.quiz-title {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.race-rule {
-  font-size: 12px;
-  opacity: 0.8;
-}
-.modal .countdown {
-  margin-top: 12px;
-}
-
-/* Narrow phones: genre drops under the year instead of truncating; the strip
-   VU makes room; the header tightens. */
-@media (max-width: 420px) {
-  .strip-head .vu {
-    display: none;
-  }
-  .tape-year {
-    flex: none;
-  }
-}
-@media (max-width: 520px) {
   .strip-head .tape:has(.tape-genre) {
     flex-direction: column;
     align-items: flex-start;
@@ -2693,6 +2722,16 @@ button {
     font-size: 10px;
   }
 }
+/* Narrow phones: the strip VU makes room. */
+@media (max-width: 420px) {
+  .strip-head .vu {
+    display: none;
+  }
+  .tape-year {
+    flex: none;
+  }
+}
+/* The header tightens. */
 @media (max-width: 360px) {
   .icon-btn {
     width: 32px;
@@ -2716,8 +2755,36 @@ button {
   }
 }
 
-/* Forced colours (Windows high contrast): keep every control visible. */
+/* ---------- forced colours (Windows high contrast) ---------- */
+/* Keep every control visible. Last so it outranks the themed rules above. */
 @media (forced-colors: active) {
+  .logo-plate {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    text-shadow: none;
+  }
+  .logo-leds i {
+    background: CanvasText;
+    box-shadow: none;
+    opacity: 1;
+  }
+  .logo-cap {
+    background: ButtonFace;
+    border: 1px solid CanvasText;
+  }
+  :root[data-pride] .logo-plate > span:not(.logo-slot) {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+    filter: none;
+  }
+  :root[data-obs] .strip {
+    box-shadow: none;
+  }
+  :root[data-obs] .console {
+    border-image: none;
+  }
   .knob {
     border: 2px solid ButtonText;
     background: ButtonFace;
@@ -2741,121 +2808,4 @@ button {
   .peak .lamp.is-on {
     background: Highlight;
   }
-}
-
-/* Practice's back link sits on the page background: use body text. */
-.link {
-  color: var(--text);
-  text-decoration: underline;
-}
-.results-head:focus {
-  outline: none;
-}
-.results-head:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.level[aria-disabled='true'] {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-/* ---------- v2.1: display extras, legend, results, archive ---------- */
-.vfd-listens {
-  font: 600 11px/1 var(--silk-font);
-  letter-spacing: 0.06em;
-  color: inherit;
-  opacity: 0.85;
-  white-space: nowrap;
-}
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 14px;
-  margin: 8px 6px 0;
-  font: 600 11px/1.4 var(--silk-font);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.legend svg {
-  width: 12px;
-  height: 12px;
-}
-.results-pro {
-  margin: -4px 0 10px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--muted);
-}
-.stats-line {
-  margin: 8px 0 4px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--muted);
-}
-.archive {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  justify-content: center;
-  gap: 8px 10px;
-  margin: 14px 0 4px;
-}
-.archive label {
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.archive input[type='date'] {
-  font: inherit;
-  padding: 7px 9px;
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color-scheme: light dark;
-}
-.obs-banner .obs-close {
-  margin-left: auto;
-  width: 28px;
-  height: 28px;
-  flex: none;
-}
-.song-retry {
-  font-size: 12px;
-  padding: 0;
-}
-.howto-more {
-  margin: 4px 0 14px;
-  font-size: 14px;
-}
-.howto-more summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--accent-text);
-}
-.howto-more ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  display: grid;
-  gap: 6px;
-}
-.howto-more svg {
-  width: 13px;
-  height: 13px;
-  vertical-align: -2px;
-}
-.sound-check small {
-  display: block;
-  font-weight: 400;
-  color: var(--muted);
 }
