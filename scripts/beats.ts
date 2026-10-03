@@ -21,7 +21,7 @@ const HOP = 256; // ~11.6ms per onset frame
 const FPS = SR / HOP;
 
 // Decode compressed audio bytes to mono float PCM via ffmpeg.
-function decode(bytes: Uint8Array): Promise<Float32Array> {
+export function decode(bytes: Uint8Array): Promise<Float32Array> {
   return new Promise((resolve, reject) => {
     const ff = spawn('ffmpeg', [
       '-hide_banner',

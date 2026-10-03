@@ -5,7 +5,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json } from './_http.js';
-import { shuffle } from './_prng.js';
+import { shuffle } from '../shared/prng.js';
 import {
   practicePool,
   practiceRef,

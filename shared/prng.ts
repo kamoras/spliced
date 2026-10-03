@@ -1,8 +1,6 @@
 // Shared seeded RNG used by both the client (puzzle layout, practice picks) and
 // the daily API (catalog shuffle). One copy keeps every surface deterministic:
 // the same seed yields the same sequence in every browser and runtime.
-//
-// Files prefixed with "_" are NOT treated as routes by Vercel.
 
 // Returns a float in [0, 1) on each call.
 export type Rng = () => number;

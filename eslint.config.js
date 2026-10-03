@@ -51,6 +51,7 @@ export default tseslint.config(
   {
     files: [
       'api/**/*.{js,ts}',
+      'shared/**/*.{js,ts}',
       'scripts/**/*.{js,mjs,ts}',
       'vite.config.ts',
       'eslint.config.js',

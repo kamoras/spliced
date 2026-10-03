@@ -18,6 +18,11 @@ export interface CatalogEntry {
   bpm?: number;
   beat?: number;
   beatConf?: number;
+  // On the curated classics list (api/_songs.ts): a song most people know.
+  classic?: boolean;
+  // Where the preview is audible, [from, to] seconds (scripts/curate-catalog.ts),
+  // so clips avoid a silent intro or a faded tail.
+  loud?: [number, number];
 }
 
 // The (partial) shape of an iTunes Search/Lookup result we read.

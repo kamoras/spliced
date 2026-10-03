@@ -1,6 +1,6 @@
 // Pure helpers for arranging and grading mixer puzzle pieces.
 
-import { mulberry32, shuffle } from '../../api/_prng.js';
+import { mulberry32, shuffle } from '../../shared/prng.js';
 import type { CellGrade, RowGrade } from '../types.js';
 
 // The minimal piece shape these helpers need. The real Piece satisfies it; the

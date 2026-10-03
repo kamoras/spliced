@@ -3,12 +3,18 @@ import {
   choicesFor,
   timelineTracks,
   beatGrid,
+  dailyEligible,
+  isClassic,
+  scheduleFor,
   selectDaily,
   practicePool,
   pickMatch,
   norm,
+  trioOk,
 } from './daily.js';
-import { mulberry32 } from './_prng.js';
+import { featureFor, inFeature } from './_features.js';
+import { puzzleDate } from '../shared/game.js';
+import { mulberry32 } from '../shared/prng.js';
 import { DAILY_TRACKS, LAUNCH_UTC } from './_songs.js';
 import catalog from './_catalog.json';
 
@@ -178,8 +184,9 @@ describe('timelineTracks', () => {
 
 describe('catalog', () => {
   it('is roughly a year of unique, previewable songs', () => {
-    // ~4 tracks * 365 days, allowing a little slack from dedupe.
-    expect(catalog.length).toBeGreaterThanOrEqual(4 * 365 - 60);
+    // Enough on-beat, dated songs for most of a year of 3-song dailies.
+    const real = catalog as NonNullable<Parameters<typeof scheduleFor>[1]>;
+    expect(real.filter(dailyEligible).length).toBeGreaterThanOrEqual(900);
     expect(new Set(catalog.map((c) => c.trackId)).size).toBe(catalog.length);
     expect(
       catalog.every(
@@ -271,5 +278,51 @@ describe('pinned schedule', () => {
     const ids = (n: number) =>
       selectDaily(LAUNCH_UTC + n * DAY, real).songs.map((s) => s.trackId);
     expect([ids(0), ids(100), ids(273)]).toMatchSnapshot();
+  });
+});
+
+describe('schedule constraints', () => {
+  const real = catalog as NonNullable<Parameters<typeof scheduleFor>[1]>;
+
+  it('gives every day three different artists and years, on the beat, with a classic', () => {
+    for (let n = 0; n < 400; n++) {
+      const { songs } = scheduleFor(n, real);
+      expect(songs).toHaveLength(DAILY_TRACKS);
+      expect(trioOk(songs)).toBe(true);
+      expect(songs.every(dailyEligible)).toBe(true);
+      expect(songs.some(isClassic)).toBe(true);
+      expect(
+        songs.filter((s) => (s.year ?? 0) >= 2024).length
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('never repeats a song within an epoch', () => {
+    const seen = new Set<number>();
+    const { epoch } = scheduleFor(0, real);
+    for (let n = 0; scheduleFor(n, real).epoch === epoch; n++) {
+      for (const s of scheduleFor(n, real).songs) {
+        expect(seen.has(s.trackId)).toBe(false);
+        seen.add(s.trackId);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(800);
+  });
+
+  it('features an observance song on most days of a big-pool observance', () => {
+    let hits = 0;
+    let days = 0;
+    for (let n = 0; n < 365; n++) {
+      const feature = featureFor(puzzleDate(n));
+      if (!feature || !['bhm', 'whm', 'hhm'].includes(feature.id)) continue;
+      days++;
+      if (scheduleFor(n, real).songs.some((s) => inFeature(s, feature))) hits++;
+    }
+    expect(days).toBeGreaterThan(60);
+    expect(hits / days).toBeGreaterThan(0.75);
+  });
+
+  it('is stable: the same day always gets the same songs', () => {
+    expect(scheduleFor(123, real).songs).toEqual(scheduleFor(123, real).songs);
   });
 });

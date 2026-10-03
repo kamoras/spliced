@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mulberry32 } from '../../api/_prng.js';
+import { mulberry32 } from '../../shared/prng.js';
 import {
   shufflePieces,
   buildMixerOrder,

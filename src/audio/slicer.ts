@@ -1,6 +1,6 @@
 // Loads Apple preview clips and prepares waveform-backed puzzle samples.
 
-import { mulberry32 } from '../../api/_prng.js';
+import { mulberry32 } from '../../shared/prng.js';
 import type { Piece, Track, TrackDef } from '../types.js';
 
 let _ctx: AudioContext | null = null;
