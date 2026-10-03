@@ -177,7 +177,7 @@ describe('spliceJoin', () => {
     expect(state.links).toEqual(['t0-0>t0-1']);
     expect(state.mistakes).toBe(0);
     expect(state.attempts).toEqual([
-      { marks: ['correct'], solved: false, atMs: 0, row: 0 },
+      { marks: ['correct'], solved: false, atMs: 0 },
     ]);
   });
 

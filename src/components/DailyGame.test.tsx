@@ -221,9 +221,7 @@ describe('DailyGame', () => {
       ...newGame(def, PUZZLE),
       mistakes: 2,
       solved: ['t1'],
-      attempts: [
-        { marks: ['miss', 'miss', 'miss', 'miss'], solved: false, row: 0 },
-      ],
+      attempts: [{ marks: ['miss', 'miss', 'miss', 'miss'], solved: false }],
       elapsedMs: 12000,
     };
     localStorage.setItem(

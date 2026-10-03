@@ -17,8 +17,6 @@ export interface Attempt {
   solved: boolean;
   // Active play time when this splice happened (drives the ghost race).
   atMs?: number;
-  // Which row it was on (drives the consolation genre clue).
-  row?: number;
   // The completed song sat on the wrong year's row (it moved home).
   era?: boolean;
   // The song this splice completed.
@@ -294,10 +292,7 @@ export function spliceJoin(
       ...state,
       mistakes,
       bad: [...(state.bad ?? []), key],
-      attempts: [
-        ...state.attempts,
-        { marks: ['miss'], solved: false, atMs, row },
-      ],
+      attempts: [...state.attempts, { marks: ['miss'], solved: false, atMs }],
     };
     return {
       state: lost ? revealAll(next, def, 'lost') : next,
@@ -327,7 +322,6 @@ export function spliceJoin(
         marks: ['correct'],
         solved: completed,
         atMs,
-        row,
         ...(movedHome ? { era: true } : {}),
         ...(completed ? { trackId } : {}),
       },

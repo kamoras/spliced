@@ -74,10 +74,16 @@ export function saveProgress(puzzleNumber: number, state: GameState): void {
     return;
   }
   all[puzzleNumber] = state;
-  const keep = Object.keys(all)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .slice(0, 7);
+  // Keep the game being played (it may be an archive day) plus the six
+  // most recent others.
+  const keep = [
+    puzzleNumber,
+    ...Object.keys(all)
+      .map(Number)
+      .filter((n) => n !== puzzleNumber)
+      .sort((a, b) => b - a)
+      .slice(0, 6),
+  ];
   const trimmed: ProgressMap = {};
   keep.forEach((n) => (trimmed[n] = all[n]));
   try {

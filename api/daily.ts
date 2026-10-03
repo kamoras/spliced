@@ -199,7 +199,11 @@ function buildEpoch(
       : remaining.filter((k) => !reserved(k));
     // The day's anchor: a featured song while there are any, else the next
     // song in line that hasn't been parked.
-    const anchor = pool[0] ?? usable.find((k) => !parked.has(k.song.trackId));
+    // A pool song that could not find partners is parked like any other, so
+    // the day falls through to a plain anchor instead of retrying forever.
+    const anchor =
+      pool.find((k) => !parked.has(k.song.trackId)) ??
+      usable.find((k) => !parked.has(k.song.trackId));
     if (!anchor) break;
     // A featured day takes one song from the pool and fills the rest from
     // outside it, so the pool stretches across the whole window.

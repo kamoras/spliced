@@ -155,6 +155,15 @@ describe('progress', () => {
     expect(getProgress(3)).toMatchObject({ mistakes: 3 });
     expect(getProgress(2)).toBeNull();
   });
+
+  it('keeps an archive day’s progress even with a week of newer games', () => {
+    for (let n = 270; n < 277; n++) saveProgress(n, state);
+    saveProgress(10, { ...state, mistakes: 3 });
+    expect(getProgress(10)).toMatchObject({ mistakes: 3 });
+    // The six newest others survive; the oldest of the week drops out.
+    expect(getProgress(276)).not.toBeNull();
+    expect(getProgress(270)).toBeNull();
+  });
 });
 
 describe('prefs', () => {

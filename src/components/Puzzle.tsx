@@ -560,7 +560,9 @@ export default function Puzzle({
 
   const naming = useRef(false);
   async function answerName(trackId: string, choice: Choice | null) {
-    if (naming.current) return;
+    // Keep the quiz mounted (and focused) while another row's completion
+    // plays out; just ignore picks until it settles.
+    if (naming.current || busy) return;
     naming.current = true;
     let answer: Song | null = null;
     try {
@@ -887,7 +889,7 @@ export default function Puzzle({
                       onPlay={() => toggleSong(trackId)}
                       choices={discovered ? reveal?.choices : undefined}
                       named={state.named?.[trackId]}
-                      onName={busy ? undefined : (c) => answerName(trackId, c)}
+                      onName={(c) => answerName(trackId, c)}
                       onRetry={reveal?.stuck ? () => retry(trackId) : undefined}
                       order={r}
                       label={labelFor(r)}
