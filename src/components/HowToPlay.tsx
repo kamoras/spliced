@@ -60,9 +60,10 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <strong>Sounds right? Press SPLICE.</strong> A true join tapes the
-            clips together; a wrong one lights a PEAK lamp. Four lamps and the
-            tape jams. Splice all four clips of a song and it locks onto its
-            year.
+            clips together; a wrong one lights a PEAK lamp. Light them all and
+            the tape jams. Four clips spliced is a whole song: it locks onto its
+            year (the year is a hint, not a test). Three clips are song endings:
+            nothing follows them.
           </div>
         </li>
       </ol>
@@ -70,8 +71,8 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
         <summary>More rules</summary>
         <ul>
           <li>
-            The year on each tape is a hint for grouping clips. Finish a song on
-            the wrong year and it slides home for free. Tap two year tapes to
+            The year and genre on each tape help you group clips. Finish a song
+            on the wrong year and it slides home for free. Tap two year tapes to
             swap those channels.
           </li>
           <li>

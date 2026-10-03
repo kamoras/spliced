@@ -33,11 +33,11 @@ flips at UTC midnight), so times and scores are shareable.
    back-to-back, so true neighbours flow seamlessly. Press **PLAY** to hear a
    whole channel. Listening is always free.
 3. **Sounds right? SPLICE it.** A true join tapes the two clips together, and
-   they move as one from then on. A wrong one lights one of **4 PEAK lamps**
-   (and adds the genre to that channel's tape as a consolation clue); a join
-   already known to be wrong can't be spliced again. There are no per-slot
-   marks to deduce from: the only way to find the nine true joins among 132
-   possible ones is to listen.
+   they move as one from then on. A wrong one lights one of **5 PEAK lamps**;
+   a join already known to be wrong can't be spliced again. There are no
+   per-slot marks to deduce from: the only way to find the nine true joins
+   among 132 possible ones is to listen (three clips are song endings, and
+   nothing follows them).
 4. Splice all four clips of a song and it **locks onto its year**: the title
    is written onto the tape and the song plays in full. If it was sitting on
    the wrong year, it slides home for free (the year is a hint, not the
@@ -45,8 +45,8 @@ flips at UTC midnight), so times and scores are shareable.
    that tune** (🎵 bonus, no penalty).
 5. Finish to get your score: **mistakes**, with time and songs named as the
    tie-breaks, and a Wordle-style share grid: one line of splices per song
-   (🟩 a true join, ⬛ a wrong one, 🟦 a song that slid home, a 🎵 if you
-   named it; a loss shows the songs you did find). Sharp ears can also chase fewer
+   (🟩 a true join, ⬛ a wrong one, a 🎵 if you named it; a loss shows the
+   songs you did find). Sharp ears can also chase fewer
    **listens** (every clip, join and channel order heard for the first time,
    plus each LOCK), shown live on the display and against par afterwards. The
    share link carries a spoiler-free **ghost** of your run that friends race
@@ -56,8 +56,8 @@ Your progress survives a refresh, a stats sheet tracks streaks (one missed day
 a week is forgiven) and a mistakes histogram, every song you uncover lands in
 your **Record crate**, past days are in the **archive**, and **hard mode** (in
 the sound menu) allows two mistakes. **Practice** serves fresh mixes from past
-dailies (so it never spoils an upcoming day) at Easy (3×3, 5 lamps, genres
-shown), Classic (3×4, the daily size), or Hard (4×4, 5 lamps).
+dailies (so it never spoils an upcoming day) at Easy (3×3), Classic (3×4, the
+daily size), or Hard (4×4, 6 lamps).
 
 The console comes in **Studio Day** and **Studio Night** finishes, with
 synthesized switch clicks, knob detents, a channel-open chime, and needle VU

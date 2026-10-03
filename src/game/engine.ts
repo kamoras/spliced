@@ -162,22 +162,16 @@ export function swapRows(
   return { ...state, order: rows.flat() };
 }
 
-// What a row's clue shows right now: always the year; the genre too when the
-// day has a year collision, or as a consolation after a wrong splice there.
+// What a row's tape shows: the song's year and genre. Both are hints for
+// grouping clips by ear; neither is graded.
 export function clueFor(
-  state: GameState,
+  _state: GameState,
   def: PuzzleDef,
   rowIndex: number
 ): { year?: number; genre?: string } {
   const clue = def.tracks[rowIndex]?.clue;
   if (!clue) return {};
-  const missed = state.attempts.some(
-    (a) => a.row === rowIndex && a.marks[0] === 'miss'
-  );
-  return {
-    year: clue.year,
-    genre: clue.showGenre || missed ? clue.genre : undefined,
-  };
+  return { year: clue.year, genre: clue.genre };
 }
 
 export function clueLabel(
@@ -627,12 +621,11 @@ export function shareText(
   const time =
     won && state.elapsedMs ? ` · ⏱ ${formatDuration(state.elapsedMs)}` : '';
   // One line per song: its splices in order, 🟩 a true join, ⬛ a wrong one,
-  // 🟦 the join that completed a song on the wrong year's row (it slid home),
   // and a 🎵 if you then named the song.
   const grid: string[] = [];
   let line = '';
   state.attempts.forEach((a) => {
-    line += a.era ? '🟦' : a.marks.map((m) => EMOJI[m]).join('');
+    line += a.marks.map((m) => EMOJI[m]).join('');
     if (a.solved) {
       grid.push(a.trackId && state.named?.[a.trackId] ? `${line} 🎵` : line);
       line = '';

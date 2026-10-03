@@ -44,8 +44,7 @@ interface ResultsProps {
   onArchive?: (date: string | null) => void;
 }
 
-// One cell per splice: ✓ a true join, ✗ a wrong one, ↪ the join that finished
-// a song on the wrong year's row.
+// One cell per splice: ✓ a true join, ✗ a wrong one.
 const GLYPH: Record<Mark, string> = { correct: '✓', misplaced: '⤨', miss: '✗' };
 
 // The splices grouped into lines, one per finished song (plus any left over).
@@ -217,24 +216,19 @@ export default function Results({
           role="img"
           aria-label={`Your splices: ${state.attempts
             .map((a) =>
-              a.era
-                ? 'finished a song on the wrong year'
-                : a.solved
-                  ? 'finished a song'
-                  : a.marks[0] === 'correct'
-                    ? 'a true join'
-                    : 'not a join'
+              a.solved
+                ? 'finished a song'
+                : a.marks[0] === 'correct'
+                  ? 'a true join'
+                  : 'not a join'
             )
             .join('; ')}`}
         >
           {spliceLines(state.attempts).map((line, i) => (
             <div className="attempt-row" key={i}>
               {line.map((a, j) => (
-                <span
-                  key={j}
-                  className={`attempt-cell is-${a.era ? 'era' : a.marks[0]}`}
-                >
-                  {a.era ? '↪' : GLYPH[a.marks[0]]}
+                <span key={j} className={`attempt-cell is-${a.marks[0]}`}>
+                  {GLYPH[a.marks[0]]}
                 </span>
               ))}
               {line[line.length - 1]?.trackId &&

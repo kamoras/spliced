@@ -19,7 +19,8 @@ export const LEVELS = [
   // Easy also shows every genre up front.
   { id: 'easy', label: 'Easy', songs: 3, clips: 3, lamps: 5, genre: true },
   { id: 'classic', label: 'Classic', songs: 3, clips: 4, lamps: DAILY_GUESSES },
-  { id: 'hard', label: 'Hard', songs: 4, clips: 4, lamps: 5 },
+  // Twelve joins to find: lamps scale with the daily's five for nine.
+  { id: 'hard', label: 'Hard', songs: 4, clips: 4, lamps: 6 },
 ] as const;
 type Level = (typeof LEVELS)[number];
 

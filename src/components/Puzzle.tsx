@@ -112,8 +112,8 @@ export interface PuzzleProps {
 
 const COACH = [
   'Tap any clip to hear it.',
-  'Then tap ⇄ on another clip to swap them, or drag one onto another.',
-  'Turn a knob to hear a join. Sounds right? Press SPLICE under it.',
+  'Turn a knob to hear the join between two clips. Sounds right? SPLICE it.',
+  'Tap ⇄ on another clip to move a clip next to its neighbour.',
 ];
 
 export default function Puzzle({
@@ -185,10 +185,22 @@ export default function Puzzle({
       elapsedMs: clockRef.current?.elapsedNow() ?? stateRef.current.elapsedMs,
     });
   }, []);
+  // ---- reveals ------------------------------------------------------------------
+  const { reveals, hasQuiz, revealAnswer, retry } = useReveals(
+    tracks,
+    state,
+    clipsPerTrack,
+    onAnswers
+  );
+  // A name-that-tune quiz is open (the clock pauses: naming isn't timed).
+  const quizPending = state.solved.some(
+    (id) => state.named?.[id] == null && hasQuiz(id)
+  );
+
   const clock = useGameClock({
     initialMs: initialState?.elapsedMs ?? 0,
     over,
-    paused,
+    paused: paused || quizPending,
     onHide: persist,
   });
   clockRef.current = clock;
@@ -197,13 +209,7 @@ export default function Puzzle({
     persist();
   }, [state, persist]);
 
-  // ---- reveals, audio ----------------------------------------------------------
-  const { reveals, hasQuiz, revealAnswer, retry } = useReveals(
-    tracks,
-    state,
-    clipsPerTrack,
-    onAnswers
-  );
+  // ---- audio ---------------------------------------------------------------
   const {
     player,
     cue,
@@ -225,7 +231,7 @@ export default function Puzzle({
   const [message, setMessage] = useState<string | null>(() => {
     if (ghost && fresh) {
       const g = ghost.ghost;
-      return `Racing ${ghost.name}’s ghost: beat ${g.won ? formatDuration(g.elapsedMs) : 'a loss'} with fewer mistakes.`;
+      return `Racing ${ghost.name}’s ghost: ${g.won ? `${g.mistakes} ${g.mistakes === 1 ? 'mistake' : 'mistakes'} in ${formatDuration(g.elapsedMs)}` : 'they lost'}. Fewer mistakes wins, then faster.`;
     }
     if (initialState && initialState.status === 'playing') {
       const left = tracks.length - initialState.solved.length;
@@ -255,6 +261,12 @@ export default function Puzzle({
   const note = (text: string, ms = 1600) => {
     setMessage(text);
     later(() => setMessage((m) => (m === text ? null : m)), ms);
+  };
+  // Own feedback (as opposed to ghost commentary) stamps its time.
+  const ownMessageAt = useRef(0);
+  const tell = (text: string | null) => {
+    ownMessageAt.current = Date.now();
+    setMessage(text);
   };
 
   // Power-on sweep, once per session.
@@ -324,12 +336,16 @@ export default function Puzzle({
   });
 
   // ---- ghost race ticker ------------------------------------------------------
+  // Ghost commentary never talks over your own feedback.
   useGhostTicker({
     ghost,
     over,
     startMs: initialState?.elapsedMs ?? 0,
     elapsedNow,
-    say: setMessage,
+    say: (text) => {
+      if (Date.now() - ownMessageAt.current < 2500) return;
+      note(text, 2500);
+    },
   });
 
   // ---- board derivations -----------------------------------------------------
@@ -345,6 +361,20 @@ export default function Puzzle({
   const rowOfId = (id: string) =>
     Math.floor(state.order.indexOf(id) / clipsPerTrack);
   const labelFor = (r: number) => clueLabel(clueFor(state, def, r), r);
+  // A join counts as heard on its own or inside a channel play.
+  const heardJoin = (a: string, b: string) =>
+    hasHeard(state, seamKey(a, b)) ||
+    Boolean(
+      state.heard?.some((k) => k.startsWith('r:') && k.includes(`${a},${b}`))
+    );
+  const seamState = (a: string, b: string): SeamState =>
+    isLinked(state, a, b)
+      ? 'linked'
+      : isBadJoin(state, a, b)
+        ? 'bad'
+        : heardJoin(a, b)
+          ? 'heard'
+          : 'open';
 
   // ---- interactions -----------------------------------------------------------
   function tapClip(piece: Piece, fraction: number | null) {
@@ -550,9 +580,6 @@ export default function Puzzle({
   const settled = useRef(false);
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
-  const quizPending = state.solved.some(
-    (id) => state.named?.[id] == null && hasQuiz(id)
-  );
   useEffect(() => {
     if (settled.current || !over) return undefined;
     // A board restored already finished: nothing to wait for.
@@ -597,7 +624,7 @@ export default function Puzzle({
     const b = ids[seam + 1];
     if (!a || !b) return;
     // Hear it first: a splice is a judgement, not a guess.
-    if (!hasHeard(state, seamKey(a, b))) return playSeam(row, seam);
+    if (seamState(a, b) === 'open') return playSeam(row, seam);
     cue('click');
     beginTiming();
     setCued(null);
@@ -626,10 +653,19 @@ export default function Puzzle({
         cue('slide');
         const chain = chainOf(next, def, a);
         const left = def.clipsPerTrack - chain.length;
-        setMessage(
+        tell(
           `Spliced ${letterOf(a)} and ${letterOf(b)}. ${left} more ${left === 1 ? 'join' : 'joins'} finishes this song.`
         );
         setState(next);
+        // The reward for a good ear is more music: hear the run you've built.
+        const run = chain.flatMap((id) => pieceById.get(id) ?? []);
+        setPlaying({ kind: 'row', row, id: null });
+        player.playSequence(run, {
+          delay: 0.25,
+          onPiece: (i) =>
+            setPlaying({ kind: 'row', row, id: run[i]?.id ?? null }),
+          onEnd: () => setPlaying(null),
+        });
         // The SPLICE key is gone (it's tape now): keep focus on the board.
         focusTile(b);
         return;
@@ -689,9 +725,9 @@ export default function Puzzle({
       const careful = left === 1 ? ' Careful, last mistake!' : '';
       const first =
         state.attempts.length === 0
-          ? ' Listen for the join that flows without a bump.'
+          ? ' In a true join the phrase carries straight on, as if nothing was cut.'
           : '';
-      setMessage(
+      tell(
         `Not a join: ${letterOf(a)} doesn’t run into ${letterOf(b)}.${first}${careful}`
       );
     }
@@ -741,14 +777,7 @@ export default function Puzzle({
         : 'TAPE JAM: EVERY SONG REVEALED'
       : (COACH[coach] ?? ''));
   const heardClip = (id: string) => over || hasHeardClip(state, id);
-  const seamState = (a: string, b: string): SeamState =>
-    isLinked(state, a, b)
-      ? 'linked'
-      : isBadJoin(state, a, b)
-        ? 'bad'
-        : hasHeard(state, seamKey(a, b))
-          ? 'heard'
-          : 'open';
+
   const getProgress = (id: string) => progressGetters.get(id) ?? (() => null);
 
   return (

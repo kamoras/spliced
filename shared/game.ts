@@ -9,8 +9,9 @@ export const DAILY_TRACKS = 3;
 export const DAILY_CLIPS_PER_TRACK = 4;
 export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
 
-// Wrong lock-ins before the tape jams. Hard mode halves it.
-export const DAILY_GUESSES = 4;
+// Wrong splices before the tape jams: nine true joins to find, five misses
+// allowed (a careful ear wins most days, a guess wins none). Hard mode: two.
+export const DAILY_GUESSES = 5;
 export const HARD_GUESSES = 2;
 
 // Puzzle #0's UTC day. Everything is dated from here.

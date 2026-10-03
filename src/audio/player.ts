@@ -364,7 +364,7 @@ export class Player {
     a: Piece,
     b: Piece,
     onEnd?: () => void,
-    span = 0.7
+    span = 1.2
   ): Promise<void> {
     const myToken = await this._begin();
     if (myToken == null) return;

@@ -296,14 +296,9 @@ describe('swapRows / clueFor', () => {
     expect(swapRows(locked, def, 0, 1)).toBe(locked);
   });
 
-  it('shows genre on year collisions or after a miss on that row', () => {
-    expect(clueFor(s, def, 0)).toEqual({ year: 1980, genre: undefined });
+  it('shows the year and genre on every tape', () => {
+    expect(clueFor(s, def, 0)).toEqual({ year: 1980, genre: 'Pop' });
     expect(clueFor(s, def, 2)).toEqual({ year: 1982, genre: 'Pop' });
-    const missed = {
-      ...s,
-      attempts: [{ marks: ['miss' as const], solved: false, row: 0 }],
-    };
-    expect(clueFor(missed, def, 0).genre).toBe('Pop');
   });
 });
 
@@ -375,7 +370,7 @@ describe('shareText', () => {
     );
   });
 
-  it('marks a named song on its line of the grid, and a slide home', () => {
+  it('marks a named song on its line of the grid', () => {
     const s: GameState = {
       ...boardState([]),
       status: 'won',
@@ -390,7 +385,7 @@ describe('shareText', () => {
     };
     expect(shareText('S', s, def).split('\n').slice(1)).toEqual([
       '🟩🟩 🎵',
-      '🟩🟦',
+      '🟩🟩',
     ]);
   });
 

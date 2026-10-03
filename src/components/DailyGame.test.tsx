@@ -339,7 +339,7 @@ describe('DailyGame', () => {
     expect(chip).toHaveAttribute('title', 'Racing Sam');
     expect(chip).toHaveTextContent('Sam 1:30');
     expect(document.querySelector('.vfd-msg')).toHaveTextContent(
-      /Racing Sam’s ghost: beat 1:30 with fewer mistakes/
+      /Racing Sam’s ghost: 1 mistake in 1:30\. Fewer mistakes wins, then faster\./
     );
     // The link was consumed and the ghost kept for a reload mid-race.
     expect(location.search).toBe('');

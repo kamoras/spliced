@@ -363,19 +363,19 @@ describe('Player', () => {
       await player.playSeam(piece('a', 10, 2), piece('b', 20, 2), onEnd);
       expect(ctx.sources).toHaveLength(2);
       const [a, b] = ctx.sources;
-      // t0 = 1.04, len = 0.7: a's last 0.7s, then b's first 0.7s (+ lead).
+      // t0 = 1.04, len = 1.2: a's last 1.2s, then b's first 1.2s (+ lead).
       const [atA, offA, lenA] = a.start.mock.calls[0] as number[];
       expect(atA).toBeCloseTo(1.04, 6);
-      expect(offA).toBeCloseTo(11.3, 6);
-      expect(lenA).toBeCloseTo(0.7, 6);
+      expect(offA).toBeCloseTo(10.8, 6);
+      expect(lenA).toBeCloseTo(1.2, 6);
       const [atB, offB, lenB] = b.start.mock.calls[0] as number[];
-      expect(atB).toBeCloseTo(1.74 - 0.003, 6);
+      expect(atB).toBeCloseTo(2.24 - 0.003, 6);
       expect(offB).toBeCloseTo(20 - 0.003, 6);
-      expect(lenB).toBeCloseTo(0.703, 6);
+      expect(lenB).toBeCloseTo(1.203, 6);
       expect(player.isBusy()).toBe(true);
 
-      // The end timer runs from "now" (1.0): 0.04 lead-in + 2 x 0.7.
-      vi.advanceTimersByTime(1439);
+      // The end timer runs from "now" (1.0): 0.04 lead-in + 2 x 1.2.
+      vi.advanceTimersByTime(2439);
       expect(onEnd).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1);
       expect(onEnd).toHaveBeenCalledTimes(1);
