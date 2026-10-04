@@ -1978,10 +1978,6 @@ button {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent);
 }
-.attempt-cell.is-era {
-  background: #2f62c8;
-  color: #fff;
-}
 .sign {
   display: grid;
   gap: 4px;

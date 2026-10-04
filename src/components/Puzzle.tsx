@@ -759,7 +759,9 @@ export default function Puzzle({
       : playing?.kind === 'clip'
         ? rowOfId(playing.id)
         : playing?.kind === 'song'
-          ? def.tracks.findIndex((t) => t.id === playing.trackId)
+          ? rows.findIndex(
+              (_, r) => rowTrack(state, def, r) === playing.trackId
+            )
           : null;
   const left = Math.max(0, maxGuesses - state.mistakes);
   const vfdMessage =
