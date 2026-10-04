@@ -853,6 +853,19 @@ button {
   width: 12px;
   height: 12px;
 }
+.mix-hint {
+  margin: 6px 6px 2px;
+}
+.mix-hint-key {
+  color: var(--silk-dim, var(--muted));
+}
+.mix-hint-key::after {
+  content: ':';
+}
+.mix-hint .is-found {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
 
 /* ---------- channel strips ---------- */
 .board {
@@ -894,7 +907,7 @@ button {
   border-radius: 3px;
 }
 
-/* Masking-tape scribble strip (the Timeline clue lives here). */
+/* Masking-tape scribble strip: blank until the song is found. */
 .tape-wrap {
   flex: 1;
   min-width: 0;
@@ -927,6 +940,7 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   transform: rotate(-0.8deg);
+  cursor: default;
   clip-path: polygon(
     0 8%,
     3% 0,
@@ -941,7 +955,11 @@ button {
     0 92%,
     1% 50%
   );
-  cursor: pointer;
+}
+.tape--blank {
+  color: color-mix(in srgb, var(--marker) 45%, transparent);
+  font-style: italic;
+  letter-spacing: 0.12em;
 }
 .tape-year {
   flex: none;
@@ -951,26 +969,6 @@ button {
   opacity: 0.8;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.tape.is-cued {
-  background: color-mix(in srgb, var(--tape) 70%, var(--accent));
-}
-.tape.is-target {
-  animation: tape-wiggle 1s ease-in-out infinite;
-}
-@keyframes tape-wiggle {
-  50% {
-    transform: rotate(0.8deg);
-  }
-}
-/* Visible focus on the clipped tape label. */
-.tape:focus-visible {
-  outline: none;
-}
-.tape-wrap:has(.tape:focus-visible) {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* Needle VU. */
@@ -1979,10 +1977,6 @@ button {
 .attempt-cell.is-miss {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent);
-}
-.attempt-cell.is-era {
-  background: #2f62c8;
-  color: #fff;
 }
 .sign {
   display: grid;

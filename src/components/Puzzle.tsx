@@ -36,10 +36,9 @@ import {
   hear,
   rowPlayKey,
   seamKey,
-  clueFor,
   clueLabel,
   isRowLocked,
-  swapRows,
+  rowTrack,
   moveClip,
   canMove,
   chainOf,
@@ -245,8 +244,6 @@ export default function Puzzle({
   const [shake, setShake] = useState<{ row: number; n: number } | null>(null);
   const [freshCard, setFreshCard] = useState<string | null>(null);
   const [ledPop, setLedPop] = useState<number | null>(null);
-  // A row whose year label was tapped, waiting for a second label to swap.
-  const [rowCue, setRowCue] = useState<number | null>(null);
   const [chase, setChase] = useState(false);
   const justDragged = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -356,11 +353,14 @@ export default function Puzzle({
     : rows.flatMap((ids, r) => (isRowLocked(state, def, r) ? [] : ids));
   const lastRow =
     !over && state.solved.length === def.tracks.length - 1
-      ? def.tracks.findIndex((t) => !state.solved.includes(t.id))
+      ? rows.findIndex((_, r) => !isRowLocked(state, def, r))
       : null;
   const rowOfId = (id: string) =>
     Math.floor(state.order.indexOf(id) / clipsPerTrack);
-  const labelFor = (r: number) => clueLabel(clueFor(state, def, r), r);
+  const labelOf = (trackId: string) => {
+    const ti = trackIndex.get(trackId) ?? 0;
+    return clueLabel(def.tracks[ti]?.clue ?? {}, ti);
+  };
   // A join counts as heard on its own or inside a channel play.
   const heardJoin = (a: string, b: string) =>
     hasHeard(state, seamKey(a, b)) ||
@@ -443,29 +443,6 @@ export default function Puzzle({
     afterMove();
     setCued(null);
     setMessage(null);
-    setState(next);
-  }
-
-  // Tap one year label, then another, to swap those two rows' clips (free).
-  function tapRowLabel(row: number) {
-    if (busy || over) return;
-    if (rowCue == null) {
-      setRowCue(row);
-      setMessage(`Tap another year to swap ${labelFor(row)}’s clips with it.`);
-      return;
-    }
-    if (rowCue === row) {
-      setRowCue(null);
-      setMessage(null);
-      return;
-    }
-    const next = swapRows(state, def, rowCue, row);
-    setRowCue(null);
-    setMessage(null);
-    if (next === state) return;
-    beginTiming();
-    cue('swap');
-    if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
     setState(next);
   }
 
@@ -692,7 +669,6 @@ export default function Puzzle({
       }
       cue(outcome.won ? 'win' : 'open');
       if (outcome.won) clock.finish();
-      const home = def.tracks.findIndex((t) => t.id === completed);
       // Stage 1: the whole channel fuses in place…
       setSplicing(row);
       const songsLeft = def.tracks.length - next.solved.length;
@@ -701,11 +677,8 @@ export default function Puzzle({
         : songsLeft === 1
           ? ' Last one!'
           : ` ${songsLeft} to go.`;
-      const moved = outcome.movedHome
-        ? ` Right song, wrong year: it slides to ${labelFor(home)}.`
-        : '';
       setMessage(
-        `${hasQuiz(completed) ? 'A whole song! Name that tune for a bonus 🎵.' : 'A whole song!'}${moved}${togo}`
+        `${hasQuiz(completed) ? 'A whole song! Name that tune for a bonus 🎵.' : 'A whole song!'}${togo}`
       );
       later(
         () => {
@@ -786,7 +759,9 @@ export default function Puzzle({
       : playing?.kind === 'clip'
         ? rowOfId(playing.id)
         : playing?.kind === 'song'
-          ? def.tracks.findIndex((t) => t.id === playing.trackId)
+          ? rows.findIndex(
+              (_, r) => rowTrack(state, def, r) === playing.trackId
+            )
           : null;
   const left = Math.max(0, maxGuesses - state.mistakes);
   const vfdMessage =
@@ -849,6 +824,21 @@ export default function Puzzle({
         </span>
       </div>
 
+      {/* What's on the tape: each song's year and genre, a hint for grouping
+          clips by ear. Rows have no song of their own. */}
+      <p className="legend mix-hint" aria-label="Songs in this mix">
+        <span className="mix-hint-key">On the tape</span>
+        {def.tracks.map((t, i) => (
+          <span
+            key={t.id}
+            className={state.solved.includes(t.id) ? 'is-found' : undefined}
+          >
+            {clueLabel(t.clue ?? {}, i)}
+            {t.clue?.genre ? ` ${t.clue.genre}` : ''}
+          </span>
+        ))}
+      </p>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -866,8 +856,8 @@ export default function Puzzle({
             onClick={clearCue}
           >
             {rows.map((ids, r) => {
-              if (isRowLocked(state, def, r)) {
-                const trackId = def.tracks[r].id;
+              const trackId = rowTrack(state, def, r);
+              if (trackId != null) {
                 const ti = trackIndex.get(trackId) ?? 0;
                 const discovered = state.solved.includes(trackId);
                 const reveal = reveals[trackId];
@@ -893,7 +883,7 @@ export default function Puzzle({
                       onName={(c) => answerName(trackId, c)}
                       onRetry={reveal?.stuck ? () => retry(trackId) : undefined}
                       order={r}
-                      label={labelFor(r)}
+                      label={labelOf(trackId)}
                       fresh={freshCard === trackId}
                     />
                   </li>
@@ -904,8 +894,6 @@ export default function Puzzle({
                   key={`row-${r}`}
                   row={r}
                   pieces={ids.flatMap((id) => pieceById.get(id) ?? [])}
-                  clue={clueFor(state, def, r)}
-                  label={labelFor(r)}
                   splicing={splicing === r}
                   last={lastRow === r}
                   shaking={shake?.row === r}
@@ -922,7 +910,6 @@ export default function Puzzle({
                   canSwap={canSwap}
                   flash={flash}
                   busy={busy}
-                  rowCue={rowCue}
                   letterOf={letterOf}
                   heardClip={heardClip}
                   seamState={seamState}
@@ -932,7 +919,6 @@ export default function Puzzle({
                   onSeam={(seam) => playSeam(r, seam)}
                   onSplice={(seam) => splice(r, seam)}
                   onPlay={() => playRow(r)}
-                  onTapLabel={() => tapRowLabel(r)}
                 />
               );
             })}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  clueFor,
-  swapRows,
+  rowTrack,
+  isRowLocked,
   hasHeard,
   hasHeardClip,
   hear,
@@ -209,7 +209,7 @@ describe('spliceJoin', () => {
     expect(spliceJoin(s, def, 't0-1', 't1-1').outcome.kind).toBe('ignored');
   });
 
-  it('completes a song on the fourth clip and locks its row', () => {
+  it('completes a song on its last clip and locks the row it was built on', () => {
     const s: GameState = {
       ...boardState([
         't1-0', 't1-1', 't1-2',
@@ -218,20 +218,19 @@ describe('spliceJoin', () => {
       ]), // prettier-ignore
       links: ['t1-0>t1-1'],
     };
-    // The song sits on row 0 but belongs on row 1: it slides home, free.
+    // Rows have no song of their own: t1 stays on row 0, where it was built.
     const { state, outcome } = spliceJoin(s, def, 't1-1', 't1-2');
-    expect(outcome).toMatchObject({
-      kind: 'fused',
-      completed: 't1',
-      movedHome: true,
-    });
+    expect(outcome).toMatchObject({ kind: 'fused', completed: 't1' });
     expect(state.solved).toEqual(['t1']);
     expect(state.mistakes).toBe(0);
-    expect(rowsOf(state, def)[1]).toEqual(['t1-0', 't1-1', 't1-2']);
-    expect(rowsOf(state, def)[0]).toEqual(['t0-0', 't2-0', 't0-1']);
+    expect(rowsOf(state, def)[0]).toEqual(['t1-0', 't1-1', 't1-2']);
+    expect(rowsOf(state, def)[1]).toEqual(['t0-0', 't2-0', 't0-1']);
+    expect(rowTrack(state, def, 0)).toBe('t1');
+    expect(rowTrack(state, def, 1)).toBeNull();
+    expect(isRowLocked(state, def, 0)).toBe(true);
+    expect(isRowLocked(state, def, 1)).toBe(false);
     expect(state.attempts.at(-1)).toMatchObject({
       solved: true,
-      era: true,
       trackId: 't1',
     });
   });
@@ -248,9 +247,11 @@ describe('spliceJoin', () => {
     const last = spliceJoin(cur, def, 't1-2', 't2-0');
     expect(last.outcome).toMatchObject({ kind: 'wrong', lost: true });
     expect(last.state.status).toBe('lost');
-    expect(last.state.order).toEqual(
-      def.tracks.flatMap((t) => t.pieces.map((p) => p.id))
-    );
+    expect(rowsOf(last.state, def)).toEqual([
+      ['t0-0', 't0-1', 't0-2'],
+      ['t1-0', 't1-1', 't1-2'],
+      ['t2-0', 't2-1', 't2-2'],
+    ]);
     expect(last.state.links).toContain('t2-0>t2-1');
   });
 
@@ -280,37 +281,51 @@ describe('spliceJoin', () => {
   });
 });
 
-describe('swapRows / clueFor', () => {
-  const def: PuzzleDef = {
-    ...makeDef(),
-    tracks: makeDef().tracks.map((t, i) => ({
-      ...t,
-      clue: { year: 1980 + i, genre: 'Pop', showGenre: i === 2 },
-    })),
-  };
-  const s = boardState(def.tracks.flatMap((t) => t.pieces.map((p) => p.id)));
+describe('rowTrack', () => {
+  const def = makeDef();
+  const s = boardState([
+    't2-0', 't2-1', 't2-2',
+    't0-0', 't1-0', 't0-1',
+    't1-1', 't1-2', 't0-2',
+  ]); // prettier-ignore
 
-  it('swaps two unlocked rows, never a locked one', () => {
-    expect(rowsOf(swapRows(s, def, 0, 1), def)[0][0]).toBe('t1-0');
-    const locked = { ...s, solved: ['t0'] };
-    expect(swapRows(locked, def, 0, 1)).toBe(locked);
+  it('names the song a row holds only once it is found', () => {
+    expect(rowTrack(s, def, 0)).toBeNull();
+    expect(rowTrack({ ...s, solved: ['t2'] }, def, 0)).toBe('t2');
+    expect(rowTrack({ ...s, solved: ['t2'] }, def, 1)).toBeNull();
   });
 
-  it('shows the year and genre on every tape', () => {
-    expect(clueFor(s, def, 0)).toEqual({ year: 1980, genre: 'Pop' });
-    expect(clueFor(s, def, 2)).toEqual({ year: 1982, genre: 'Pop' });
+  it('shows every row’s song once the game is over', () => {
+    const over = revealAll({ ...s, solved: ['t2'] }, def, 'lost');
+    expect([0, 1, 2].map((r) => rowTrack(over, def, r))).toEqual([
+      't2',
+      't0',
+      't1',
+    ]);
   });
 });
 
 describe('revealAll / finishedFromResult', () => {
   const def = makeDef();
-  it('puts every song in its own row, in order', () => {
-    const s = { ...boardState(newGame(def, 3).order), solved: ['t2'] };
-    expect(rowsOf(revealAll(s, def), def).map((r) => r[0])).toEqual([
-      't0-0',
-      't1-0',
-      't2-0',
+  it('keeps found songs on their rows and fills the rest oldest first', () => {
+    const s: GameState = {
+      ...boardState([
+        't0-0', 't2-0', 't0-1',
+        't1-0', 't1-1', 't1-2',
+        't2-1', 't2-2', 't0-2',
+      ]), // prettier-ignore
+      solved: ['t1'],
+      links: ['t1-0>t1-1', 't1-1>t1-2'],
+    };
+    expect(rowsOf(revealAll(s, def), def)).toEqual([
+      ['t0-0', 't0-1', 't0-2'],
+      ['t1-0', 't1-1', 't1-2'],
+      ['t2-0', 't2-1', 't2-2'],
     ]);
+    // Nothing found yet: plain oldest-first.
+    expect(
+      rowsOf(revealAll(newGame(def, 3), def), def).map((r) => r[0])
+    ).toEqual(['t0-0', 't1-0', 't2-0']);
   });
 
   it('rebuilds a finished board from a legacy result', () => {
@@ -327,6 +342,13 @@ describe('isValidState', () => {
     expect(isValidState(s, def)).toBe(true);
     expect(isValidState({ ...s, order: s.order.slice(1) }, def)).toBe(false);
     expect(isValidState({ ...s, solved: ['nope'] }, def)).toBe(false);
+    // A found song must sit whole on one row.
+    expect(isValidState({ ...s, solved: ['t0'] }, def)).toBe(false);
+    const built = {
+      ...s,
+      order: def.tracks.flatMap((t) => t.pieces.map((p) => p.id)),
+    };
+    expect(isValidState({ ...built, solved: ['t0', 't2'] }, def)).toBe(true);
     expect(isValidState(null, def)).toBe(false);
     expect(isValidState(s, makeDef(3, 4))).toBe(false);
   });
@@ -380,7 +402,7 @@ describe('shareText', () => {
         { marks: ['correct'], solved: false },
         { marks: ['correct'], solved: true, trackId: 't0' },
         { marks: ['correct'], solved: false },
-        { marks: ['correct'], solved: true, trackId: 't1', era: true },
+        { marks: ['correct'], solved: true, trackId: 't1' },
       ],
     };
     expect(shareText('S', s, def).split('\n').slice(1)).toEqual([
@@ -436,15 +458,10 @@ describe('ghost race', () => {
     });
   });
 
-  it('keeps wrong-year locks in the code', () => {
-    const eraRun: GameState = {
-      ...run,
-      attempts: [{ ...run.attempts[1], solved: true, era: true }],
-    };
-    expect(decodeGhost(encodeGhost(eraRun, 2))!.attempts[0]).toMatchObject({
-      solved: true,
-      era: true,
-    });
+  it('still reads the old wrong-year mark as a finished song', () => {
+    const code = encodeGhost(run, 2).replace(/s([0-9a-z]+)$/, 'e$1');
+    expect(code).toContain('e');
+    expect(decodeGhost(code)!.attempts.at(-1)).toMatchObject({ solved: true });
   });
 
   it('rejects junk', () => {
