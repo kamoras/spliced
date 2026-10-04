@@ -5,7 +5,12 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import Stats from './Stats.jsx';
-import { LAUNCH_UTC, DAY_MS, puzzleNumberFor } from '../../shared/game.js';
+import {
+  LAUNCH_UTC,
+  DAY_MS,
+  DAILY_GUESSES,
+  puzzleNumberFor,
+} from '../../shared/game.js';
 import {
   computeStats,
   formatCountdown,
@@ -90,7 +95,7 @@ export default function Results({
   // Show the name prompt after the first share (unless a name is already set).
   const [shared, setShared] = useState(false);
   const playedCount =
-    daily && !archive ? computeStats(puzzleNumber, def.maxGuesses).played : 0;
+    daily && !archive ? computeStats(puzzleNumber, DAILY_GUESSES).played : 0;
 
   const streak = daily && !archive ? liveStreak(puzzleNumber) : 0;
   const named = namedCount(state);
@@ -291,7 +296,7 @@ export default function Results({
           <summary>Your stats</summary>
           <Stats
             puzzleNumber={puzzleNumberFor(Date.now())}
-            maxGuesses={def.maxGuesses}
+            maxGuesses={DAILY_GUESSES}
             today={archive ? null : state}
           />
         </details>

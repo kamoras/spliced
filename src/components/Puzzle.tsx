@@ -405,7 +405,10 @@ export default function Puzzle({
     // Say what actually moved: a taped run travels as one, and a move
     // across rows trades it for an equal-length run on the other side.
     const moved = chainOf(state, def, cued);
-    const target = chainOf(state, def, targetId);
+    // The run that took the moved run's place (a cross-row trade may nudge
+    // the target so an equal-length block fits), read off the result.
+    const fromStart = state.order.indexOf(moved[0]);
+    const target = next.order.slice(fromStart, fromStart + moved.length);
     const rowOf = (id: string) => rows.findIndex((r) => r.includes(id));
     const sameRow = rowOf(cued) === rowOf(targetId);
     const run = (ids: string[]) => ids.map(letterOf).join('+');
@@ -416,9 +419,7 @@ export default function Puzzle({
         ? moved.length > 1
           ? `Moved ${run(moved)} next to ${letterOf(targetId)}.`
           : `Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`
-        : moved.length > 1 || target.length > 1
-          ? `Swapped ${run(moved)} with ${run(target)}.`
-          : `Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`
+        : `Swapped ${run(moved)} with ${run(target)}.`
     );
     setState(next);
     // Keep keyboard focus on the board: the ⇄ button that was pressed is gone.
