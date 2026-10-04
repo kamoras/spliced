@@ -217,8 +217,13 @@ describe('DailyGame', () => {
   it('restores a game in progress from localStorage', async () => {
     stubFetch();
     const def = puzzleDef(slicedTracks(), CLIPS, 4);
+    // t1 was finished on row 1; the other clips keep their shuffled order.
+    const fresh = newGame(def, PUZZLE);
+    const t1 = def.tracks[1].pieces.map((p) => p.id);
+    const others = fresh.order.filter((id) => !t1.includes(id));
     const saved: GameState = {
-      ...newGame(def, PUZZLE),
+      ...fresh,
+      order: [...others.slice(0, CLIPS), ...t1, ...others.slice(CLIPS)],
       mistakes: 2,
       solved: ['t1'],
       attempts: [{ marks: ['miss', 'miss', 'miss', 'miss'], solved: false }],

@@ -32,7 +32,10 @@ export function useReveals(
   // end) that is the right order, which is the proof /api/reveal asks for.
   const rowOrder = useCallback(
     (trackId: string) => {
-      const r = tracks.findIndex((t) => t.id === trackId);
+      // The row the song sits on: wherever its first clip is.
+      const first = tracks.find((t) => t.id === trackId)?.pieces[0]?.id;
+      const i = first ? state.order.indexOf(first) : -1;
+      const r = i < 0 ? 0 : Math.floor(i / clipsPerTrack);
       return state.order.slice(r * clipsPerTrack, (r + 1) * clipsPerTrack);
     },
     [tracks, state.order, clipsPerTrack]

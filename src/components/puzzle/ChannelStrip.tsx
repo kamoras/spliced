@@ -1,5 +1,5 @@
-// One open channel on the board: the year tape, VU and PLAY key, and the row
-// of clips with a seam between each pair. A seam has a knob (hear the join)
+// One open channel on the board: the channel tape, VU and PLAY key, and the
+// row of clips with a seam between each pair. A seam has a knob (hear the join)
 // and, once the join has been heard, a SPLICE key. A spliced join shows as a
 // strip of tape holding the two clips together.
 
@@ -14,8 +14,6 @@ export type SeamState = 'open' | 'heard' | 'linked' | 'bad';
 export interface ChannelStripProps {
   row: number;
   pieces: Piece[];
-  clue: { year?: number; genre?: string };
-  label: string;
   splicing: boolean;
   last: boolean;
   shaking: boolean;
@@ -30,7 +28,6 @@ export interface ChannelStripProps {
   canSwap: (id: string) => boolean;
   flash: string[];
   busy: boolean;
-  rowCue: number | null;
   letterOf: (id: string) => string;
   heardClip: (id: string) => boolean;
   seamState: (a: string, b: string) => SeamState;
@@ -40,14 +37,11 @@ export interface ChannelStripProps {
   onSeam: (seam: number) => void;
   onSplice: (seam: number) => void;
   onPlay: () => void;
-  onTapLabel: () => void;
 }
 
 function ChannelStrip({
   row: r,
   pieces,
-  clue,
-  label,
   splicing,
   last,
   shaking,
@@ -60,7 +54,6 @@ function ChannelStrip({
   canSwap,
   flash,
   busy,
-  rowCue,
   letterOf,
   heardClip,
   seamState,
@@ -70,31 +63,22 @@ function ChannelStrip({
   onSeam,
   onSplice,
   onPlay,
-  onTapLabel,
 }: ChannelStripProps) {
   return (
     <li
       className={['strip', splicing && 'is-splicing', last && 'is-last']
         .filter(Boolean)
         .join(' ')}
-      aria-label={`Channel ${r + 1}${clue.year ? `, ${clue.year}` : ''}`}
+      aria-label={`Channel ${r + 1}`}
     >
       <div className="strip-head">
         <span className="ch" aria-hidden="true">
           {r + 1}
         </span>
-        <span className="tape-wrap">
-          <button
-            type="button"
-            className={`tape${rowCue === r ? ' is-cued' : ''}${rowCue != null && rowCue !== r ? ' is-target' : ''}`}
-            onClick={onTapLabel}
-            disabled={busy}
-            aria-pressed={rowCue === r}
-            aria-label={`Clue: ${[clue.year, clue.genre].filter(Boolean).join(', ') || `channel ${r + 1}`}. ${rowCue != null && rowCue !== r ? 'Press to swap channels.' : 'Press, then press another label, to swap channels.'}`}
-          >
-            <span className="tape-year">{label}</span>
-            {clue.genre && <span className="tape-genre">{clue.genre}</span>}
-          </button>
+        <span className="tape-wrap" aria-hidden="true">
+          {/* A blank scribble strip: the title is written on when the song
+              is found. */}
+          <span className="tape tape--blank">Untitled</span>
         </span>
         <VuNeedle active={meter} />
         <button

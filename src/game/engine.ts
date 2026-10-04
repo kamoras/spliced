@@ -17,8 +17,6 @@ export interface Attempt {
   solved: boolean;
   // Active play time when this splice happened (drives the ghost race).
   atMs?: number;
-  // The completed song sat on the wrong year's row (it moved home).
-  era?: boolean;
   // The song this splice completed.
   trackId?: string;
 }
@@ -27,7 +25,8 @@ export interface GameState {
   // Piece ids, row-major (row = floor(index / clipsPerTrack)). Fused clips
   // are always adjacent, in order, within a row.
   order: string[];
-  // Track ids in the order they were completed (row r is always tracks[r]).
+  // Track ids in the order they were completed. A completed song stays on
+  // whichever row it was built on (see rowTrack).
   solved: string[];
   mistakes: number;
   attempts: Attempt[];
@@ -58,8 +57,9 @@ export type { Clue } from '../types.js';
 export interface PuzzleDef {
   clipsPerTrack: number;
   maxGuesses: number;
-  // One entry per row, in row order: row r must become tracks[r], its
-  // pieces listed in the right order.
+  // The songs, oldest first (the order the results list them in), each with
+  // its pieces in the right order. Rows have no song of their own: a song
+  // is finished wherever its clips were spliced together.
   tracks: { id: string; pieces: EnginePiece[]; clue?: Clue }[];
 }
 
@@ -69,8 +69,6 @@ export interface SpliceOutcome {
   kind: 'fused' | 'wrong' | 'repeat' | 'ignored';
   // The song this splice completed, if it did.
   completed?: string;
-  // The completed song sat on the wrong year's row and slid home.
-  movedHome?: boolean;
   won: boolean;
   lost: boolean;
 }
@@ -98,14 +96,28 @@ export function rowsOf(state: GameState, def: PuzzleDef): string[][] {
   return chunkTracks(state.order, def.clipsPerTrack);
 }
 
+// The song a row holds, if it has been completed there (or the game is over
+// and every row shows a song). A completed song's clips fill its whole row,
+// so the first clip tells.
+export function rowTrack(
+  state: GameState,
+  def: PuzzleDef,
+  rowIndex: number
+): string | null {
+  const first = state.order[rowIndex * def.clipsPerTrack];
+  const track = def.tracks.find((t) => t.pieces.some((p) => p.id === first));
+  if (!track) return null;
+  const shown = state.status !== 'playing' || state.solved.includes(track.id);
+  return shown ? track.id : null;
+}
+
 export function isRowLocked(
   state: GameState,
   def: PuzzleDef,
   rowIndex: number
 ): boolean {
   if (state.status !== 'playing') return true;
-  const id = def.tracks[rowIndex]?.id;
-  return id != null && state.solved.includes(id);
+  return rowTrack(state, def, rowIndex) != null;
 }
 
 export function isLinked(state: GameState, a: string, b: string): boolean {
@@ -144,39 +156,12 @@ export function chainOf(
   return state.order.slice(lo, hi + 1);
 }
 
-// Swap the contents of two unlocked rows (free, just rearranging).
-export function swapRows(
-  state: GameState,
-  def: PuzzleDef,
-  a: number,
-  b: number
-): GameState {
-  if (a === b || isRowLocked(state, def, a) || isRowLocked(state, def, b)) {
-    return state;
-  }
-  const rows = chunkTracks(state.order, def.clipsPerTrack);
-  if (!rows[a] || !rows[b]) return state;
-  [rows[a], rows[b]] = [rows[b], rows[a]];
-  return { ...state, order: rows.flat() };
-}
-
-// What a row's tape shows: the song's year and genre. Both are hints for
-// grouping clips by ear; neither is graded.
-export function clueFor(
-  _state: GameState,
-  def: PuzzleDef,
-  rowIndex: number
-): { year?: number; genre?: string } {
-  const clue = def.tracks[rowIndex]?.clue;
-  if (!clue) return {};
-  return { year: clue.year, genre: clue.genre };
-}
-
+// What a song's tape reads once it is found: its year (or a placeholder).
 export function clueLabel(
   clue: { year?: number; genre?: string },
-  rowIndex: number
+  trackIndex: number
 ): string {
-  return clue.year ? String(clue.year) : `track ${rowIndex + 1}`;
+  return clue.year ? String(clue.year) : `track ${trackIndex + 1}`;
 }
 
 // Move a clip (with everything it's spliced to) onto another spot. Within a
@@ -253,9 +238,9 @@ export function canMove(
 }
 
 // SPLICE the join between two adjacent clips. A true join fuses them (they
-// move together from now on); the fourth clip of a song completes it, and it
-// locks onto its year's row (sliding home for free if it sat elsewhere). A
-// wrong join spends a mistake. Running out of mistakes reveals everything.
+// move together from now on); the last clip of a song completes it, and its
+// row locks where it stands. A wrong join spends a mistake. Running out of
+// mistakes reveals everything.
 export function spliceJoin(
   state: GameState,
   def: PuzzleDef,
@@ -304,15 +289,7 @@ export function spliceJoin(
   const chain = chainOf(next, def, a);
   const trackId = pa.trackId;
   const completed = chain.length === cpt && trackId != null;
-  let movedHome = false;
-  if (completed) {
-    const home = def.tracks.findIndex((t) => t.id === trackId);
-    if (home >= 0 && home !== row) {
-      next = swapRows(next, def, row, home);
-      movedHome = true;
-    }
-    next = { ...next, solved: [...next.solved, trackId] };
-  }
+  if (completed) next = { ...next, solved: [...next.solved, trackId] };
   const won = next.solved.length === def.tracks.length;
   next = {
     ...next,
@@ -322,7 +299,6 @@ export function spliceJoin(
         marks: ['correct'],
         solved: completed,
         atMs,
-        ...(movedHome ? { era: true } : {}),
         ...(completed ? { trackId } : {}),
       },
     ],
@@ -333,7 +309,6 @@ export function spliceJoin(
     outcome: {
       kind: 'fused',
       ...(completed ? { completed: trackId } : {}),
-      movedHome,
       won,
       lost: false,
     },
@@ -347,13 +322,27 @@ function allLinks(def: PuzzleDef): string[] {
   );
 }
 
-// End the game with every song shown in its own row, in order.
+// End the game with every song shown whole: songs already found stay on
+// their rows, the rest fill the remaining rows oldest first.
 export function revealAll(
   state: GameState,
   def: PuzzleDef,
   status: Status = 'lost'
 ): GameState {
-  const order = def.tracks.flatMap((t) => t.pieces.map((p) => p.id));
+  const cpt = def.clipsPerTrack;
+  const rows: (string[] | null)[] = def.tracks.map(() => null);
+  const placed = new Set<string>();
+  chunkTracks(state.order, cpt).forEach((row, r) => {
+    const track = def.tracks.find((t) => t.pieces.some((p) => p.id === row[0]));
+    if (track && state.solved.includes(track.id) && r < rows.length) {
+      rows[r] = track.pieces.map((p) => p.id);
+      placed.add(track.id);
+    }
+  });
+  const rest = def.tracks.filter((t) => !placed.has(t.id));
+  const order = rows.flatMap(
+    (row) => row ?? rest.shift()!.pieces.map((p) => p.id)
+  );
   return { ...state, order, links: allLinks(def), status };
 }
 
@@ -395,8 +384,15 @@ export function isValidState(state: unknown, def: PuzzleDef): boolean {
   if (s.order.length !== ids.length) return false;
   const want = new Set(ids);
   if (!s.order.every((id) => want.delete(id)) || want.size) return false;
-  const trackIds = new Set(def.tracks.map((t) => t.id));
-  return s.solved.every((id) => trackIds.has(id));
+  // A found song's clips fill one row, in order.
+  const cpt = def.clipsPerTrack;
+  return s.solved.every((id) => {
+    const track = def.tracks.find((t) => t.id === id);
+    if (!track) return false;
+    const at = s.order!.indexOf(track.pieces[0].id);
+    if (at < 0 || at % cpt !== 0) return false;
+    return track.pieces.every((p, k) => s.order![at + k] === p.id);
+  });
 }
 
 // Record a name-that-tune answer for a locked song. One try per song.
@@ -529,7 +525,7 @@ export function encodeGhost(state: GameState, puzzle: number): string {
     .map(
       (a) =>
         a.marks.map((m) => MARK_DIGIT[m]).join('') +
-        (a.solved ? (a.era ? 'e' : 's') : 'x') +
+        (a.solved ? 's' : 'x') +
         ds36(a.atMs ?? 0)
     )
     .join('_');
@@ -569,10 +565,11 @@ export function decodeGhost(code: string | null | undefined): Ghost | null {
     if (!match) return null;
     const atMs = parseInt(match[3], 36) * 100;
     if (!Number.isFinite(atMs) || atMs > 24 * 3600 * 1000) return null;
+    // 'e' marked a song finished on the wrong year's row, back when rows
+    // had years; it still counts as a finished song.
     attempts.push({
       marks: [...match[1]].map((d) => DIGIT_MARK[d]),
       solved: match[2] !== 'x',
-      ...(match[2] === 'e' ? { era: true } : {}),
       atMs,
     });
   }

@@ -19,8 +19,7 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
     <Modal title="How to play" onClose={onClose} className="howto">
       <p className="howto-lede">
         Three mystery songs were cut into clips and shuffled across the desk.
-        Each channel is one song, its tape shows the year it came out. Splice
-        every song back together, join by join.
+        Splice every song back together, join by join, on any channel you like.
       </p>
       <ol className="howto-steps">
         <li>
@@ -61,8 +60,8 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
           <div>
             <strong>Sounds right? Press SPLICE.</strong> A true join tapes the
             clips together; a wrong one lights a PEAK lamp. Light them all and
-            the tape jams. Four clips spliced is a whole song: it locks onto its
-            year (the year is a hint, not a test). Three clips are song endings:
+            the tape jams. Four clips spliced is a whole song: its title is
+            written onto the channel’s tape. Three clips are song endings:
             nothing follows them.
           </div>
         </li>
@@ -71,9 +70,9 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
         <summary>More rules</summary>
         <ul>
           <li>
-            The year and genre on each tape help you group clips. Finish a song
-            on the wrong year and it slides home for free. Tap two year tapes to
-            swap those channels.
+            The console lists the year and genre of each song in the mix: a hint
+            for grouping clips by ear, not a test. Any song can be finished on
+            any channel.
           </li>
           <li>
             🎵 Name each song you finish for a bonus. Share your mix and friends

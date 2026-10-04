@@ -1,10 +1,9 @@
 # Spliced
 
 A **daily music puzzle** played on an 80s analog mixing console. Each day, three
-mystery songs are cut into clips and shuffled across the desk. Every channel
-belongs to one song, and its masking-tape label shows the year it came out.
-Listen, swap, and splice each song back onto its channel before the PEAK lamps
-all light up. Name each song for a bonus 🎵, then send your run to a friend to
+mystery songs are cut into clips and shuffled across the desk. Listen, swap,
+and splice each song back together on any channel before the PEAK lamps all
+light up. Name each song for a bonus 🎵, then send your run to a friend to
 race your ghost.
 
 Everyone gets the **same puzzle and the byte-identical audio each day** (it
@@ -28,7 +27,8 @@ flips at UTC midnight), so times and scores are shareable.
 1. **Tap a clip to hear it.** That also _cues_ it (with anything it's
    already spliced to); every spot the run can land on then shows a ⇄
    button: tap one to swap. (Or press-and-drag a lone clip onto another.)
-   Tap two year tapes to swap whole channels.
+   The console lists each song's year and genre as a hint for grouping clips
+   by ear.
 2. **Turn the knob between two clips to hear their join.** Clips were cut
    back-to-back, so true neighbours flow seamlessly. Press **PLAY** to hear a
    whole channel. Listening is always free.
@@ -38,11 +38,10 @@ flips at UTC midnight), so times and scores are shareable.
    per-slot marks to deduce from: the only way to find the nine true joins
    among 132 possible ones is to listen (three clips are song endings, and
    nothing follows them).
-4. Splice all four clips of a song and it **locks onto its year**: the title
-   is written onto the tape and the song plays in full. If it was sitting on
-   the wrong year, it slides home for free (the year is a hint, not the
-   test). Pick its title from four same-genre, same-era choices to **name
-   that tune** (🎵 bonus, no penalty).
+4. Splice all four clips of a song and its channel **locks**: the title is
+   written onto the tape and the song plays in full. Any song can be finished
+   on any channel. Pick its title from four same-genre, same-era choices to
+   **name that tune** (🎵 bonus, no penalty).
 5. Finish to get your score: **mistakes**, with time and songs named as the
    tie-breaks, and a Wordle-style share grid: one line of splices per song
    (🟩 a true join, ⬛ a wrong one, a 🎵 if you named it; a loss shows the
