@@ -3,6 +3,7 @@ import {
   getResult,
   saveResult,
   computeStats,
+  streakEndingAt,
   formatCountdown,
   formatDuration,
   msUntilNextPuzzle,
@@ -57,6 +58,10 @@ describe('saveResult / getResult', () => {
   });
 });
 
+// The raw result map, as streakEndingAt reads it.
+const readResults = () =>
+  JSON.parse(localStorage.getItem('spliced:daily') || '{}');
+
 describe('computeStats', () => {
   it('counts plays, wins, win %, and perfect (0-mistake) solves', () => {
     saveResult(1, { solved: true, mistakes: 0 });
@@ -74,8 +79,24 @@ describe('computeStats', () => {
     saveResult(7, { solved: false, mistakes: 4 });
     // A loss can't overwrite the solve, so 7 stays solved...
     expect(computeStats(7).currentStreak).toBe(3);
-    // ...but a brand-new unsolved latest day breaks the active streak.
-    expect(computeStats(8).currentStreak).toBe(0);
+    // ...and a day not played yet doesn't break it either.
+    expect(computeStats(8).currentStreak).toBe(3);
+    // Nor does one missed day: the streak still stands the morning after.
+    expect(computeStats(9).currentStreak).toBe(3);
+    // A lost day does.
+    saveResult(8, { solved: false, mistakes: 4 });
+    expect(computeStats(9).currentStreak).toBe(0);
+  });
+
+  it('forgives one missed day a week', () => {
+    [5, 6, 7, 9].forEach((n) => saveResult(n, { solved: true }));
+    expect(streakEndingAt(readResults(), 9)).toBe(4);
+    // A second miss inside seven days ends it.
+    [12, 14].forEach((n) => saveResult(n, { solved: true }));
+    expect(streakEndingAt(readResults(), 14)).toBe(2);
+    // Archive plays don't count for or against it.
+    saveResult(13, { solved: true, late: true });
+    expect(streakEndingAt(readResults(), 14)).toBe(2);
   });
 
   it('finds the longest run of consecutive solved days', () => {
@@ -84,6 +105,9 @@ describe('computeStats', () => {
     saveResult(4, { solved: true });
     saveResult(5, { solved: true });
     saveResult(6, { solved: true });
+    // Day 3 is the week's one allowed miss, so it's one run of five.
+    expect(computeStats(6).maxStreak).toBe(5);
+    saveResult(3, { solved: false });
     expect(computeStats(6).maxStreak).toBe(3);
   });
 
@@ -97,6 +121,8 @@ describe('computeStats', () => {
       maxStreak: 0,
       distribution: [0, 0, 0, 0],
       losses: 0,
+      songsFound: 0,
+      hardWins: 0,
     });
   });
 
@@ -129,6 +155,15 @@ describe('progress', () => {
     expect(getProgress(3)).toMatchObject({ mistakes: 3 });
     expect(getProgress(2)).toBeNull();
   });
+
+  it('keeps an archive day’s progress even with a week of newer games', () => {
+    for (let n = 270; n < 277; n++) saveProgress(n, state);
+    saveProgress(10, { ...state, mistakes: 3 });
+    expect(getProgress(10)).toMatchObject({ mistakes: 3 });
+    // The six newest others survive; the oldest of the week drops out.
+    expect(getProgress(276)).not.toBeNull();
+    expect(getProgress(270)).toBeNull();
+  });
 });
 
 describe('prefs', () => {
@@ -140,6 +175,7 @@ describe('prefs', () => {
       seenHelp: true,
       volume: 0.4,
       muted: false,
+      hard: false,
     });
   });
 });
@@ -175,7 +211,9 @@ describe('liveStreak', () => {
     expect(liveStreak(6)).toBe(2);
     saveResult(6, { solved: true });
     expect(liveStreak(6)).toBe(3);
-    expect(liveStreak(8)).toBe(0);
+    // One missed day (7) is forgiven; two in a row are not.
+    expect(liveStreak(8)).toBe(3);
+    expect(liveStreak(9)).toBe(0);
   });
 });
 

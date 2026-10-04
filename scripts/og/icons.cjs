@@ -1,5 +1,5 @@
 // Renders public/favicon.svg to the PNG sizes browsers and home screens want.
-// Run: npm run build:icons (needs Playwright + Chromium available).
+// Run: node scripts/og/icons.cjs (needs Playwright + Chromium available).
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');

@@ -1,16 +1,11 @@
 // The mixer board: sort shuffled clips into rows, one song per row, in order.
 // All rules live in the pure engine (../game/engine.ts); this component turns
-// them into something that feels good — listening tools (clips, seams, whole
-// rows), swaps, marks, and the "splice" when a song locks in.
+// them into something that feels good: listening tools (clips, seams, whole
+// rows), swaps, marks, and the "splice" when a song locks in. The clock,
+// reveals, audio and ghost commentary each live in their own hook under
+// ./puzzle/.
 
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import {
   DndContext,
@@ -23,22 +18,21 @@ import {
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSwappingStrategy } from '@dnd-kit/sortable';
 
-import PieceTile from './PieceTile.jsx';
 import SongCard from './SongCard.jsx';
-import type { Choice } from './SongCard.jsx';
-import { fetchAnswer, fetchChoices } from '../game/reveal.js';
-import VuNeedle from './VuNeedle.jsx';
-import SevenSeg from './SevenSeg.jsx';
-import { Player } from '../audio/player.js';
-import { getAudioContext } from '../audio/slicer.js';
-import { getSfx } from '../audio/sfx.js';
-import type { SfxKind } from '../audio/sfx.js';
-import { prefersReducedMotion, setLevelSource } from '../audio/meter.js';
+import ChannelStrip from './puzzle/ChannelStrip.jsx';
+import { Display } from './puzzle/Display.jsx';
+import { useGameClock } from './puzzle/useGameClock.js';
+import { useReveals } from './puzzle/useReveals.js';
+import { useBoardAudio } from './puzzle/useBoardAudio.js';
+import { useGhostTicker } from './puzzle/useGhostTicker.js';
+import { prefersReducedMotion } from '../audio/meter.js';
 import { shufflePieces } from '../audio/puzzle.js';
 import { formatDuration } from '../daily/storage.js';
+import { puzzleDef } from '../game/def.js';
 import {
   clipKey,
   hasHeard,
+  hasHeardClip,
   hear,
   rowPlayKey,
   seamKey,
@@ -47,15 +41,21 @@ import {
   isRowLocked,
   swapRows,
   moveClip,
+  canMove,
+  chainOf,
+  isBadJoin,
+  isLinked,
   nameTrack,
   newGame,
   rowsOf,
-  submitRow,
-  triedMarks,
-  wrongHint,
+  spliceJoin,
+  takesOf,
 } from '../game/engine.js';
-import type { GameState, Ghost, Mark, PuzzleDef } from '../game/engine.js';
-import type { Piece, Song, Track } from '../types.js';
+import type { GameState, Ghost } from '../game/engine.js';
+import type { SeamState } from './puzzle/ChannelStrip.jsx';
+import type { Choice, Piece, Song, Track } from '../types.js';
+
+export { puzzleDef } from '../game/def.js';
 
 // Song-card label stripes.
 export const SONG_HUES = [
@@ -67,21 +67,6 @@ export const SONG_HUES = [
   '#b24dff',
 ];
 
-// What /api/reveal has handed over for a row so far.
-interface Reveal {
-  choices?: Choice[];
-  answer?: Song;
-  // No quiz for this row (none offered, or the choices couldn't load).
-  noQuiz?: boolean;
-}
-
-type Playing =
-  | { kind: 'clip'; id: string }
-  | { kind: 'seam'; row: number; seam: number }
-  | { kind: 'row'; row: number; id: string | null }
-  | { kind: 'song'; trackId: string; id: string | null }
-  | null;
-
 const vibrate = (pattern: number | number[]) => {
   try {
     navigator.vibrate?.(pattern);
@@ -90,9 +75,8 @@ const vibrate = (pattern: number | number[]) => {
   }
 };
 
-const reducedMotion = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+// Things the page around the board reacts to (the logo's fader cap).
+export type BoardEvent = 'new' | 'win';
 
 export interface PuzzleProps {
   tracks: Track[];
@@ -106,33 +90,31 @@ export interface PuzzleProps {
   volume?: number;
   // Pause the clock (e.g. while a dialog is open).
   paused?: boolean;
+  // Hard mode: recorded with the game (the mistake cap is in maxGuesses).
+  hard?: boolean;
   // A friend's run to race (daily only).
   ghost?: { ghost: Ghost; name: string } | null;
+  // Take keyboard focus on mount (the control that opened this board is gone).
+  focusOnMount?: boolean;
+  // Bump to replay the win mixtape (the results panel's encore key).
+  encore?: number;
   onChange?: (state: GameState) => void;
-  // Fires once, when a live game ends (not when restoring a finished one).
+  // Fires once, the moment a live game ends (not when restoring a finished
+  // one): save the result here.
   onFinish?: (state: GameState) => void;
+  // Fires once the ending has played out (celebration, last quiz): show the
+  // results now. Also fires on mount for an already-finished game.
+  onSettled?: (state: GameState) => void;
   // Answers revealed so far (track id -> song), for the crate.
   onAnswers?: (answers: Record<string, Song>) => void;
+  onBoardEvent?: (event: BoardEvent) => void;
 }
 
-export function puzzleDef(
-  tracks: Track[],
-  clipsPerTrack: number,
-  maxGuesses: number
-): PuzzleDef {
-  return {
-    clipsPerTrack,
-    maxGuesses,
-    tracks: tracks.map((t) => ({ id: t.id, pieces: t.pieces, clue: t.clue })),
-  };
-}
-
-// Set by a control that removes itself (Replay, New mix, a mode switch) so
-// the next board takes keyboard focus instead of leaving it on <body>.
-let focusNextBoard = false;
-export function requestBoardFocus(): void {
-  focusNextBoard = true;
-}
+const COACH = [
+  'Tap any clip to hear it.',
+  'Turn a knob to hear the join between two clips. Sounds right? SPLICE it.',
+  'Tap ⇄ on another clip to move a clip next to its neighbour.',
+];
 
 export default function Puzzle({
   tracks,
@@ -144,29 +126,36 @@ export default function Puzzle({
   sfx = true,
   volume = 0.85,
   paused = false,
+  hard = false,
   ghost,
+  focusOnMount = false,
+  encore = 0,
   onChange,
   onFinish,
+  onSettled,
   onAnswers,
+  onBoardEvent,
 }: PuzzleProps) {
   const def = useMemo(
     () => puzzleDef(tracks, clipsPerTrack, maxGuesses),
     [tracks, clipsPerTrack, maxGuesses]
   );
   const [state, setState] = useState<GameState>(
-    () => initialState ?? newGame(def, seed)
+    () => initialState ?? { ...newGame(def, seed), ...(hard ? { hard } : {}) }
   );
+  const over = state.status !== 'playing';
+  const fresh = !initialState;
 
   const pieceById = useMemo(() => {
     const map = new Map<string, Piece>();
     tracks.forEach((t) => t.pieces.forEach((p) => map.set(p.id, p)));
     return map;
   }, [tracks]);
+  const pieceIds = useMemo(() => [...pieceById.keys()], [pieceById]);
   const trackIndex = useMemo(
     () => new Map(tracks.map((t, i) => [t.id, i])),
     [tracks]
   );
-  const trackOf = (trackId: string) => tracks[trackIndex.get(trackId) ?? -1];
 
   // Letters, shuffled by seed so a clip's letter says nothing about its song
   // or slot. The letter is the clip's identity as it moves around.
@@ -179,182 +168,108 @@ export default function Puzzle({
     );
     return map;
   }, [tracks, seed]);
-  const letterOf = (id: string) => letters.get(id) ?? '?';
-
-  // ---- clock: active time only (pauses on blur, hidden tab, dialogs) -------
-  const accumulated = useRef(initialState?.elapsedMs ?? 0);
-  const runningSince = useRef<number | null>(null);
-  const started = useRef(accumulated.current > 0);
-  const over = state.status !== 'playing';
-  // Set at the winning lock, before the splice animation commits the win, so
-  // a re-render in between can't restart the clock.
-  const finishing = useRef(false);
-  const blockers = useRef({ over, paused, hidden: false });
-  blockers.current.over = over || finishing.current;
-  blockers.current.paused = paused;
-
-  const elapsedNow = useCallback(
-    () =>
-      Math.round(
-        accumulated.current +
-          (runningSince.current != null ? Date.now() - runningSince.current : 0)
-      ),
-    []
+  const letterOf = useCallback(
+    (id: string) => letters.get(id) ?? '?',
+    [letters]
   );
-  const bank = useCallback(() => {
-    if (runningSince.current != null) {
-      accumulated.current += Date.now() - runningSince.current;
-      runningSince.current = null;
-    }
-  }, []);
-  const resume = useCallback(() => {
-    const b = blockers.current;
-    if (started.current && !b.over && !b.paused && !b.hidden) {
-      if (runningSince.current == null) runningSince.current = Date.now();
-    }
-  }, []);
-  const beginTiming = useCallback(() => {
-    started.current = true;
-    resume();
-  }, [resume]);
 
-  useEffect(() => {
-    if (paused || over) bank();
-    else resume();
-  }, [paused, over, bank, resume]);
-
-  // ---- persistence ---------------------------------------------------------
+  // ---- persistence + clock -------------------------------------------------
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const stateRef = useRef(state);
   stateRef.current = state;
+  const clockRef = useRef<{ elapsedNow: () => number } | null>(null);
   const persist = useCallback(() => {
-    onChangeRef.current?.({ ...stateRef.current, elapsedMs: elapsedNow() });
-  }, [elapsedNow]);
+    onChangeRef.current?.({
+      ...stateRef.current,
+      elapsedMs: clockRef.current?.elapsedNow() ?? stateRef.current.elapsedMs,
+    });
+  }, []);
+  // ---- reveals ------------------------------------------------------------------
+  const { reveals, hasQuiz, revealAnswer, retry } = useReveals(
+    tracks,
+    state,
+    clipsPerTrack,
+    onAnswers
+  );
+  // A name-that-tune quiz is open (the clock pauses: naming isn't timed).
+  const quizPending = state.solved.some(
+    (id) => state.named?.[id] == null && hasQuiz(id)
+  );
+
+  const clock = useGameClock({
+    initialMs: initialState?.elapsedMs ?? 0,
+    over,
+    paused: paused || quizPending,
+    onHide: persist,
+  });
+  clockRef.current = clock;
+  const { elapsedNow, beginTiming } = clock;
   useEffect(() => {
     persist();
   }, [state, persist]);
 
-  useEffect(() => {
-    const onHide = () => {
-      blockers.current.hidden = true;
-      bank();
-      persist();
-    };
-    const onShow = () => {
-      blockers.current.hidden = false;
-      resume();
-    };
-    const onVisibility = () => (document.hidden ? onHide() : onShow());
-    window.addEventListener('blur', onHide);
-    window.addEventListener('focus', onShow);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('blur', onHide);
-      window.removeEventListener('focus', onShow);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [bank, resume, persist]);
+  // ---- audio ---------------------------------------------------------------
+  const {
+    player,
+    cue,
+    playing,
+    setPlaying,
+    stopAll,
+    playPiece,
+    progressGetters,
+  } = useBoardAudio({ sfx, volume, pieceIds });
 
-  // ---- reveals: quiz choices and answers arrive only when earned ----------
-  // A row's choices are fetched once it's spliced; its title once the quiz is
-  // answered (or skipped), or when the game ends.
-  const [reveals, setReveals] = useState<Record<string, Reveal>>(() =>
-    Object.fromEntries(
-      tracks
-        .filter((t) => t.answer || t.choices)
-        .map((t) => [
-          t.id,
-          {
-            answer: t.answer,
-            choices: t.choices,
-            noQuiz: !t.choices?.length,
-          },
-        ])
-    )
-  );
-  // Failed lookups retry a couple of times (a few seconds apart) before a
-  // row gives up its quiz or stays a "Mystery song" until the next visit.
-  const failures = useRef<Record<string, number>>({});
-  const [retryTick, setRetryTick] = useState(0);
-  const pending = useRef(new Set<string>());
-  useEffect(() => {
-    const merge = (id: string, patch: Reveal) =>
-      setReveals((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
-    const failed = (key: string, giveUp?: () => void) => {
-      const n = (failures.current[key] = (failures.current[key] ?? 0) + 1);
-      if (n < 3) setTimeout(() => setRetryTick((t) => t + 1), 3000);
-      else giveUp?.();
-    };
-    tracks.forEach((t) => {
-      if (!t.ref) return;
-      const r = reveals[t.id] ?? {};
-      const solved = state.solved.includes(t.id);
-      const answered = state.named?.[t.id] != null;
-      const once = <T,>(key: string, get: () => Promise<T>) => {
-        if (pending.current.has(key)) return null;
-        pending.current.add(key);
-        return get().finally(() => pending.current.delete(key));
-      };
-      if (solved && !answered && !r.choices && !r.noQuiz) {
-        once(`c:${t.id}`, () => fetchChoices(t.ref!))?.then(
-          (choices) =>
-            merge(t.id, choices.length ? { choices } : { noQuiz: true }),
-          () => failed(`c:${t.id}`, () => merge(t.id, { noQuiz: true }))
-        );
-      }
-      // A solved row's title waits for its quiz (even after the game ends),
-      // so it can't be read in the crate or network panel before a pick.
-      const due = solved ? answered || r.noQuiz : over;
-      if (!r.answer && due && (failures.current[`a:${t.id}`] ?? 0) < 3) {
-        once(`a:${t.id}`, () => fetchAnswer(t.ref!))?.then(
-          (answer) => merge(t.id, { answer }),
-          () => failed(`a:${t.id}`)
-        );
-      }
-    });
-  }, [tracks, reveals, state.solved, state.named, over, retryTick]);
-  const onAnswersRef = useRef(onAnswers);
-  onAnswersRef.current = onAnswers;
-  useEffect(() => {
-    const answers: Record<string, Song> = {};
-    Object.entries(reveals).forEach(([id, r]) => {
-      if (r.answer) answers[id] = r.answer;
-    });
-    onAnswersRef.current?.(answers);
-  }, [reveals]);
-  const hasQuiz = (trackId: string) => {
-    const t = trackOf(trackId);
-    return t?.ref ? !reveals[trackId]?.noQuiz : Boolean(t?.choices?.length);
+  // Record a new listen (replays of anything heard are free).
+  const listen = (key: string) => {
+    beginTiming();
+    setState((s) => hear(s, key));
   };
 
-  // ---- audio ---------------------------------------------------------------
-  const playerRef = useRef<Player | null>(null);
-  if (!playerRef.current) playerRef.current = new Player(getAudioContext());
-  const player = playerRef.current;
-  const fx = getSfx(getAudioContext());
-  const sfxOn = useRef(sfx);
-  sfxOn.current = sfx;
-  const cue = useCallback(
-    (kind: SfxKind) => {
-      if (sfxOn.current) fx.play(kind);
-    },
-    [fx]
-  );
+  // ---- coach line, feedback, and moment-to-moment animation ----------------
+  const [coach, setCoach] = useState(fresh ? 0 : 3);
+  const [message, setMessage] = useState<string | null>(() => {
+    if (ghost && fresh) {
+      const g = ghost.ghost;
+      return `Racing ${ghost.name}’s ghost: ${g.won ? `${g.mistakes} ${g.mistakes === 1 ? 'mistake' : 'mistakes'} in ${formatDuration(g.elapsedMs)}` : 'they lost'}. Fewer mistakes wins, then faster.`;
+    }
+    if (initialState && initialState.status === 'playing') {
+      const left = tracks.length - initialState.solved.length;
+      return `Welcome back. ${left} ${left === 1 ? 'song' : 'songs'} to go.`;
+    }
+    return null;
+  });
+  const [cued, setCued] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string[]>([]);
+  const [splicing, setSplicing] = useState<number | null>(null);
+  const [shake, setShake] = useState<{ row: number; n: number } | null>(null);
+  const [freshCard, setFreshCard] = useState<string | null>(null);
+  const [ledPop, setLedPop] = useState<number | null>(null);
+  // A row whose year label was tapped, waiting for a second label to swap.
+  const [rowCue, setRowCue] = useState<number | null>(null);
+  const [chase, setChase] = useState(false);
+  const justDragged = useRef(0);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
-    player.setVolume(volume);
-    fx.setVolume(volume);
-  }, [player, fx, volume]);
-  // This board's output drives every meter on screen.
-  useEffect(() => {
-    setLevelSource(
-      () => player.getLevel(),
-      () => player.isBusy()
-    );
-    return () => setLevelSource(null);
-  }, [player]);
+    const list = timers.current;
+    return () => list.forEach(clearTimeout);
+  }, []);
+  const later = (fn: () => void, ms: number) =>
+    timers.current.push(setTimeout(fn, ms));
+  // A passing note on the display (a swap, a quiz result) that gives way to
+  // the coach line again after a moment.
+  const note = (text: string, ms = 1600) => {
+    setMessage(text);
+    later(() => setMessage((m) => (m === text ? null : m)), ms);
+  };
+  // Own feedback (as opposed to ghost commentary) stamps its time.
+  const ownMessageAt = useRef(0);
+  const tell = (text: string | null) => {
+    ownMessageAt.current = Date.now();
+    setMessage(text);
+  };
 
-  // Power-on sweep, once per session; a lamp chase when you win.
+  // Power-on sweep, once per session.
   const [booting, setBooting] = useState(() => {
     try {
       if (sessionStorage.getItem('spliced:booted')) return false;
@@ -373,61 +288,16 @@ export default function Puzzle({
     const id = setTimeout(() => setBooting(false), 1300);
     return () => clearTimeout(id);
   }, [booting]);
+
   // A fresh board: let the logo's fader cap drop back down.
+  const onBoardEventRef = useRef(onBoardEvent);
+  onBoardEventRef.current = onBoardEvent;
   useEffect(() => {
     if (!initialState || initialState.status === 'playing') {
-      window.dispatchEvent(new Event('spliced:new'));
+      onBoardEventRef.current?.('new');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [chase, setChase] = useState(false);
-
-  const [playing, setPlaying] = useState<Playing>(null);
-  useEffect(() => {
-    // Nothing else will clear "playing" if the context can't start or an
-    // interruption ends the take.
-    player.onHalt = () => setPlaying(null);
-    return () => {
-      player.onHalt = null;
-      player.dispose();
-    };
-  }, [player]);
-  const progressGetters = useMemo(() => {
-    const map = new Map<string, () => number | null>();
-    pieceById.forEach((_, id) => map.set(id, () => player.getClipProgress(id)));
-    return map;
-  }, [pieceById, player]);
-
-  function stopAll(tapeStop = false) {
-    player.stop(tapeStop);
-    setPlaying(null);
-  }
-
-  // Record a new listening "try" (replays of anything heard are free).
-  const listen = (key: string) => {
-    beginTiming();
-    setState((s) => hear(s, key));
-  };
-
-  // ---- coach line, feedback, and moment-to-moment animation ----------------
-  const fresh = !initialState;
-  const [coach, setCoach] = useState(fresh ? 0 : 3);
-  const [message, setMessage] = useState<string | null>(null);
-  const [cued, setCued] = useState<string | null>(null);
-  const [flash, setFlash] = useState<string[]>([]);
-  const [splicing, setSplicing] = useState<number | null>(null);
-  const [shake, setShake] = useState<{ row: number; n: number } | null>(null);
-  const [freshCard, setFreshCard] = useState<string | null>(null);
-  const [ledPop, setLedPop] = useState<number | null>(null);
-  // The row you're working on (last changed or played): its Lock in lights up.
-  const [activeRow, setActiveRow] = useState<number | null>(null);
-  // A row whose year label was tapped, waiting for a second label to swap.
-  const [rowCue, setRowCue] = useState<number | null>(null);
-  const justDragged = useRef(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  const later = (fn: () => void, ms: number) =>
-    timers.current.push(setTimeout(fn, ms));
 
   // Esc cancels a cued clip.
   useEffect(() => {
@@ -439,16 +309,16 @@ export default function Puzzle({
     return () => document.removeEventListener('keydown', onKey);
   }, [cued]);
 
+  // ---- focus ----------------------------------------------------------------
   const boardRef = useRef<HTMLOListElement | null>(null);
   useEffect(() => {
-    if (!focusNextBoard) return;
-    focusNextBoard = false;
+    if (!focusOnMount) return;
     const active = document.activeElement;
     if (active && active !== document.body && active.isConnected) return;
     boardRef.current
       ?.querySelector<HTMLElement>('.tile-face')
       ?.focus({ preventScroll: true });
-  }, []);
+  }, [focusOnMount]);
   // When a strip turns into a song card (or a quiz closes), the focused
   // button disappears: move focus to that song's card instead of <body>.
   const focusSong = useRef<string | null>(null);
@@ -465,42 +335,18 @@ export default function Puzzle({
     target?.focus();
   });
 
-  // ---- ghost race ticker -----------------------------------------------------
-  // Start past any ghost events that already happened (e.g. after a reload).
-  const ghostIdx = useRef(
-    (() => {
-      if (!ghost) return 0;
-      const atts = ghost.ghost.attempts;
-      const i = atts.findIndex(
-        (a) => (a.atMs ?? 0) > (initialState?.elapsedMs ?? 0)
-      );
-      return i < 0 ? atts.length : i;
-    })()
-  );
-  useEffect(() => {
-    if (!ghost || over) return undefined;
-    const g = ghost.ghost;
-    const id = setInterval(() => {
-      const now = elapsedNow();
-      const next = g.attempts[ghostIdx.current];
-      if (next && (next.atMs ?? 0) <= now) {
-        ghostIdx.current++;
-        setMessage(
-          next.solved
-            ? `👻 ${ghost.name} locked a song.`
-            : next.era
-              ? `👻 ${ghost.name} locked a song in the wrong year.`
-              : `👻 ${ghost.name} slipped up!`
-        );
-      } else if (!next && g.won && now > g.elapsedMs && ghostIdx.current >= 0) {
-        ghostIdx.current = -1;
-        setMessage(
-          `👻 ${ghost.name} finished in ${formatDuration(g.elapsedMs)}. Keep going!`
-        );
-      }
-    }, 400);
-    return () => clearInterval(id);
-  }, [ghost, over, elapsedNow, def.tracks.length]);
+  // ---- ghost race ticker ------------------------------------------------------
+  // Ghost commentary never talks over your own feedback.
+  useGhostTicker({
+    ghost,
+    over,
+    startMs: initialState?.elapsedMs ?? 0,
+    elapsedNow,
+    say: (text) => {
+      if (Date.now() - ownMessageAt.current < 2500) return;
+      note(text, 2500);
+    },
+  });
 
   // ---- board derivations -----------------------------------------------------
   const rows = rowsOf(state, def);
@@ -515,21 +361,39 @@ export default function Puzzle({
   const rowOfId = (id: string) =>
     Math.floor(state.order.indexOf(id) / clipsPerTrack);
   const labelFor = (r: number) => clueLabel(clueFor(state, def, r), r);
+  // A join counts as heard on its own or inside a channel play.
+  const heardJoin = (a: string, b: string) =>
+    hasHeard(state, seamKey(a, b)) ||
+    Boolean(
+      state.heard?.some((k) => k.startsWith('r:') && k.includes(`${a},${b}`))
+    );
+  const seamState = (a: string, b: string): SeamState =>
+    isLinked(state, a, b)
+      ? 'linked'
+      : isBadJoin(state, a, b)
+        ? 'bad'
+        : heardJoin(a, b)
+          ? 'heard'
+          : 'open';
 
   // ---- interactions -----------------------------------------------------------
   function tapClip(piece: Piece, fraction: number | null) {
     if (Date.now() - justDragged.current < 250) return;
-    if (coach === 0) setCoach(1);
+    if (coach === 0) {
+      setCoach(1);
+      setMessage(null);
+    }
     setCued(over ? null : piece.id);
     if (fraction == null) listen(clipKey(piece.id));
     else beginTiming();
-    setPlaying({ kind: 'clip', id: piece.id });
-    player.playPiece(
-      piece,
-      () =>
-        setPlaying((p) => (p?.kind === 'clip' && p.id === piece.id ? null : p)),
-      fraction ?? 0
-    );
+    playPiece(piece, fraction ?? 0);
+  }
+
+  function afterMove() {
+    beginTiming();
+    cue('swap');
+    if (coach <= 1) setCoach(2);
+    if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
   }
 
   function swapWith(targetId: string) {
@@ -537,21 +401,35 @@ export default function Puzzle({
     const next = moveClip(state, def, cued, targetId);
     setCued(null);
     if (next === state) return;
-    beginTiming();
-    cue('swap');
-    if (coach <= 1) setCoach(2);
-    setMessage(null);
-    if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
-    setActiveRow(rowOfId(targetId));
-    setFlash([cued, targetId]);
+    afterMove();
+    // Say what actually moved: a taped run travels as one, and a move
+    // across rows trades it for an equal-length run on the other side.
+    const moved = chainOf(state, def, cued);
+    // The run that took the moved run's place (a cross-row trade may nudge
+    // the target so an equal-length block fits), read off the result.
+    const fromStart = state.order.indexOf(moved[0]);
+    const target = next.order.slice(fromStart, fromStart + moved.length);
+    const rowOf = (id: string) => rows.findIndex((r) => r.includes(id));
+    const sameRow = rowOf(cued) === rowOf(targetId);
+    const run = (ids: string[]) => ids.map(letterOf).join('+');
+    setFlash(sameRow ? [...moved, targetId] : [...moved, ...target]);
     later(() => setFlash([]), 260);
-    setMessage(`Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`);
+    note(
+      sameRow
+        ? moved.length > 1
+          ? `Moved ${run(moved)} next to ${letterOf(targetId)}.`
+          : `Swapped ${letterOf(cued)} and ${letterOf(targetId)}.`
+        : `Swapped ${run(moved)} with ${run(target)}.`
+    );
     setState(next);
     // Keep keyboard focus on the board: the ⇄ button that was pressed is gone.
-    const focusId = targetId;
+    focusTile(targetId);
+  }
+
+  function focusTile(id: string) {
     requestAnimationFrame(() =>
       boardRef.current
-        ?.querySelector<HTMLElement>(`[data-piece="${focusId}"] .tile-face`)
+        ?.querySelector<HTMLElement>(`[data-piece="${id}"] .tile-face`)
         ?.focus()
     );
   }
@@ -562,13 +440,9 @@ export default function Puzzle({
     if (!target || busy || active.id === target.id) return;
     const next = moveClip(state, def, String(active.id), String(target.id));
     if (next === state) return;
-    beginTiming();
-    cue('swap');
+    afterMove();
     setCued(null);
-    if (coach <= 1) setCoach(2);
     setMessage(null);
-    if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
-    setActiveRow(rowOfId(String(target.id)));
     setState(next);
   }
 
@@ -592,7 +466,6 @@ export default function Puzzle({
     beginTiming();
     cue('swap');
     if (playing?.kind === 'row' || playing?.kind === 'seam') stopAll();
-    setActiveRow(row);
     setState(next);
   }
 
@@ -604,10 +477,13 @@ export default function Puzzle({
     ) {
       return stopAll(true);
     }
+    const a = pieceById.get(rows[row][seam]);
+    const b = pieceById.get(rows[row][seam + 1]);
+    if (!a || !b) return;
     cue('detent');
-    const a = pieceById.get(rows[row][seam])!;
-    const b = pieceById.get(rows[row][seam + 1])!;
     listen(seamKey(a.id, b.id));
+    if (coach === 1) setCoach(2);
+    note(`Hearing ${letterOf(a.id)} into ${letterOf(b.id)}. Does it carry on?`);
     setPlaying({ kind: 'seam', row, seam });
     player.playSeam(a, b, () =>
       setPlaying((p) =>
@@ -620,8 +496,7 @@ export default function Puzzle({
     cue('click');
     if (playing?.kind === 'row' && playing.row === row) return stopAll(true);
     listen(rowPlayKey(rows[row]));
-    setActiveRow(row);
-    const seq = rows[row].map((id) => pieceById.get(id)!);
+    const seq = rows[row].flatMap((id) => pieceById.get(id) ?? []);
     setPlaying({ kind: 'row', row, id: null });
     player.playSequence(seq, {
       onPiece: (i) => setPlaying({ kind: 'row', row, id: seq[i]?.id ?? null }),
@@ -645,7 +520,7 @@ export default function Puzzle({
         onEnd: () => setPlaying(null),
       });
     },
-    [player, tracks, trackIndex]
+    [player, tracks, trackIndex, setPlaying]
   );
 
   // The win medley: each song's middle clips, in timeline order, crossfaded.
@@ -667,14 +542,16 @@ export default function Puzzle({
         setMessage('★ MASTER MIX COMPLETE ★');
       },
     });
-  }, [player, tracks, def.tracks]);
+  }, [player, tracks, def.tracks, setPlaying]);
 
   // The results panel's PLAY MIXTAPE key asks for an encore.
+  const encoreSeen = useRef(encore);
   useEffect(() => {
-    const onEncore = () => playMixtape();
-    window.addEventListener('spliced:mixtape', onEncore);
-    return () => window.removeEventListener('spliced:mixtape', onEncore);
-  }, [playMixtape]);
+    if (encore !== encoreSeen.current) {
+      encoreSeen.current = encore;
+      playMixtape();
+    }
+  }, [encore, playMixtape]);
 
   function toggleSong(trackId: string) {
     cue('click');
@@ -684,25 +561,19 @@ export default function Puzzle({
 
   const naming = useRef(false);
   async function answerName(trackId: string, choice: Choice | null) {
-    if (naming.current) return;
-    const ref = trackOf(trackId)?.ref;
-    let answer = reveals[trackId]?.answer;
-    if (!answer && ref) {
+    // Keep the quiz mounted (and focused) while another row's completion
+    // plays out; just ignore picks until it settles.
+    if (naming.current || busy) return;
+    naming.current = true;
+    let answer: Song | null = null;
+    try {
       // The answer is only fetched now, once you've committed to a pick.
-      naming.current = true;
-      try {
-        answer = await fetchAnswer(ref);
-      } catch {
-        setMessage('Couldn’t reach the studio to check that. Try again.');
-        return;
-      } finally {
-        naming.current = false;
-      }
-      const revealed = answer;
-      setReveals((r) => ({
-        ...r,
-        [trackId]: { ...r[trackId], answer: revealed },
-      }));
+      answer = await revealAnswer(trackId);
+    } catch {
+      setMessage('Couldn’t reach the studio to check that. Try again.');
+      return;
+    } finally {
+      naming.current = false;
     }
     const correct =
       choice != null &&
@@ -721,116 +592,167 @@ export default function Puzzle({
     setState((s) => nameTrack(s, trackId, correct));
   }
 
-  function lockIn(row: number) {
-    if (busy || over) return;
-    cue('click');
-    beginTiming();
-    setCued(null);
-    const { state: next, outcome } = submitRow(
-      { ...state, elapsedMs: elapsedNow() },
-      def,
-      row
-    );
-    if (outcome.kind === 'ignored') return;
-    stopAll();
-    setCoach(3);
-
-    if (outcome.kind === 'repeat') {
-      setShake({ row, n: Date.now() });
-      setMessage('Already tried that exact mix. No mistake charged.');
-      return;
-    }
-
-    if (outcome.kind === 'solved') {
-      const trackId = outcome.trackId!;
-      cue(outcome.won ? 'win' : 'open');
-      vibrate(20);
-      if (outcome.won) {
-        // Stop the clock at the winning lock, not after the animation.
-        finishing.current = true;
-        blockers.current.over = true;
-        bank();
+  // ---- the ending -------------------------------------------------------------
+  // The result is saved the moment the game ends (onFinish). The results
+  // panel waits (onSettled) until the celebration has played and the last
+  // quiz is answered or skipped, so the win isn't celebrated off-screen.
+  const [endedAt, setEndedAt] = useState<number | null>(null);
+  const settled = useRef(false);
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
+  useEffect(() => {
+    if (settled.current || !over) return undefined;
+    // A board restored already finished: nothing to wait for.
+    if (endedAt == null) {
+      if (!fresh && initialState && initialState.status !== 'playing') {
+        settled.current = true;
+        onSettledRef.current?.(state);
       }
-      // Stage 1: light the marks and splice the tiles together in place…
-      setSplicing(row);
-      const left = def.tracks.length - next.solved.length;
-      const togo = outcome.won
-        ? ''
-        : left === 1
-          ? ' Last one!'
-          : ` ${left} to go.`;
-      setMessage(
-        hasQuiz(trackId)
-          ? `Spliced! Name that tune for a bonus 🎵.${togo}`
-          : `Spliced!${togo}`
-      );
-      later(
-        () => {
-          // …stage 2: commit, open the channel, and take a victory lap.
-          setSplicing(null);
-          setFreshCard(trackId);
-          cue('slide');
-          // Keep anything that changed during the splice (a quiz answer,
-          // a listen) instead of overwriting it with the pre-splice state.
-          // A win hands focus to the results instead.
-          if (!outcome.won) focusSong.current = trackId;
-          setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
-          if (outcome.won) celebrate(next);
-          else playSong(trackId, 0.15);
-        },
-        reducedMotion() ? 150 : 720
-      );
-      return;
+      return undefined;
     }
+    if (quizPending) return undefined;
+    const minWait = state.status === 'won' ? 1600 : 900;
+    const id = setTimeout(
+      () => {
+        settled.current = true;
+        onSettledRef.current?.(stateRef.current);
+      },
+      Math.max(0, endedAt + minWait - Date.now())
+    );
+    return () => clearTimeout(id);
+  }, [over, endedAt, quizPending, state, fresh, initialState]);
 
-    // Wrong (possibly a whole song in the wrong year's row).
-    cue(outcome.lost ? 'lose' : 'buzzer');
-    vibrate([30, 40, 30]);
-    setShake({ row, n: Date.now() });
-    setLedPop(next.mistakes);
-    later(() => setLedPop(null), 700);
-    const left = def.maxGuesses - next.mistakes;
-    const careful = left === 1 ? ' Careful, last mistake!' : '';
-    if (outcome.lost) {
-      setMessage('Tape jam: out of mistakes. Here’s the mix you were hearing.');
-    } else if (outcome.won) {
-      setMessage('Right song, wrong year, and that finishes the mix!');
-    } else if (outcome.kind === 'wrongEra') {
-      const home = def.tracks.findIndex((t) => t.id === outcome.trackId);
-      setMessage(
-        `Right song, wrong year: that’s ${labelFor(home)}. Moved it there.${careful}`
-      );
-      setFreshCard(outcome.trackId);
-      focusSong.current = outcome.trackId!;
-      playSong(outcome.trackId!, 0.4);
-    } else {
-      // The very first lock usually comes back mostly blank: teach why.
-      const firstMiss =
-        state.attempts.length === 0 && outcome.rightSong < def.clipsPerTrack;
-      setMessage(
-        `${wrongHint(outcome, def.clipsPerTrack, labelFor(row))}${
-          firstMiss ? ' Blanks belong on other channels: swap them across.' : ''
-        }${careful}`
-      );
-    }
-    setState(next);
-    if (outcome.won) {
-      finishing.current = true;
-      blockers.current.over = true;
-      bank();
-      celebrate(next);
-    } else if (outcome.lost) {
-      bank();
-      onFinish?.({ ...next, elapsedMs: elapsedNow() });
-    }
+  function endGame(next: GameState) {
+    clock.finish();
+    onFinish?.({ ...next, elapsedMs: elapsedNow() });
+    setEndedAt(Date.now());
   }
 
   function celebrate(next: GameState) {
     setChase(true);
     later(() => setChase(false), 2400);
-    window.dispatchEvent(new Event('spliced:win'));
-    onFinish?.({ ...next, elapsedMs: elapsedNow() });
+    onBoardEventRef.current?.('win');
+    endGame(next);
     later(playMixtape, 900);
+  }
+
+  // SPLICE the join at `seam` (between clips seam and seam+1) on `row`.
+  function splice(row: number, seam: number) {
+    if (busy || over) return;
+    const ids = rows[row];
+    const a = ids[seam];
+    const b = ids[seam + 1];
+    if (!a || !b) return;
+    // Hear it first: a splice is a judgement, not a guess.
+    if (seamState(a, b) === 'open') return playSeam(row, seam);
+    cue('click');
+    beginTiming();
+    setCued(null);
+    const { state: next, outcome } = spliceJoin(
+      { ...state, elapsedMs: elapsedNow() },
+      def,
+      a,
+      b
+    );
+    if (outcome.kind === 'ignored') return;
+    stopAll();
+    setCoach(3);
+    if (outcome.kind === 'repeat') {
+      setMessage(
+        `${letterOf(a)} and ${letterOf(b)} already proved not to join.`
+      );
+      return;
+    }
+
+    if (outcome.kind === 'fused') {
+      vibrate(20);
+      setFlash([a, b]);
+      later(() => setFlash([]), 420);
+      const completed = outcome.completed;
+      if (!completed) {
+        cue('slide');
+        const chain = chainOf(next, def, a);
+        const left = def.clipsPerTrack - chain.length;
+        tell(
+          `Spliced ${letterOf(a)} and ${letterOf(b)}. ${left} more ${left === 1 ? 'join' : 'joins'} finishes this song.`
+        );
+        setState(next);
+        // The reward for a good ear is more music: hear the run you've built.
+        const run = chain.flatMap((id) => pieceById.get(id) ?? []);
+        setPlaying({ kind: 'row', row, id: null });
+        player.playSequence(run, {
+          delay: 0.25,
+          onPiece: (i) =>
+            setPlaying({ kind: 'row', row, id: run[i]?.id ?? null }),
+          onEnd: () => setPlaying(null),
+        });
+        // The SPLICE key is gone (it's tape now): keep focus on the board.
+        focusTile(b);
+        return;
+      }
+      cue(outcome.won ? 'win' : 'open');
+      if (outcome.won) clock.finish();
+      const home = def.tracks.findIndex((t) => t.id === completed);
+      // Stage 1: the whole channel fuses in place…
+      setSplicing(row);
+      const songsLeft = def.tracks.length - next.solved.length;
+      const togo = outcome.won
+        ? ''
+        : songsLeft === 1
+          ? ' Last one!'
+          : ` ${songsLeft} to go.`;
+      const moved = outcome.movedHome
+        ? ` Right song, wrong year: it slides to ${labelFor(home)}.`
+        : '';
+      setMessage(
+        `${hasQuiz(completed) ? 'A whole song! Name that tune for a bonus 🎵.' : 'A whole song!'}${moved}${togo}`
+      );
+      later(
+        () => {
+          // …stage 2: commit, open the channel, and take a victory lap.
+          setSplicing(null);
+          setFreshCard(completed);
+          cue('slide');
+          // Keep anything that changed during the splice (a quiz answer,
+          // a listen) instead of overwriting it with the pre-splice state.
+          focusSong.current = completed;
+          setState((cur) => ({ ...next, named: cur.named, heard: cur.heard }));
+          if (outcome.won) celebrate(next);
+          else playSong(completed, 0.15);
+        },
+        prefersReducedMotion() ? 150 : 720
+      );
+      return;
+    }
+
+    // Not a join.
+    cue(outcome.lost ? 'lose' : 'buzzer');
+    vibrate([30, 40, 30]);
+    setShake({ row, n: Date.now() });
+    later(() => setShake(null), 420);
+    setLedPop(next.mistakes);
+    later(() => setLedPop(null), 700);
+    // The SPLICE key goes dark: hand focus to the knob beside it.
+    requestAnimationFrame(() =>
+      boardRef.current
+        ?.querySelector<HTMLElement>(`[data-seam="${row}-${seam}"] .seam`)
+        ?.focus()
+    );
+    const left = def.maxGuesses - next.mistakes;
+    if (outcome.lost) {
+      setMessage('Tape jam: out of mistakes. Here’s the mix you were hearing.');
+    } else {
+      const careful = left === 1 ? ' Careful, last mistake!' : '';
+      const first =
+        state.attempts.length === 0
+          ? ' In a true join the phrase carries straight on, as if nothing was cut.'
+          : '';
+      tell(
+        `Not a join: ${letterOf(a)} doesn’t run into ${letterOf(b)}.${first}${careful}`
+      );
+    }
+    setState(next);
+    if (outcome.lost) endGame(next);
   }
 
   // ---- render -----------------------------------------------------------------
@@ -841,12 +763,6 @@ export default function Puzzle({
     })
   );
 
-  const coachLine = [
-    'Tap any clip to hear it.',
-    'Then tap ⇄ on another clip to swap them, or drag one onto another.',
-    'Turn a knob to hear a join, press PLAY to hear the channel, then LOCK it.',
-  ][coach];
-
   const activeId =
     playing?.kind === 'clip'
       ? playing.id
@@ -854,6 +770,8 @@ export default function Puzzle({
         ? playing.id
         : null;
   const cuedLetter = cued ? letterOf(cued) : null;
+  const cuedIds = cued ? chainOf(state, def, cued) : [];
+  const canSwap = (id: string) => cued != null && canMove(state, def, cued, id);
 
   function clearCue(e: ReactMouseEvent) {
     if (e.target === e.currentTarget) setCued(null);
@@ -877,7 +795,10 @@ export default function Puzzle({
       ? state.status === 'won'
         ? '★ MASTER MIX COMPLETE ★'
         : 'TAPE JAM: EVERY SONG REVEALED'
-      : coachLine);
+      : (COACH[coach] ?? ''));
+  const heardClip = (id: string) => over || hasHeardClip(state, id);
+
+  const getProgress = (id: string) => progressGetters.get(id) ?? (() => null);
 
   return (
     <section
@@ -893,22 +814,15 @@ export default function Puzzle({
       style={{ '--cols': clipsPerTrack } as CSSProperties}
       aria-label="Mixing console"
     >
-      <div className="vfd">
-        <div className="vfd-top">
-          <span className="vfd-label">{label}</span>
-          <Reels spinning={playing != null} />
-          {ghost && !over && (
-            <span className="vfd-ghost" title={`Racing ${ghost.name}`}>
-              👻 {ghost.name}{' '}
-              {ghost.ghost.won ? formatDuration(ghost.ghost.elapsedMs) : 'X'}
-            </span>
-          )}
-          <Clock getElapsed={elapsedNow} frozen={over} />
-        </div>
-        <p className="vfd-msg" role="status" aria-live="polite">
-          {vfdMessage}
-        </p>
-      </div>
+      <Display
+        label={label}
+        spinning={playing != null}
+        ghost={!over ? ghost : null}
+        listens={!over && takesOf(state) > 0 ? takesOf(state) : null}
+        getElapsed={elapsedNow}
+        frozen={over}
+        message={vfdMessage}
+      />
 
       <div
         className="peak"
@@ -956,6 +870,7 @@ export default function Puzzle({
                 const trackId = def.tracks[r].id;
                 const ti = trackIndex.get(trackId) ?? 0;
                 const discovered = state.solved.includes(trackId);
+                const reveal = reveals[trackId];
                 return (
                   <li
                     key={`song-${trackId}`}
@@ -965,7 +880,7 @@ export default function Puzzle({
                   >
                     <SongCard
                       ch={r + 1}
-                      answer={reveals[trackId]?.answer}
+                      answer={reveal?.answer}
                       hue={SONG_HUES[ti % SONG_HUES.length]}
                       discovered={discovered}
                       playing={
@@ -973,11 +888,10 @@ export default function Puzzle({
                       }
                       meter={meterRow === r}
                       onPlay={() => toggleSong(trackId)}
-                      choices={
-                        discovered ? reveals[trackId]?.choices : undefined
-                      }
+                      choices={discovered ? reveal?.choices : undefined}
                       named={state.named?.[trackId]}
-                      onName={busy ? undefined : (c) => answerName(trackId, c)}
+                      onName={(c) => answerName(trackId, c)}
+                      onRetry={reveal?.stuck ? () => retry(trackId) : undefined}
                       order={r}
                       label={labelFor(r)}
                       fresh={freshCard === trackId}
@@ -985,134 +899,41 @@ export default function Puzzle({
                   </li>
                 );
               }
-              const tried = triedMarks(state, r, ids);
-              const marks: Mark[] | null =
-                splicing === r ? ids.map(() => 'correct') : tried;
-              const rowPlaying = playing?.kind === 'row' && playing.row === r;
-              const armed = !tried && (activeRow === r || lastRow === r);
-              const clue = clueFor(state, def, r);
               return (
-                <li
+                <ChannelStrip
                   key={`row-${r}`}
-                  className={[
-                    'strip',
-                    splicing === r && 'is-splicing',
-                    lastRow === r && 'is-last',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-label={`Channel ${r + 1}${clue.year ? `, ${clue.year}` : ''}`}
-                >
-                  <div className="strip-head">
-                    <span className="ch" aria-hidden="true">
-                      {r + 1}
-                    </span>
-                    <span className="tape-wrap">
-                      <button
-                        type="button"
-                        className={`tape${rowCue === r ? ' is-cued' : ''}${rowCue != null && rowCue !== r ? ' is-target' : ''}`}
-                        onClick={() => tapRowLabel(r)}
-                        disabled={busy}
-                        aria-pressed={rowCue === r}
-                        aria-label={`Clue: ${[clue.year, clue.genre].filter(Boolean).join(', ') || `channel ${r + 1}`}. ${rowCue != null && rowCue !== r ? 'Press to swap channels.' : 'Press, then press another label, to swap channels.'}`}
-                      >
-                        <span className="tape-year">{labelFor(r)}</span>
-                        {clue.genre && (
-                          <span className="tape-genre">{clue.genre}</span>
-                        )}
-                      </button>
-                    </span>
-                    <VuNeedle active={meterRow === r} />
-                    <button
-                      type="button"
-                      className={`cbtn${rowPlaying ? ' is-on' : ''}`}
-                      onClick={() => playRow(r)}
-                      disabled={busy}
-                      aria-label={`${rowPlaying ? 'Stop' : 'Play'} channel ${r + 1}`}
-                    >
-                      <span className="lamp" aria-hidden="true" />
-                      {rowPlaying ? 'Stop' : 'Play'}
-                    </button>
-                    <button
-                      type="button"
-                      className={[
-                        'cbtn',
-                        'cbtn--rec',
-                        armed && 'is-armed',
-                        tried && 'is-tried',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      onClick={() => lockIn(r)}
-                      disabled={busy}
-                      aria-label={
-                        tried
-                          ? `Channel ${r + 1}: this exact mix was already tried`
-                          : `Lock in channel ${r + 1}`
-                      }
-                    >
-                      <span className="lamp" aria-hidden="true" />
-                      {tried ? 'Tried' : 'Lock'}
-                    </button>
-                  </div>
-                  <div
-                    className={`lane-tiles${shake?.row === r ? ' is-shaking' : ''}`}
-                    key={shake?.row === r ? shake.n : 0}
-                  >
-                    {ids.map((id, slot) => {
-                      const piece = pieceById.get(id)!;
-                      const next = ids[slot + 1];
-                      const seamPlaying =
-                        playing?.kind === 'seam' &&
-                        playing.row === r &&
-                        playing.seam === slot;
-                      const heard =
-                        next != null && hasHeard(state, seamKey(id, next));
-                      return (
-                        <Fragment key={id}>
-                          <PieceTile
-                            piece={piece}
-                            slot={slot}
-                            row={r}
-                            letter={letterOf(id)}
-                            mark={marks?.[slot] ?? null}
-                            playing={activeId === id}
-                            cued={cued === id}
-                            swapWith={
-                              cued && cued !== id && !busy ? cuedLetter : null
-                            }
-                            flash={flash.includes(id)}
-                            disabled={busy}
-                            heard={over || hasHeard(state, clipKey(id))}
-                            onTap={(f) => tapClip(piece, f)}
-                            onSwap={() => swapWith(id)}
-                            getProgress={progressGetters.get(id)!}
-                          />
-                          {/* The join to the next clip sits between them in
-                              focus order too. */}
-                          {next != null && (
-                            <button
-                              type="button"
-                              className={[
-                                'seam',
-                                seamPlaying && 'is-playing',
-                                heard && 'is-heard',
-                              ]
-                                .filter(Boolean)
-                                .join(' ')}
-                              style={{ '--k': slot + 1 } as CSSProperties}
-                              onClick={() => playSeam(r, slot)}
-                              disabled={busy}
-                              aria-label={`Hear the join between clips ${letterOf(id)} and ${letterOf(next)}${heard ? ' (heard, free replay)' : ''}`}
-                            >
-                              <span className="knob" aria-hidden="true" />
-                            </button>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </div>
-                </li>
+                  row={r}
+                  pieces={ids.flatMap((id) => pieceById.get(id) ?? [])}
+                  clue={clueFor(state, def, r)}
+                  label={labelFor(r)}
+                  splicing={splicing === r}
+                  last={lastRow === r}
+                  shaking={shake?.row === r}
+                  meter={meterRow === r}
+                  rowPlaying={playing?.kind === 'row' && playing.row === r}
+                  seamPlaying={
+                    playing?.kind === 'seam' && playing.row === r
+                      ? playing.seam
+                      : null
+                  }
+                  activeId={activeId}
+                  cuedIds={cuedIds}
+                  cuedLetter={cuedLetter}
+                  canSwap={canSwap}
+                  flash={flash}
+                  busy={busy}
+                  rowCue={rowCue}
+                  letterOf={letterOf}
+                  heardClip={heardClip}
+                  seamState={seamState}
+                  getProgress={getProgress}
+                  onTapClip={tapClip}
+                  onSwap={swapWith}
+                  onSeam={(seam) => playSeam(r, seam)}
+                  onSplice={(seam) => splice(r, seam)}
+                  onPlay={() => playRow(r)}
+                  onTapLabel={() => tapRowLabel(r)}
+                />
               );
             })}
           </ol>
@@ -1120,42 +941,4 @@ export default function Puzzle({
       </DndContext>
     </section>
   );
-}
-
-// Two little tape reels in the display that turn while anything plays.
-function Reels({ spinning }: { spinning: boolean }) {
-  const reel = (
-    <svg viewBox="0 0 14 14" aria-hidden="true">
-      <circle cx="7" cy="7" r="6" />
-      <circle cx="7" cy="7" r="1.6" className="hub" />
-      <path d="M7 1.5v3M11.8 9.8l-2.6-1.5M2.2 9.8l2.6-1.5" />
-    </svg>
-  );
-  return (
-    <span
-      className={`reels${spinning ? ' is-spinning' : ''}`}
-      aria-hidden="true"
-    >
-      {reel}
-      {reel}
-    </span>
-  );
-}
-
-function Clock({
-  getElapsed,
-  frozen,
-}: {
-  getElapsed: () => number;
-  frozen: boolean;
-}) {
-  const [ms, setMs] = useState(() => getElapsed());
-  useEffect(() => {
-    setMs(getElapsed());
-    if (frozen) return undefined;
-    const id = setInterval(() => setMs(getElapsed()), 250);
-    return () => clearInterval(id);
-  }, [getElapsed, frozen]);
-  const text = formatDuration(ms);
-  return <SevenSeg value={text.padStart(5, ' ')} label={`Time ${text}`} />;
 }

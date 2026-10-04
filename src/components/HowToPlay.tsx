@@ -1,30 +1,15 @@
 // Three illustrated steps (pure CSS mini-tiles), shown automatically on a
-// first visit and from the header "?" any time.
+// first visit and from the header "?" any time. Kept short: the board's own
+// coach line teaches the rest as you go.
 
 import Modal from './Modal.jsx';
 import Icon from './Icon.jsx';
+import { HARD_GUESSES } from '../../shared/game.js';
 
-function Mini({
-  letter,
-  mark,
-  cued,
-}: {
-  letter: string;
-  mark?: 'correct' | 'misplaced';
-  cued?: boolean;
-}) {
+function Mini({ letter, cued }: { letter: string; cued?: boolean }) {
   return (
-    <span
-      className={['mini', mark && `mark-${mark}`, cued && 'is-cued']
-        .filter(Boolean)
-        .join(' ')}
-    >
+    <span className={['mini', cued && 'is-cued'].filter(Boolean).join(' ')}>
       <b>{letter}</b>
-      {mark && (
-        <i className={`tile-badge tile-badge--${mark}`}>
-          <Icon name={mark === 'correct' ? 'check' : 'shuffle'} />
-        </i>
-      )}
     </span>
   );
 }
@@ -33,9 +18,9 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="How to play" onClose={onClose} className="howto">
       <p className="howto-lede">
-        Three mystery songs were cut into clips and shuffled across the mixing
-        desk. Each channel belongs to one song, and its tape shows the year it
-        came out. Rebuild every song on its channel, in order.
+        Three mystery songs were cut into clips and shuffled across the desk.
+        Each channel is one song, its tape shows the year it came out. Splice
+        every song back together, join by join.
       </p>
       <ol className="howto-steps">
         <li>
@@ -47,10 +32,10 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
             </span>
           </div>
           <div>
-            <strong>Tap a clip to hear it.</strong> Then tap{' '}
-            <Icon name="swap" />
+            <strong>Tap a clip to hear it.</strong> Tap <Icon name="swap" />
             <span className="visually-hidden">the swap button</span> on another
-            clip to swap the two, or just drag one onto the other.
+            clip to swap the two, or drag one onto the other, until clips that
+            belong together sit side by side.
           </div>
         </li>
         <li>
@@ -60,38 +45,50 @@ export default function HowToPlay({ onClose }: { onClose: () => void }) {
             <Mini letter="C" />
           </div>
           <div>
-            <strong>Listen for the seams.</strong> Clips were cut back-to-back,
-            so the right neighbours flow seamlessly. Turn the knob between two
-            clips to hear their join, or press PLAY to hear the whole channel.
-            Replays are always free.
+            <strong>Turn the knob between two clips to hear their join.</strong>{' '}
+            Clips were cut back-to-back, so true neighbours flow into each
+            other. Listening is always free.
           </div>
         </li>
         <li>
           <div className="howto-art" aria-hidden="true">
-            <Mini letter="A" mark="correct" />
-            <Mini letter="H" mark="misplaced" />
-            <Mini letter="M" />
+            <Mini letter="K" />
+            <span className="howto-splice" aria-hidden="true">
+              Splice
+            </span>
+            <Mini letter="C" />
           </div>
           <div>
-            <strong>LOCK a channel.</strong> <Icon name="check" />
-            <span className="visually-hidden">Check mark:</span> right song,
-            right slot · <Icon name="shuffle" />
-            <span className="visually-hidden">Shuffle mark:</span> right song,
-            wrong slot · blank: another song. A wrong lock-in lights one of{' '}
-            <b>4 PEAK lamps</b>; light them all and the tape jams. Lock a whole
-            song on the wrong year and it costs a lamp, but slides home.
+            <strong>Sounds right? Press SPLICE.</strong> A true join tapes the
+            clips together; a wrong one lights a PEAK lamp. Light them all and
+            the tape jams. Four clips spliced is a whole song: it locks onto its
+            year (the year is a hint, not a test). Three clips are song endings:
+            nothing follows them.
           </div>
         </li>
       </ol>
-      <p className="howto-bonus">
-        <b>Score:</b> fewest mistakes wins. Then <b>takes</b>: every clip, join
-        and channel order you hear for the first time, plus each LOCK. Beat par
-        with a good ear. Tap two year tapes to swap those channels.
-      </p>
-      <p className="howto-bonus">
-        <b>Bonus:</b> 🎵 name each song you lock. Share your mix and friends who
-        open your link race your ghost.
-      </p>
+      <details className="howto-more">
+        <summary>More rules</summary>
+        <ul>
+          <li>
+            The year and genre on each tape help you group clips. Finish a song
+            on the wrong year and it slides home for free. Tap two year tapes to
+            swap those channels.
+          </li>
+          <li>
+            🎵 Name each song you finish for a bonus. Share your mix and friends
+            who open your link race your ghost.
+          </li>
+          <li>
+            Fewest mistakes wins. Sharp ears can also chase fewer <b>listens</b>{' '}
+            (the 🎧 count on the display).
+          </li>
+          <li>
+            <b>Hard mode</b> (in the sound menu) allows {HARD_GUESSES} mistakes.
+            Past days are in the archive, under your stats.
+          </li>
+        </ul>
+      </details>
       <button
         type="button"
         className="btn btn--primary btn--wide"

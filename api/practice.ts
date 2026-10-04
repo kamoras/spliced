@@ -5,7 +5,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json } from './_http.js';
-import { shuffle } from './_prng.js';
+import { shuffle } from '../shared/prng.js';
 import {
   practicePool,
   practiceRef,
@@ -21,6 +21,10 @@ export default async function handler(
   const count = Math.min(
     6,
     Math.max(2, Number(url.searchParams.get('count')) || 4)
+  );
+  const clips = Math.min(
+    8,
+    Math.max(2, Number(url.searchParams.get('clips')) || 4)
   );
 
   const pool = practicePool(Date.now());
@@ -43,7 +47,10 @@ export default async function handler(
   // can rebuild each row's choices without any server-side state.
   const ids = sortTimeline(picks).map((s) => s.trackId);
   const seed = Math.floor(Math.random() * 1e9);
-  const tracks = timelineTracks(picks, (idx) => practiceRef(ids, seed, idx));
+  const tracks = timelineTracks(picks, (idx) =>
+    practiceRef(ids, seed, clips, idx)
+  );
 
-  return json(res, 200, { tracks }, 'no-store');
+  // The seed also cuts the clips, so /api/reveal can check a row's order.
+  return json(res, 200, { tracks, seed, clipsPerTrack: clips }, 'no-store');
 }

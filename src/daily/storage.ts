@@ -2,10 +2,12 @@
 
 import type { GameResult } from '../types.js';
 import type { GameState } from '../game/engine.js';
+import { DAY_MS } from '../../shared/game.js';
 
 const KEY = 'spliced:daily';
-// v6: opaque clip ids; older saves describe a different board and don't apply.
-const PROGRESS_KEY = 'spliced:progress:v6';
+// v7: spliced joins instead of row locks; older saves describe a different
+// game and don't apply.
+const PROGRESS_KEY = 'spliced:progress:v7';
 const PREFS_KEY = 'spliced:prefs';
 const GHOST_KEY = 'spliced:ghost';
 
@@ -72,10 +74,16 @@ export function saveProgress(puzzleNumber: number, state: GameState): void {
     return;
   }
   all[puzzleNumber] = state;
-  const keep = Object.keys(all)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .slice(0, 7);
+  // Keep the game being played (it may be an archive day) plus the six
+  // most recent others.
+  const keep = [
+    puzzleNumber,
+    ...Object.keys(all)
+      .map(Number)
+      .filter((n) => n !== puzzleNumber)
+      .sort((a, b) => b - a)
+      .slice(0, 6),
+  ];
   const trimmed: ProgressMap = {};
   keep.forEach((n) => (trimmed[n] = all[n]));
   try {
@@ -94,6 +102,10 @@ export interface Prefs {
   muted: boolean;
   // Optional name shown to friends who race your ghost.
   name?: string;
+  // Hard mode: half the mistakes.
+  hard: boolean;
+  // The observance banner the player closed (its id), so it stays closed.
+  obsDismissed?: string;
 }
 
 export function getPrefs(): Prefs {
@@ -102,6 +114,7 @@ export function getPrefs(): Prefs {
     seenHelp: false,
     volume: 0.85,
     muted: false,
+    hard: false,
   };
   const raw = readObject<Partial<Prefs>>(PREFS_KEY);
   return {
@@ -113,7 +126,11 @@ export function getPrefs(): Prefs {
         ? raw.volume
         : defaults.volume,
     muted: typeof raw.muted === 'boolean' ? raw.muted : defaults.muted,
+    hard: typeof raw.hard === 'boolean' ? raw.hard : defaults.hard,
     ...(typeof raw.name === 'string' ? { name: raw.name.slice(0, 16) } : {}),
+    ...(typeof raw.obsDismissed === 'string'
+      ? { obsDismissed: raw.obsDismissed }
+      : {}),
   };
 }
 
@@ -137,6 +154,9 @@ export interface Stats {
   // Wins by mistake count: distribution[k] = solves with k mistakes.
   distribution: number[];
   losses: number;
+  // Songs found across every game, wins and losses alike.
+  songsFound: number;
+  hardWins: number;
 }
 
 // Aggregate play history into headline stats. `currentPuzzleNumber` anchors the
@@ -154,25 +174,13 @@ export function computeStats(
   ).length;
   const winPct = played ? Math.round((wins / played) * 100) : 0;
 
-  // Current streak: consecutive solved days ending at the current puzzle.
-  let currentStreak = 0;
-  if (typeof currentPuzzleNumber === 'number') {
-    for (let k = currentPuzzleNumber; all[k]?.solved; k--) currentStreak++;
-  }
+  const currentStreak = streakEndingAt(all, currentPuzzleNumber);
 
-  // Max streak: longest run of consecutive solved puzzle numbers.
-  const solvedNums = entries
-    .filter((e) => e.solved)
-    .map((e) => e.n)
-    .sort((a, b) => a - b);
-  let maxStreak = 0;
-  let run = 0;
-  let prev: number | null = null;
-  for (const n of solvedNums) {
-    run = prev !== null && n === prev + 1 ? run + 1 : 1;
-    if (run > maxStreak) maxStreak = run;
-    prev = n;
-  }
+  // Max streak: the longest run ending on any solved day.
+  let maxStreak = currentStreak;
+  entries.forEach((e) => {
+    if (e.solved) maxStreak = Math.max(maxStreak, streakEndingAt(all, e.n));
+  });
 
   const distribution = Array.from({ length: maxGuesses }, () => 0);
   entries.forEach((e) => {
@@ -190,14 +198,47 @@ export function computeStats(
     maxStreak,
     distribution,
     losses: played - wins,
+    songsFound: entries.reduce(
+      (n, e) => n + (e.solvedTracks ?? (e.solved ? 3 : 0)),
+      0
+    ),
+    hardWins: entries.filter((e) => e.solved && e.hard).length,
   };
+}
+
+// Days a streak may skip: one missed day in any seven keeps it alive, so a
+// day off doesn't wipe out a month. A loss always ends it. Archive plays
+// (made after their day) don't count either way.
+const FREEZE_WINDOW = 7;
+
+// The streak as of puzzle `end` (walking back from it). If `end` itself is
+// unplayed it isn't counted against you: yesterday's run still stands.
+export function streakEndingAt(all: ResultMap, end: number): number {
+  const played = (k: number) => all[k] && !all[k].late;
+  let k = played(end) ? end : end - 1;
+  let streak = 0;
+  let lastFreeze: number | null = null;
+  for (; k >= 0; k--) {
+    const r = all[k];
+    if (r && !r.late) {
+      if (!r.solved) break;
+      streak++;
+      continue;
+    }
+    // A missed day: freeze it, unless one was already used this week. A
+    // leading miss (yesterday, say) only counts if a solved day sits behind
+    // it, so a lone old win can't carry a streak.
+    const behind = all[k - 1];
+    if (lastFreeze != null && lastFreeze - k < FREEZE_WINDOW) break;
+    if (!streak && !(behind && behind.solved && !behind.late)) break;
+    lastFreeze = k;
+  }
+  return streak;
 }
 
 // ms until the next UTC midnight (when the puzzle flips).
 export function msUntilNextPuzzle(): number {
-  const now = Date.now();
-  const DAY = 86400000;
-  return DAY - (now % DAY);
+  return DAY_MS - (Date.now() % DAY_MS);
 }
 
 export function formatCountdown(ms: number): string {
@@ -219,13 +260,7 @@ export function formatDuration(ms: number): string {
 // Streak as it stands right now: today's solve extends it, but an unplayed
 // today doesn't break yesterday's run yet.
 export function liveStreak(currentPuzzleNumber: number): number {
-  const all = readAll();
-  let k = all[currentPuzzleNumber]?.solved
-    ? currentPuzzleNumber
-    : currentPuzzleNumber - 1;
-  let streak = 0;
-  for (; all[k]?.solved; k--) streak++;
-  return streak;
+  return streakEndingAt(readAll(), currentPuzzleNumber);
 }
 
 // ---- Record Crate ------------------------------------------------------------

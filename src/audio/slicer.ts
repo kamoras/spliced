@@ -1,6 +1,7 @@
 // Loads Apple preview clips and prepares waveform-backed puzzle samples.
 
-import { mulberry32 } from '../../api/_prng.js';
+import { mulberry32 } from '../../shared/prng.js';
+import { clipIds } from '../../shared/clips.js';
 import type { Piece, Track, TrackDef } from '../types.js';
 
 let _ctx: AudioContext | null = null;
@@ -75,7 +76,7 @@ export function computePeaks(
   return peaks.map((p) => p / ceiling);
 }
 
-export async function loadAndSampleTracks(
+export async function loadAndSliceTracks(
   trackDefs: TrackDef[],
   clipsPerTrack: number,
   {
@@ -104,6 +105,7 @@ export async function loadAndSampleTracks(
         seed: seed + trackIndex * 101,
         clipSeconds,
         beat: track.beat,
+        audible: track.audible,
       });
 
       return {
@@ -115,16 +117,10 @@ export async function loadAndSampleTracks(
       };
     })
   );
-  // Opaque clip ids: a seeded shuffle, so nothing in the page (ids, saved
-  // progress) spells out which song or slot a clip belongs to.
+  // Opaque clip ids (shared with /api/reveal, which checks a row's order).
   const all = tracks.flatMap((t) => t.pieces);
-  const rand = mulberry32(seed * 7919 + 17);
-  const order = all.map((_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  all.forEach((p, i) => (p.id = `clip-${order[i].toString(36)}`));
+  const ids = clipIds(all.length, seed);
+  all.forEach((p, i) => (p.id = ids[i]));
   return tracks;
 }
 
@@ -144,6 +140,8 @@ interface SampleArgs {
   clipSeconds: number;
   // The song's beat grid (bpm + time of a beat), when analysed.
   beat?: { bpm: number; offset: number };
+  // The audible part of the preview, [from, to] seconds, when measured.
+  audible?: [number, number];
 }
 
 // How many beats one clip spans: about a bar (4 beats) when that's a
@@ -173,6 +171,7 @@ export function samplePieces({
   seed,
   clipSeconds,
   beat,
+  audible,
 }: SampleArgs): Piece[] {
   // On the beat: every clip is a whole number of beats and starts on a beat,
   // so any join keeps the groove; only melody and harmony give a wrong
@@ -186,9 +185,21 @@ export function samplePieces({
     // decoder difference between browsers can't change the window, and so
     // the seeded start beat — everyone's puzzle.
     const nominal = Math.min(29, Math.floor(duration * 2) / 2);
-    const lastStartBeat = Math.floor((nominal - span - first) / period);
+    // Keep the whole window inside the audible part of the preview (a quiet
+    // intro or a faded tail makes a clip that says nothing), when that
+    // leaves room; otherwise use the whole preview.
+    const [from, to] = audible ?? [0, nominal];
+    const end = Math.min(nominal, to);
+    let firstStartBeat = Math.max(0, Math.ceil((from - first) / period));
+    let lastStartBeat = Math.floor((end - span - first) / period);
+    if (lastStartBeat < firstStartBeat) {
+      firstStartBeat = 0;
+      lastStartBeat = Math.floor((nominal - span - first) / period);
+    }
     if (lastStartBeat >= 0) {
-      const k = Math.floor(mulberry32(seed)() * (lastStartBeat + 1));
+      const k =
+        firstStartBeat +
+        Math.floor(mulberry32(seed)() * (lastStartBeat - firstStartBeat + 1));
       const start = first + k * period;
       return Array.from({ length: clipsPerTrack }, (_, i) => {
         const offset = start + i * clipDuration;
@@ -232,5 +243,3 @@ export function samplePieces({
     };
   });
 }
-
-export { loadAndSampleTracks as loadAndSliceTracks };

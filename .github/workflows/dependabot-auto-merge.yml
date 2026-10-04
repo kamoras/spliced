@@ -5,7 +5,10 @@ name: Dependabot auto-merge
 # for manual review. Because the CI check is required by branch protection,
 # the merge only completes once CI passes.
 
-on: pull_request
+# pull_request_target: Dependabot's own PRs get a read-only GITHUB_TOKEN under
+# plain pull_request, so the approve/merge calls would fail. Nothing from the
+# PR branch is checked out here, so the elevated token is safe.
+on: pull_request_target
 
 permissions:
   contents: write

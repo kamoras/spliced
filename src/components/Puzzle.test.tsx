@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Track } from '../types.js';
-import { newGame, submitRow } from '../game/engine.js';
+import { newGame, spliceJoin } from '../game/engine.js';
 
 // No Web Audio in jsdom: stub the player and context.
 vi.mock('../audio/slicer.js', () => ({ getAudioContext: () => ({}) }));
@@ -14,7 +14,10 @@ vi.mock('../audio/player.js', () => ({
     stop() {}
     setVolume() {}
     playPiece() {}
-    playSequence() {}
+    // The stub plays instantly.
+    playSequence(_seq: unknown, opts?: { onEnd?: () => void }) {
+      opts?.onEnd?.();
+    }
     playSeam() {}
     sfx() {}
     getClipProgress() {
@@ -89,7 +92,7 @@ describe('Puzzle', () => {
     ).toHaveLength(0);
   });
 
-  it('spends a mistake on a wrong lock-in, and re-checking is free', async () => {
+  it('splices only a heard join, charging a mistake when it is wrong', async () => {
     const onChange = vi.fn();
     render(
       <Puzzle
@@ -101,37 +104,34 @@ describe('Puzzle', () => {
         onChange={onChange}
       />
     );
-    const lanes = screen.getAllByRole('listitem');
-    // Find a row that isn't already solved by the scramble.
+    // Find a seam between clips of different songs (never a true join).
     const ids = tileIds();
     const row = [0, 1, 2].find(
-      (r) =>
-        !ids
-          .slice(r * 3, r * 3 + 3)
-          .every(
-            (id, i) =>
-              id?.endsWith(`-${i}`) &&
-              id.split('-')[0] === ids[r * 3]!.split('-')[0]
-          )
+      (r) => ids[r * 3]!.split('-')[0] !== ids[r * 3 + 1]!.split('-')[0]
     )!;
+    const [a, b] = [ids[row * 3]!, ids[row * 3 + 1]!];
+    const lanes = screen.getAllByRole('listitem');
+    const key = () =>
+      within(lanes[row]).getAllByRole('button', { name: /^Splice clips/ })[0];
+    // Unheard: the key is off and pressing it plays the join instead.
+    expect(key()).toBeDisabled();
     await userEvent.click(
-      within(lanes[row]).getByRole('button', {
-        name: `Lock in channel ${row + 1}`,
-      })
+      within(lanes[row]).getAllByRole('button', { name: /^Hear the join/ })[0]
     );
+    expect(key()).toBeEnabled();
+    await userEvent.click(key());
     expect(
       screen.getByRole('img', { name: '3 of 4 mistakes left' })
     ).toBeInTheDocument();
-    await userEvent.click(
-      within(lanes[row]).getByRole('button', { name: /already tried/ })
-    );
+    expect(document.querySelector('.vfd-msg')).toHaveTextContent(/Not a join/);
+    expect(onChange.mock.lastCall?.[0]).toMatchObject({
+      mistakes: 1,
+      bad: [`${a}>${b}`],
+    });
+    // A join proven wrong can't be spliced again.
     expect(
-      screen.getByRole('img', { name: '3 of 4 mistakes left' })
-    ).toBeInTheDocument();
-    expect(document.querySelector('.vfd-msg')).toHaveTextContent(
-      /no mistake charged/i
-    );
-    expect(onChange.mock.lastCall?.[0]).toMatchObject({ mistakes: 1 });
+      within(lanes[row]).getByRole('button', { name: /: not a join/ })
+    ).toBeDisabled();
   });
 
   it('fetches a solved song’s choices, and its title only after a pick', async () => {
@@ -147,7 +147,9 @@ describe('Puzzle', () => {
       ...def.tracks[0].pieces.map((p) => p.id),
       ...fresh.order.filter((id) => !id.startsWith('t0-')),
     ];
-    const solved = submitRow({ ...fresh, order }, def, 0).state;
+    const [p0, p1, p2] = def.tracks[0].pieces.map((p) => p.id);
+    const pair = spliceJoin({ ...fresh, order }, def, p0, p1).state;
+    const solved = spliceJoin(pair, def, p1, p2).state;
     const fetchMock = vi.fn(async (url: string) => {
       const q = new URL(url, 'http://x').searchParams;
       const part = q.get('part');

@@ -31,7 +31,9 @@
     "build:catalog": "tsx scripts/build-catalog.ts",
     "enrich:catalog": "tsx scripts/catalog-meta.ts",
     "build:art": "node scripts/og/render.cjs",
-    "beats:catalog": "tsx scripts/beats.ts"
+    "beats:catalog": "tsx scripts/beats.ts",
+    "curate:catalog": "tsx scripts/curate-catalog.ts",
+    "schedule": "tsx scripts/schedule.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

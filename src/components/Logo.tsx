@@ -3,26 +3,21 @@
 // inclusive observances the LED bar and cap line take on that observance's
 // colours — the letters never change, so the mark stays legible.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { subscribeLevel, prefersReducedMotion } from '../audio/meter.js';
 import type { Observance } from '../theme/observances.js';
 
-export default function Logo({ obs }: { obs: Observance | null }) {
-  const [spliced, setSpliced] = useState(false);
+// A win snaps the fader cap to the top (`spliced`); a new game pulls it
+// back down.
+export default function Logo({
+  obs,
+  spliced = false,
+}: {
+  obs: Observance | null;
+  spliced?: boolean;
+}) {
   const ledsRef = useRef<HTMLSpanElement | null>(null);
-
-  // A win snaps the fader cap to the top; a new game pulls it back down.
-  useEffect(() => {
-    const onWin = () => setSpliced(true);
-    const onNew = () => setSpliced(false);
-    window.addEventListener('spliced:win', onWin);
-    window.addEventListener('spliced:new', onNew);
-    return () => {
-      window.removeEventListener('spliced:win', onWin);
-      window.removeEventListener('spliced:new', onNew);
-    };
-  }, []);
 
   useEffect(() => {
     const el = ledsRef.current;

@@ -1,0 +1,4 @@
+# Tests next to the serverless functions aren't functions.
+api/**/*.test.ts
+api/__snapshots__
+scripts

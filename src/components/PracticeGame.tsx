@@ -1,20 +1,26 @@
 // Free play: random songs from past dailies (no spoilers), at three sizes.
-// No stats, no streak — just more mixes.
+// No stats, no streak, just more mixes. Easy and Hard get an extra lamp:
+// fewer clips makes ordering easier, but a 4x4 board is a lot of sorting.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Puzzle, { puzzleDef, requestBoardFocus } from './Puzzle.jsx';
+import Puzzle from './Puzzle.jsx';
+import type { BoardEvent } from './Puzzle.jsx';
 import Results from './Results.jsx';
 import Loading from './Loading.jsx';
 import { loadAndSliceTracks } from '../audio/slicer.js';
-import { MAX_GUESSES } from '../config.js';
-import { addToCrate } from '../daily/storage.js';
+import { puzzleDef } from '../game/def.js';
+import { parseTracks } from '../game/parse.js';
 import type { GameState } from '../game/engine.js';
-import type { Song, Track, TrackDef } from '../types.js';
+import { useCrateSync } from '../hooks/useCrateSync.js';
+import { DAILY_GUESSES } from '../../shared/game.js';
+import type { Song, Track } from '../types.js';
 
 export const LEVELS = [
-  { id: 'easy', label: 'Easy', songs: 3, clips: 3 },
-  { id: 'classic', label: 'Classic', songs: 3, clips: 4 },
-  { id: 'hard', label: 'Hard', songs: 4, clips: 4 },
+  // Easy also shows every genre up front.
+  { id: 'easy', label: 'Easy', songs: 3, clips: 3, lamps: 5, genre: true },
+  { id: 'classic', label: 'Classic', songs: 3, clips: 4, lamps: DAILY_GUESSES },
+  // Twelve joins to find: lamps scale with the daily's five for nine.
+  { id: 'hard', label: 'Hard', songs: 4, clips: 4, lamps: 6 },
 ] as const;
 type Level = (typeof LEVELS)[number];
 
@@ -25,11 +31,15 @@ export default function PracticeGame({
   sfx,
   volume,
   paused,
+  focusOnMount = false,
+  onBoardEvent,
 }: {
   onDaily: () => void;
   sfx: boolean;
   volume: number;
   paused: boolean;
+  focusOnMount?: boolean;
+  onBoardEvent?: (event: BoardEvent) => void;
 }) {
   const [level, setLevel] = useState<Level>(LEVELS[1]);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -39,53 +49,51 @@ export default function PracticeGame({
     tracks: Track[];
     level: Level;
     n: number;
+    focus: boolean;
   } | null>(null);
   const [live, setLive] = useState<GameState | null>(null);
+  const [settled, setSettled] = useState(false);
+  const [encore, setEncore] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Song>>({});
-
-  // Finished mixes add their spliced songs to the crate as titles arrive
-  // (answers are only revealed at the end). Idempotent.
-  const finished = live != null && live.status !== 'playing';
-  const namedKey = JSON.stringify(live?.named ?? {});
-  useEffect(() => {
-    if (!finished || !game || !live) return;
-    const known = game.tracks.filter(
-      (t) => live.solved.includes(t.id) && answers[t.id]
-    );
-    if (!known.length) return;
-    addToCrate(
-      known.map((t) => ({
-        title: answers[t.id].title,
-        artist: answers[t.id].artist,
-        artwork: answers[t.id].artwork,
-        previewUrl: t.previewUrl,
-        solved: true,
-        named: Boolean(live.named?.[t.id]),
-        practice: true,
-      }))
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finished, namedKey, game, answers]);
   const requestRef = useRef(0);
+
+  useCrateSync({
+    tracks: game?.tracks ?? null,
+    state: live,
+    answers,
+    practice: true,
+  });
 
   const start = useCallback(async (lvl: Level, focusBoard = false) => {
     const requestId = ++requestRef.current;
     setError(null);
     setLive(null);
+    setSettled(false);
     setAnswers({});
     setLoaded(0);
     setPhase('loading');
     try {
-      const r = await fetch(`/api/practice?count=${lvl.songs}`);
+      const r = await fetch(
+        `/api/practice?count=${lvl.songs}&clips=${lvl.clips}`
+      );
       if (!r.ok) throw new Error('Could not pick practice songs.');
-      const { tracks: defs } = (await r.json()) as { tracks: TrackDef[] };
-      const tracks = await loadAndSliceTracks(defs, lvl.clips, {
-        seed: Date.now() % 1e9,
-        onProgress: (n) => requestId === requestRef.current && setLoaded(n),
-      });
+      const body = (await r.json()) as { tracks?: unknown; seed?: unknown };
+      const defs = parseTracks(body.tracks);
+      if (!defs)
+        throw new Error('The practice API responded in an unexpected format.');
+      const seed = typeof body.seed === 'number' ? body.seed : Date.now() % 1e9;
+      const tracks = await loadAndSliceTracks(
+        'genre' in lvl && lvl.genre
+          ? defs.map((t) => ({ ...t, clue: { ...t.clue, showGenre: true } }))
+          : defs,
+        lvl.clips,
+        {
+          seed,
+          onProgress: (n) => requestId === requestRef.current && setLoaded(n),
+        }
+      );
       if (requestId !== requestRef.current) return;
-      if (focusBoard) requestBoardFocus();
-      setGame({ tracks, level: lvl, n: requestId });
+      setGame({ tracks, level: lvl, n: requestId, focus: focusBoard });
       setPhase('play');
     } catch (err) {
       if (requestId !== requestRef.current) return;
@@ -99,7 +107,8 @@ export default function PracticeGame({
   }, [start]);
 
   const def = useMemo(
-    () => (game ? puzzleDef(game.tracks, game.level.clips, MAX_GUESSES) : null),
+    () =>
+      game ? puzzleDef(game.tracks, game.level.clips, game.level.lamps) : null,
     [game]
   );
 
@@ -125,6 +134,7 @@ export default function PracticeGame({
             <span>
               {l.songs} songs × {l.clips}
             </span>
+            <span>{l.lamps} lamps</span>
           </button>
         ))}
       </div>
@@ -151,31 +161,36 @@ export default function PracticeGame({
       )}
       {phase === 'play' && game && def && (
         <>
-          {live && live.status !== 'playing' && (
+          {live && live.status !== 'playing' && settled && (
             <Results
               state={live}
               def={def}
               title={`Spliced Practice (${game.level.label})`}
               onNewMix={() => start(level, true)}
+              onEncore={() => setEncore((n) => n + 1)}
             />
           )}
           <Puzzle
             key={game.n}
             tracks={game.tracks}
             clipsPerTrack={game.level.clips}
-            maxGuesses={MAX_GUESSES}
+            maxGuesses={game.level.lamps}
             label={`Practice · ${game.level.label}`}
             sfx={sfx}
             volume={volume}
             paused={paused}
+            focusOnMount={focusOnMount || game.focus}
+            encore={encore}
+            onBoardEvent={onBoardEvent}
             onChange={setLive}
             onAnswers={setAnswers}
-            onFinish={(s) => {
+            onSettled={() => {
+              setSettled(true);
               // Bring keyboard and screen-reader users to the results.
               setTimeout(
                 () =>
                   document.querySelector<HTMLElement>('.results-head')?.focus(),
-                s.status === 'won' ? 1400 : 900
+                50
               );
             }}
           />

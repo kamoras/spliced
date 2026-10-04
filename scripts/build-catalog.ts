@@ -9,13 +9,14 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { SONGS } from '../api/_songs.js';
-import { pickMatch, norm } from '../api/daily.js';
+import { pickMatch } from '../api/daily.js';
+import { dedupeKey } from '../api/_catalog-keys.js';
+import { delay, errMsg, getJson } from './_itunes.js';
 import type { CatalogEntry, ITunesResult } from '../api/_types.js';
 import { enrich } from './catalog-meta.js';
 import { readFile } from 'node:fs/promises';
 
 const STORE = 'us';
-const UA = { 'User-Agent': 'Spliced/0.1 (music puzzle)' };
 const OUT = fileURLToPath(new URL('../api/_catalog.json', import.meta.url));
 const TARGET = 1460; // > a year of 3-song dailies
 const PER_GENRE = 100;
@@ -26,22 +27,6 @@ const GENRES = [14, 18, 21, 15, 6, 17, 7, 20, 10, 12, 16, 11, 24, 19, 2, 22];
 
 interface RssEntry {
   id?: { attributes?: { 'im:id'?: string } };
-}
-
-const errMsg = (err: unknown) =>
-  err instanceof Error ? err.message : String(err);
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function getJson<T = unknown>(url: string, attempt = 0): Promise<T> {
-  const r = await fetch(url, { headers: UA });
-  // The Search API rate-limits aggressively (429); back off and retry.
-  if (r.status === 429 && attempt < 6) {
-    await delay(1500 * (attempt + 1));
-    return getJson<T>(url, attempt + 1);
-  }
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json() as Promise<T>;
 }
 
 // Resolve curated title/artist pairs to track ids (priority order).
@@ -157,10 +142,7 @@ async function main(): Promise<void> {
     if (!t) continue;
     // Same song under another id ("(Remastered)", "- Live", deluxe
     // reissues…) counts as a duplicate.
-    const base = (t.trackName ?? '')
-      .replace(/\s*[([].*?[)\]]/g, '')
-      .replace(/\s+-\s+.*$/, '');
-    const key = `${norm(base)}|${norm(t.artistName)}`;
+    const key = dedupeKey({ title: t.trackName, artist: t.artistName });
     if (seenKey.has(key)) continue;
     seenKey.add(key);
     catalog.push(toEntry(t));

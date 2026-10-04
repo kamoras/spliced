@@ -42,6 +42,12 @@ export default function Stats({
           </div>
         ))}
       </div>
+      <p className="stats-line">
+        {stats.songsFound} {stats.songsFound === 1 ? 'song' : 'songs'} found
+        {stats.hardWins > 0 &&
+          ` · ${stats.hardWins} ✦ hard-mode ${stats.hardWins === 1 ? 'win' : 'wins'}`}
+        {stats.played > 0 && ' · one missed day a week keeps a streak'}
+      </p>
       <figure className="histo">
         <figcaption>Mistakes per solve</figcaption>
         {bars.map((b) => (

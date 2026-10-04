@@ -40,6 +40,9 @@ describe('GET /api/daily', () => {
     vi.setSystemTime(Date.parse('2026-03-10T23:59:59Z'));
     expect(call('/api/daily?date=2026-03-11').status).toBe(404);
     expect(call('/api/daily?date=nope').status).toBe(400);
+    // One spelling per day, so the CDN caches a day under one key.
+    expect(call('/api/daily?date=2026-03-10T00:00:00Z').status).toBe(400);
+    expect(call('/api/daily?date=Mar%2010%202026').status).toBe(400);
   });
 
   it('does not send a duplicate answers list', () => {

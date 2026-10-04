@@ -118,15 +118,11 @@ export const SONGS: CuratedSong[] = [
   { title: 'Basket Case', artist: 'Green Day' },
 ];
 
-// Daily size: three mystery songs, four clips each. Sized for a ~3 minute
-// game (like Wordle): fewer songs cuts the slow "which clip is which song"
-// sorting, while four clips per song keep ordering a real ear test.
-export const DAILY_TRACKS = 3;
-export const DAILY_CLIPS_PER_TRACK = 4;
-export const DAILY_PIECES = DAILY_TRACKS * DAILY_CLIPS_PER_TRACK;
-
-// Harmonies-style mistake cap: correct track submissions do not consume one.
-export const DAILY_GUESSES = 4;
-
-// Day 0 of the daily rotation (UTC).
-export const LAUNCH_UTC = Date.UTC(2026, 0, 1); // 2026-01-01
+// Board size, mistake cap and launch date live in shared/game.ts.
+export {
+  DAILY_TRACKS,
+  DAILY_CLIPS_PER_TRACK,
+  DAILY_PIECES,
+  DAILY_GUESSES,
+  LAUNCH_UTC,
+} from '../shared/game.js';

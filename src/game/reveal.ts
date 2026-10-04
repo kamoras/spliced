@@ -2,23 +2,29 @@
 // only when the game is ready to show them. Successful lookups are shared
 // (and never change for a given ref); failures can be retried.
 
-import type { Song } from '../types.js';
-
-export interface Choice {
-  title: string;
-  artist: string;
-}
+import type { Choice, Song } from '../types.js';
 
 const cache = new Map<string, Promise<unknown>>();
 
-function get<T>(ref: string, part: 'choices' | 'answer'): Promise<T> {
+// `order`: the row's clip ids, in order, as proof the row is solved.
+function get<T>(
+  ref: string,
+  part: 'choices' | 'answer',
+  order: string[]
+): Promise<T> {
   const key = `${part}:${ref}`;
   let p = cache.get(key) as Promise<T> | undefined;
   if (!p) {
-    p = fetch(`/api/reveal?ref=${encodeURIComponent(ref)}&part=${part}`).then(
+    const q = new URLSearchParams({ ref, part, order: order.join(',') });
+    p = fetch(`/api/reveal?${q}`).then(
       (r) => {
         if (!r.ok) throw new Error(`reveal ${r.status}`);
         return r.json() as Promise<T>;
+      },
+      (err) => {
+        // Evict before any consumer sees the failure, so a retry refetches.
+        cache.delete(key);
+        throw err;
       }
     );
     p.catch(() => cache.delete(key));
@@ -27,11 +33,14 @@ function get<T>(ref: string, part: 'choices' | 'answer'): Promise<T> {
   return p;
 }
 
-export async function fetchChoices(ref: string): Promise<Choice[]> {
-  const { choices } = await get<{ choices: Choice[] }>(ref, 'choices');
+export async function fetchChoices(
+  ref: string,
+  order: string[]
+): Promise<Choice[]> {
+  const { choices } = await get<{ choices: Choice[] }>(ref, 'choices', order);
   return Array.isArray(choices) ? choices : [];
 }
 
-export function fetchAnswer(ref: string): Promise<Song> {
-  return get<Song>(ref, 'answer');
+export function fetchAnswer(ref: string, order: string[]): Promise<Song> {
+  return get<Song>(ref, 'answer', order);
 }
